@@ -1,0 +1,53 @@
+# ===== IDE =====
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Java =====
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+hs_err_pid*
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+
+# ===== Node =====
+node_modules/
+dist/
+build/
+.next/
+.npm/
+*.tsbuildinfo
+
+# ===== 环境与密钥（禁止提交凭据）=====
+*.env.*
+**/application-local.yml
+**/application-secret.yml
+*.pem
+*.key
+secrets/
+
+# ===== 构建产物 =====
+*.tar.gz
+*.zip
+coverage/
