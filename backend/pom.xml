@@ -20,6 +20,7 @@
         <module>openforge-doc</module>
         <module>openforge-workflow</module>
         <module>openforge-change</module>
+        <module>openforge-knowledge</module>
     </modules>
 
     <properties>

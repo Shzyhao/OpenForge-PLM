@@ -31,6 +31,10 @@ spring:
           uri: ${AI_GATEWAY_URI:http://localhost:8001}
           predicates:
             - Path=/api/v1/ai/**
+        - id: knowledge-service
+          uri: ${KNOWLEDGE_SERVICE_URI:http://localhost:8086}
+          predicates:
+            - Path=/api/v1/knowledge/**
 
 management:
   endpoints:

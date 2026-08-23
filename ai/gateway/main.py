@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from .config import settings
 from .doc_parse import parse_document
 from .llm import llm_client, LLMOfflineError
+from .nl2sql import nl_to_sql
 from .sql_gateway import validate_sql
 
 app = FastAPI(title="OpenForge AI Gateway", version="0.1.0")
@@ -40,7 +41,8 @@ class SqlValidateRequest(BaseModel):
 
 
 class DataQueryRequest(BaseModel):
-    sql: str
+    sql: Optional[str] = None
+    question: Optional[str] = None  # 自然语言（在线 LLM 生成 SQL，仍过安全网关）
 
 
 @app.get("/healthz")
@@ -77,18 +79,30 @@ def sql_validate(req: SqlValidateRequest):
 
 @app.post("/api/v1/ai/data/query")
 def data_query(req: DataQueryRequest):
-    """M4：SQL 直提交 + 安全网关校验 + 只读执行。
+    """双入口：sql=直接提交只读 SQL；question=自然语言（LLM 生成后同样过安全网关）。
 
     权限合成（用户权限∩AI权限∩白名单）在网关层由 Java 侧 JWT 校验承担；
-    本端点只做语句级安全（白名单/只读/LIMIT）。自然语言→SQL 随 M5 元数据知识接入。
+    本端点只做语句级安全（白名单/只读/LIMIT）。
     """
-    allowed, final_sql, reason = validate_sql(req.sql, settings.sql_allowed_tables, settings.sql_max_limit)
+    from fastapi import HTTPException
+
+    generated_by = "direct"
+    sql = req.sql
+    if req.question and not sql:
+        ok, generated, reason = nl_to_sql(req.question)
+        if not ok:
+            raise HTTPException(status_code=400, detail=reason)
+        sql = generated
+        generated_by = "nl2sql"
+    if not sql:
+        raise HTTPException(status_code=400, detail="sql 或 question 必须提供一项")
+
+    allowed, final_sql, reason = validate_sql(sql, settings.sql_allowed_tables, settings.sql_max_limit)
     if not allowed:
-        from fastapi import HTTPException
         raise HTTPException(status_code=403, detail=reason)
     if not settings.sql_readonly_url:
-        return {"sql": final_sql, "rows": [], "executed": False,
+        return {"sql": final_sql, "generated_by": generated_by, "rows": [], "executed": False,
                 "note": "只读数据源未配置（OPENFORGE_SQL_READONLY_URL），已通过安全校验但未执行"}
     # 执行层：独立只读数据源（M4 交付校验与护栏，执行接入随部署配置启用）
-    return {"sql": final_sql, "rows": [], "executed": False,
+    return {"sql": final_sql, "generated_by": generated_by, "rows": [], "executed": False,
             "note": "安全校验通过；执行层随生产部署配置启用"}
