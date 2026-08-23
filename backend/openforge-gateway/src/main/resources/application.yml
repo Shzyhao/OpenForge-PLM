@@ -35,6 +35,10 @@ spring:
           uri: ${KNOWLEDGE_SERVICE_URI:http://localhost:8086}
           predicates:
             - Path=/api/v1/knowledge/**
+        - id: project-service
+          uri: ${PROJECT_SERVICE_URI:http://localhost:8087}
+          predicates:
+            - Path=/api/v1/projects/**
 
 management:
   endpoints:
