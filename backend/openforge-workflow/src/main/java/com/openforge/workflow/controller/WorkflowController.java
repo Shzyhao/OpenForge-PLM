@@ -35,6 +35,11 @@ public class WorkflowController {
                 request.getDefinition(), currentUserId(httpRequest)));
     }
 
+    @GetMapping("/defs")
+    public ApiResponse<List<WorkflowDef>> defs() {
+        return ApiResponse.ok(engine.listDefs());
+    }
+
     @PostMapping("/instances")
     public ApiResponse<WorkflowInstance> start(@RequestBody StartRequest request,
                                                HttpServletRequest httpRequest) {
