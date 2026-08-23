@@ -14,7 +14,7 @@ spring:
         - id: material-service
           uri: ${MATERIAL_SERVICE_URI:http://localhost:8082}
           predicates:
-            - Path=/api/v1/parts/**,/api/v1/part-categories/**
+            - Path=/api/v1/parts/**,/api/v1/part-categories/**,/api/v1/boms/**
 
 management:
   endpoints:
