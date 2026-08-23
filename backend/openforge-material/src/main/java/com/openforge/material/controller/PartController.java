@@ -60,4 +60,36 @@ public class PartController {
         partService.deleteDraft(id);
         return ApiResponse.ok();
     }
+
+    // ===== 状态机（M3 由流程引擎驱动，当前为轻量流转） =====
+
+    @PostMapping("/{id}/submit")
+    @RequirePermission("part:update")
+    public ApiResponse<Part> submit(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request) {
+        return ApiResponse.ok(partService.submit(id, currentUserId(request)));
+    }
+
+    @PostMapping("/{id}/approve")
+    @RequirePermission("part:update")
+    public ApiResponse<Part> approve(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request) {
+        return ApiResponse.ok(partService.approve(id, currentUserId(request)));
+    }
+
+    @PostMapping("/{id}/reject")
+    @RequirePermission("part:update")
+    public ApiResponse<Part> reject(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request) {
+        return ApiResponse.ok(partService.reject(id, currentUserId(request)));
+    }
+
+    private Long currentUserId(jakarta.servlet.http.HttpServletRequest request) {
+        String header = request.getHeader("X-User-Id");
+        if (header == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(header);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 }
