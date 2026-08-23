@@ -26,6 +26,7 @@ public enum ErrorCode {
     PERMISSION_CODE_ALREADY_EXISTS(3003, "权限点编码已存在"),
     ORG_CODE_ALREADY_EXISTS(3004, "组织编码已存在"),
     ORG_MOVE_CYCLE(3005, "不能移动到自身或其子组织下"),
+    NUMBER_RULE_KEY_EXISTS(3006, "编号规则键已存在"),
 
     // 4xxx 资源状态
     RESOURCE_NOT_FOUND(4001, "资源不存在"),
@@ -34,6 +35,7 @@ public enum ErrorCode {
     ORG_NOT_FOUND(4004, "组织不存在"),
     ORG_HAS_CHILDREN(4005, "存在子组织，禁止删除"),
     ORG_HAS_USERS(4006, "组织下存在用户，禁止删除"),
+    NUMBER_RULE_NOT_FOUND(4007, "编号规则不存在"),
 
     // 5xxx 系统
     INTERNAL_ERROR(5000, "系统内部错误");
