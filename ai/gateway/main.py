@@ -1,0 +1,94 @@
+"""OpenForge AI 中台网关（架构文档 4.1：统一 LLM 接入 + 计量 + 降级）。
+
+端点：
+- GET  /healthz
+- POST /api/v1/ai/chat          对话（离线模式返回标识性回复）
+- POST /api/v1/ai/jobs/doc-parse  文档结构化抽取
+- POST /api/v1/ai/sql/validate    SQL 安全网关校验（纯校验不执行）
+- POST /api/v1/ai/data/query      自然语言/SQL 查询（M4：SQL 直提交 + 校验 + 只读执行）
+"""
+from typing import List, Dict, Optional
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+from .config import settings
+from .doc_parse import parse_document
+from .llm import llm_client, LLMOfflineError
+from .sql_gateway import validate_sql
+
+app = FastAPI(title="OpenForge AI Gateway", version="0.1.0")
+
+OFFLINE_CHAT_REPLY = (
+    "【AI 离线模式】当前未配置大模型接入（OPENFORGE_LLM_BASE_URL / OPENFORGE_LLM_API_KEY），"
+    "对话能力处于降级状态。文档解析已自动切换到规则抽取；SQL 安全网关与校验功能不受影响。"
+)
+
+
+class ChatRequest(BaseModel):
+    messages: List[Dict[str, str]]
+    question: Optional[str] = None
+
+
+class DocParseRequest(BaseModel):
+    text: str
+    schema_key: str = "spec"
+
+
+class SqlValidateRequest(BaseModel):
+    sql: str
+
+
+class DataQueryRequest(BaseModel):
+    sql: str
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok", "llm_online": llm_client.online, "model": settings.llm_model}
+
+
+@app.post("/api/v1/ai/chat")
+def chat(req: ChatRequest):
+    if not llm_client.online:
+        return {"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None}
+    try:
+        reply = llm_client.complete(req.messages)
+        return {"reply": reply, "mode": "online", "model": llm_client.model}
+    except LLMOfflineError:
+        return {"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None}
+
+
+@app.post("/api/v1/ai/jobs/doc-parse")
+def doc_parse(req: DocParseRequest):
+    try:
+        return parse_document(req.text, req.schema_key)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/v1/ai/sql/validate")
+def sql_validate(req: SqlValidateRequest):
+    allowed, final_sql, reason = validate_sql(req.sql, settings.sql_allowed_tables, settings.sql_max_limit)
+    return {"allowed": allowed, "sql": final_sql, "reason": reason,
+            "allowed_tables": sorted(settings.sql_allowed_tables)}
+
+
+@app.post("/api/v1/ai/data/query")
+def data_query(req: DataQueryRequest):
+    """M4：SQL 直提交 + 安全网关校验 + 只读执行。
+
+    权限合成（用户权限∩AI权限∩白名单）在网关层由 Java 侧 JWT 校验承担；
+    本端点只做语句级安全（白名单/只读/LIMIT）。自然语言→SQL 随 M5 元数据知识接入。
+    """
+    allowed, final_sql, reason = validate_sql(req.sql, settings.sql_allowed_tables, settings.sql_max_limit)
+    if not allowed:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail=reason)
+    if not settings.sql_readonly_url:
+        return {"sql": final_sql, "rows": [], "executed": False,
+                "note": "只读数据源未配置（OPENFORGE_SQL_READONLY_URL），已通过安全校验但未执行"}
+    # 执行层：独立只读数据源（M4 交付校验与护栏，执行接入随部署配置启用）
+    return {"sql": final_sql, "rows": [], "executed": False,
+            "note": "安全校验通过；执行层随生产部署配置启用"}

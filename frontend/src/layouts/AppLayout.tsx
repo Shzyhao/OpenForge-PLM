@@ -15,6 +15,7 @@ import {
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearToken } from '../api/client'
 import { fetchCurrentUser, type UserInfo } from '../api/user'
+import AiAssistant from '../components/AiAssistant'
 
 const { Header, Sider, Content } = Layout
 
@@ -81,6 +82,7 @@ export default function AppLayout() {
             gap: 16,
           }}
         >
+          <AiAssistant />
           <BellOutlined style={{ fontSize: 16, cursor: 'pointer' }} title="通知（M2）" />
           {loading ? (
             <Spin size="small" />
