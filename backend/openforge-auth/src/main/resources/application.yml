@@ -1,0 +1,31 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: openforge-auth
+  datasource:
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
+    username: ${PG_USER:openforge}
+    password: ${PG_PASSWORD:openforge}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+openforge:
+  jwt:
+    # 仅供本地开发；生产环境必须通过环境变量覆盖（>=32 字节）
+    secret: ${JWT_SECRET:openforge-dev-secret-key-change-me-in-production-0001}
+    ttl-minutes: ${JWT_TTL_MINUTES:120}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
