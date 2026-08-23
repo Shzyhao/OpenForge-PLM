@@ -4,6 +4,7 @@ import com.openforge.auth.dto.AssignRolesRequest;
 import com.openforge.auth.dto.CreateRoleRequest;
 import com.openforge.auth.entity.SysRole;
 import com.openforge.auth.service.RbacService;
+import com.openforge.common.annotation.RequirePermission;
 import com.openforge.common.api.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,11 +35,13 @@ public class RoleController {
     }
 
     @PostMapping
+    @RequirePermission("role:create")
     public ApiResponse<SysRole> create(@Valid @RequestBody CreateRoleRequest request) {
         return ApiResponse.ok(rbacService.createRole(request.getRoleCode(), request.getRoleName()));
     }
 
     @PutMapping("/users/{userId}")
+    @RequirePermission("role:assign")
     public ApiResponse<Void> assign(@PathVariable Long userId,
                                     @Valid @RequestBody AssignRolesRequest request) {
         rbacService.assignRoles(userId, request.getRoleIds());

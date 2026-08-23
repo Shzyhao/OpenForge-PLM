@@ -20,6 +20,8 @@
     <properties>
         <java.version>21</java.version>
         <maven.compiler.release>21</maven.compiler.release>
+        <!-- Spring Boot 3.2+ 解析 @PathVariable/@RequestParam 参数名所必需 -->
+        <maven.compiler.parameters>true</maven.compiler.parameters>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-boot.version>3.3.4</spring-boot.version>
         <spring-cloud.version>2023.0.3</spring-cloud.version>
