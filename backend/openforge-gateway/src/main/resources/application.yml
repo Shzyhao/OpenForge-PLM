@@ -17,3 +17,13 @@ management:
     web:
       exposure:
         include: health,info,gateway
+
+openforge:
+  jwt:
+    # 与 auth 服务共享（环境变量 JWT_SECRET 注入；M2 演进 RS256 后网关只持公钥）
+    secret: ${JWT_SECRET:openforge-dev-secret-key-change-me-in-production-0001}
+  security:
+    whitelist:
+      - /api/v1/auth/login
+      - /api/v1/auth/register
+      - /actuator/**
