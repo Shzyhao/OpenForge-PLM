@@ -17,6 +17,7 @@
         <module>openforge-gateway</module>
         <module>openforge-auth</module>
         <module>openforge-material</module>
+        <module>openforge-doc</module>
     </modules>
 
     <properties>
