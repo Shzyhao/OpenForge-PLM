@@ -1,26 +1,42 @@
-import { Button, Result } from 'antd'
-import { useNavigate } from 'react-router-dom'
-import { getToken, TOKEN_KEY } from '../api/client'
+import { Card, Col, Row, Statistic, Tag, Typography } from 'antd'
+import { fetchCurrentUser, type UserInfo } from '../api/user'
+import { useEffect, useState } from 'react'
 
-/** 工作台占位页：M1 后续迭代替换为真实布局（侧边导航 + 待办 + AI 助手抽屉） */
+/** 工作台首页（M1 版本：登录验证 + 系统概览占位） */
 export default function Home() {
-  const navigate = useNavigate()
-  const token = getToken()
+  const [user, setUser] = useState<UserInfo | null>(null)
 
-  if (!token) {
-    return <Result status="403" title="未登录" subTitle="请先登录后再访问工作台"
-      extra={<Button type="primary" onClick={() => navigate('/login')}>去登录</Button>} />
-  }
+  useEffect(() => {
+    fetchCurrentUser().then(setUser).catch(() => undefined)
+  }, [])
 
   return (
-    <Result
-      status="success"
-      title="🔨 OpenForge PLM"
-      subTitle="Open source PLM, forged with AI. 工作台建设中 —— M1 骨架已就绪"
-      extra={<Button onClick={() => {
-        localStorage.removeItem(TOKEN_KEY)
-        navigate('/login')
-      }}>退出登录</Button>}
-    />
+    <Row gutter={[16, 16]}>
+      <Col span={24}>
+        <Card>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            你好，{user?.displayName ?? user?.username ?? '...'} 👋
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            OpenForge PLM M1 基础平台已就绪 —— 认证、RBAC 权限、组织树、编号规则引擎均已上线。
+          </Typography.Text>
+        </Card>
+      </Col>
+      <Col span={8}>
+        <Card>
+          <Statistic title="当前版本" value="M1" suffix={<Tag color="orange">dev</Tag>} />
+        </Card>
+      </Col>
+      <Col span={8}>
+        <Card>
+          <Statistic title="我的角色" value={user?.roles?.join(' / ') ?? '—'} valueStyle={{ fontSize: 20 }} />
+        </Card>
+      </Col>
+      <Col span={8}>
+        <Card>
+          <Statistic title="下一里程碑" value="M2 核心 PLM" valueStyle={{ fontSize: 20 }} />
+        </Card>
+      </Col>
+    </Row>
   )
 }
