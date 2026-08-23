@@ -1,14 +1,42 @@
-import { Card, Col, Row, Statistic, Tag, Typography } from 'antd'
+import { useEffect, useRef, useState } from 'react'
+import { Card, Col, Row, Spin, Typography } from 'antd'
+import * as echarts from 'echarts'
+import { get } from '../api/client'
 import { fetchCurrentUser, type UserInfo } from '../api/user'
-import { useEffect, useState } from 'react'
 
-/** 工作台首页（M1 版本：登录验证 + 系统概览占位） */
+/** 工作台（M6 报表版）：问候 + 跨服务统计仪表盘 */
 export default function Home() {
   const [user, setUser] = useState<UserInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  const partRef = useRef<HTMLDivElement>(null)
+  const ecrRef = useRef<HTMLDivElement>(null)
+  const flowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchCurrentUser().then(setUser).catch(() => undefined)
+    Promise.all([
+      get<Record<string, number>>('/api/v1/parts/stats'),
+      get<Record<string, number>>('/api/v1/changes/stats'),
+      get<Record<string, number>>('/api/v1/workflow/stats'),
+    ]).then(([partStats, ecrStats, flowStats]) => {
+      renderBar(partRef.current, '物料状态分布', partStats)
+      renderBar(ecrRef.current, '变更申请（ECR）状态', ecrStats)
+      renderBar(flowRef.current, '流程实例状态', flowStats)
+    }).catch(() => undefined).finally(() => setLoading(false))
   }, [])
+
+  const renderBar = (el: HTMLDivElement | null, title: string, data: Record<string, number>) => {
+    if (!el) return
+    const chart = echarts.init(el)
+    chart.setOption({
+      title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' },
+      grid: { left: 40, right: 20, top: 44, bottom: 28 },
+      xAxis: { type: 'category', data: Object.keys(data) },
+      yAxis: { type: 'value', minInterval: 1 },
+      series: [{ type: 'bar', barMaxWidth: 42, itemStyle: { color: '#F25C05' }, data: Object.values(data) }],
+    })
+  }
 
   return (
     <Row gutter={[16, 16]}>
@@ -18,25 +46,14 @@ export default function Home() {
             你好，{user?.displayName ?? user?.username ?? '...'} 👋
           </Typography.Title>
           <Typography.Text type="secondary">
-            OpenForge PLM M1 基础平台已就绪 —— 认证、RBAC 权限、组织树、编号规则引擎均已上线。
+            OpenForge PLM v1.0 —— 认证权限 / 物料 BOM / 流程引擎 / AI 中台 / 知识库已全部上线。
           </Typography.Text>
         </Card>
       </Col>
-      <Col span={8}>
-        <Card>
-          <Statistic title="当前版本" value="M1" suffix={<Tag color="orange">dev</Tag>} />
-        </Card>
-      </Col>
-      <Col span={8}>
-        <Card>
-          <Statistic title="我的角色" value={user?.roles?.join(' / ') ?? '—'} valueStyle={{ fontSize: 20 }} />
-        </Card>
-      </Col>
-      <Col span={8}>
-        <Card>
-          <Statistic title="下一里程碑" value="M2 核心 PLM" valueStyle={{ fontSize: 20 }} />
-        </Card>
-      </Col>
+      {loading && <Col span={24} style={{ textAlign: 'center', padding: 40 }}><Spin /></Col>}
+      <Col span={8}><Card><div ref={partRef} style={{ height: 260 }} /></Card></Col>
+      <Col span={8}><Card><div ref={ecrRef} style={{ height: 260 }} /></Card></Col>
+      <Col span={8}><Card><div ref={flowRef} style={{ height: 260 }} /></Card></Col>
     </Row>
   )
 }
