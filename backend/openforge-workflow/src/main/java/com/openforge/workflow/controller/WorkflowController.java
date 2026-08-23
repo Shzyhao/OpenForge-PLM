@@ -53,6 +53,12 @@ public class WorkflowController {
         return ApiResponse.ok(engine.instance(id));
     }
 
+    /** 流程实例状态分布统计（报表）。 */
+    @GetMapping("/stats")
+    public ApiResponse<java.util.Map<String, Long>> stats() {
+        return ApiResponse.ok(engine.instanceStats());
+    }
+
     @GetMapping("/tasks/my")
     public ApiResponse<List<WorkflowTask>> myTasks(HttpServletRequest request) {
         return ApiResponse.ok(engine.myTasks(currentUserId(request)));

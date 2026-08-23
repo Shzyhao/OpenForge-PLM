@@ -43,6 +43,12 @@ public class PartController {
         return ApiResponse.ok(partService.page(page, pageSize, categoryId, name, type, lifecycleState));
     }
 
+    /** 物料状态分布统计（报表）。 */
+    @GetMapping("/stats")
+    public ApiResponse<java.util.Map<String, Long>> stats() {
+        return ApiResponse.ok(partService.stats());
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<Part> detail(@PathVariable Long id) {
         return ApiResponse.ok(partService.detail(id));

@@ -60,20 +60,34 @@
 
 ## 🛠️ 技术栈
 
-**前端** React 18 + TypeScript + Ant Design + bpmn-js + Formily ｜ **后端** Java 21 + Spring Boot 3 + Spring Cloud Alibaba ｜ **AI** Python + LangGraph + 多模型接入（支持全私有化） ｜ **存储** PostgreSQL / Milvus / Neo4j / Elasticsearch / MinIO ｜ **基础设施** Kubernetes + RocketMQ + Prometheus/SkyWalking
+**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（7 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project）+ openforge-security 通用权限组件 ｜ **AI** Python FastAPI + LangChain 生态 + 多模型接入（支持全私有化与离线降级） ｜ **存储** PostgreSQL / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
 
-## 🗺️ Roadmap
+## 🗺️ Roadmap（v1.0 全部交付）
 
-| 阶段 | 内容 |
-|------|------|
-| M1（第 1–6 周） | 基础平台：认证权限、编号规则、网关、CI/CD |
-| M2（第 7–14 周） | 核心 PLM：物料、BOM（CAD 解析）、文档管理 |
-| M3（第 11–18 周） | 流程引擎：流程/表单设计器、变更全流程 |
-| M4（第 15–22 周） | AI 中台 v1：文档解析、BOM 清洗、混合搜索、AI 助手 |
-| M5（第 19–26 周） | 知识库 v1：RAG、事件自动沉淀、反馈闭环 |
-| M6（第 27–32 周） | 项目管理、报表、ERP 集成、试点上线 |
+| 里程碑 | 内容 | 状态 |
+|--------|------|------|
+| M1 v0.1.0 | 基础平台：认证 / RBAC + 注解式权限 / 组织树(物化路径) / 编号规则引擎(并发防重号) / 前端框架 | ✅ |
+| M2 v0.2.0 | 核心 PLM：物料分类树 / 属性模板校验 / 物料状态机+版本快照 / BOM(展开·环检测·反查·对比) / 文档检入检出 | ✅ |
+| M3 v0.3.0 | 流程引擎：定义版本化+定义快照 / 会签·或签·驳回回退 / 任务中心 / ECR 变更闭环 | ✅ |
+| M4 v0.4.0 | AI 中台：统一 LLM 接入+离线降级 / 文档解析管道 / SQL 安全网关(AST 五重校验) / AI 助手 | ✅ |
+| M5 v0.5.0 | 自适应知识库：向量检索(可插拔) / 反馈闭环质量分 / 自然语言→SQL(Schema 注入+安全网关兜底) | ✅ |
+| M6 v1.0.0 | 项目与任务管理 / 跨服务统计报表(ECharts) / 一键启动脚本 | ✅ |
 
-并行推进 MAS-1~4：Agent 基础设施 → Dev Agent Team → 运行时 MAS 化 → 生态治理。
+**后续路线**：bpmn-js 可视化流程设计器、元数据中心(Schema 同步管道)、pgvector/Milvus 切换、事件总线(RocketMQ)知识自动沉淀、ERP/MES 连接器、K8s 部署清单。
+
+## 🚀 快速开始
+
+```bash
+# 一键启动（依赖 + 8 个 Java 服务）
+./scripts/dev-up.sh
+
+# AI 网关与前端（另开终端）
+cd ai && pip install -r requirements.txt && uvicorn gateway.main:app --port 8001
+cd frontend && npm install && npm run dev   # http://localhost:5173
+
+# 停止
+./scripts/dev-down.sh
+```
 
 ## 🎨 品牌指南
 

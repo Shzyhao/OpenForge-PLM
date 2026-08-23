@@ -19,7 +19,7 @@ import AiAssistant from '../components/AiAssistant'
 
 const { Header, Sider, Content } = Layout
 
-/** 侧边导航菜单（已接入模块为真实页面，其余按里程碑标注） */
+/** 侧边导航菜单（全部模块已接入） */
 const NAV_ITEMS = [
   { key: '/', icon: <HomeOutlined />, label: '工作台' },
   { key: '/tasks', icon: <BellOutlined />, label: '我的待办' },
@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { key: '/change', icon: <SwapOutlined />, label: '变更' },
   { key: '/workflow', icon: <ApartmentOutlined />, label: '流程' },
   { key: '/knowledge', icon: <BookOutlined />, label: '知识库' },
+  { key: '/project', icon: <ProjectOutlined />, label: '项目' },
 ]
 
 const ROLE_COLORS: Record<string, string> = {

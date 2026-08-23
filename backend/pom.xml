@@ -21,6 +21,7 @@
         <module>openforge-workflow</module>
         <module>openforge-change</module>
         <module>openforge-knowledge</module>
+        <module>openforge-project</module>
     </modules>
 
     <properties>

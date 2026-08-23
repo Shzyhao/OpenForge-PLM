@@ -89,6 +89,14 @@ public class PartService {
         return new PageResponse<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
+    /** 状态分布统计（报表）。 */
+    public java.util.Map<String, Long> stats() {
+        return partMapper.selectList(new LambdaQueryWrapper<Part>().select(Part::getLifecycleState))
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        Part::getLifecycleState, java.util.stream.Collectors.counting()));
+    }
+
     /** 仅草稿可编辑（非草稿走变更流程，开发文档 3.3）。 */
     public Part updateDraft(Long id, UpdatePartRequest request) {
         Part part = requireDraft(id);

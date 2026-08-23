@@ -115,6 +115,15 @@ public class WorkflowEngine {
                 .last("LIMIT 1"));
     }
 
+    /** 实例状态分布统计（报表）。 */
+    public Map<String, Long> instanceStats() {
+        return instanceMapper.selectList(new LambdaQueryWrapper<WorkflowInstance>()
+                        .select(WorkflowInstance::getState))
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        WorkflowInstance::getState, java.util.stream.Collectors.counting()));
+    }
+
     // ===== 任务 =====
 
     /** 我的待办：直接指派给我的 + 我的角色可认领的。 */
