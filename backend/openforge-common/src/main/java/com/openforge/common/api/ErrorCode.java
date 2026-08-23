@@ -21,9 +21,11 @@ public enum ErrorCode {
 
     // 3xxx 业务规则
     USERNAME_ALREADY_EXISTS(3001, "用户名已存在"),
+    ROLE_CODE_ALREADY_EXISTS(3002, "角色编码已存在"),
 
     // 4xxx 资源状态
     RESOURCE_NOT_FOUND(4001, "资源不存在"),
+    ROLE_NOT_FOUND(4002, "角色不存在"),
 
     // 5xxx 系统
     INTERNAL_ERROR(5000, "系统内部错误");
