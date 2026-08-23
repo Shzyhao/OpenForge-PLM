@@ -18,6 +18,7 @@
         <module>openforge-auth</module>
         <module>openforge-material</module>
         <module>openforge-doc</module>
+        <module>openforge-workflow</module>
     </modules>
 
     <properties>
