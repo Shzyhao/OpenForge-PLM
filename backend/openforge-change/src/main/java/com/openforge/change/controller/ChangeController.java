@@ -45,6 +45,12 @@ public class ChangeController {
         return ApiResponse.ok(ecrService.detail(id));
     }
 
+    /** ECR 状态分布统计（报表）。 */
+    @GetMapping("/stats")
+    public ApiResponse<java.util.Map<String, Long>> stats() {
+        return ApiResponse.ok(ecrService.stats());
+    }
+
     private Long currentUserId(HttpServletRequest request) {
         String header = request.getHeader("X-User-Id");
         if (header == null) {

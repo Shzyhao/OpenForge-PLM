@@ -84,6 +84,14 @@ public class EcrService {
         return new PageResponse<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
+    /** ECR 状态分布统计（报表）。 */
+    public java.util.Map<String, Long> stats() {
+        return mapper.selectList(new LambdaQueryWrapper<ChangeRequest>().select(ChangeRequest::getState))
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        ChangeRequest::getState, java.util.stream.Collectors.counting()));
+    }
+
     private ChangeRequest require(Long id) {
         ChangeRequest ecr = mapper.selectById(id);
         if (ecr == null) {
