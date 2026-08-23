@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:doctest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  flyway:
+    table: flyway_doc_history
+
+openforge:
+  security:
+    auth-base-url: http://localhost:0
+    internal-token: test-internal-token
+  doc:
+    storage-dir: ./target/test-doc-files
