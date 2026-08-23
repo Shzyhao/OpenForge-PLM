@@ -23,6 +23,10 @@ spring:
           uri: ${WORKFLOW_SERVICE_URI:http://localhost:8084}
           predicates:
             - Path=/api/v1/workflow/**
+        - id: change-service
+          uri: ${CHANGE_SERVICE_URI:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/changes/**
 
 management:
   endpoints:

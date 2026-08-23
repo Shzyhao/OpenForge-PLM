@@ -19,6 +19,7 @@
         <module>openforge-material</module>
         <module>openforge-doc</module>
         <module>openforge-workflow</module>
+        <module>openforge-change</module>
     </modules>
 
     <properties>

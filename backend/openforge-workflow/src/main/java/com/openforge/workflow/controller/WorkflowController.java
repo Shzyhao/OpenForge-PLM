@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -73,6 +74,37 @@ public class WorkflowController {
             return Long.valueOf(header);
         } catch (NumberFormatException e) {
             return null;
+        }
+    }
+
+    // ===== 服务间内部接口（X-Internal-Token，直连不经网关） =====
+
+    @org.springframework.web.bind.annotation.PostMapping("/internal/instances")
+    public ApiResponse<WorkflowInstance> internalStart(
+            @RequestBody StartRequest request,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        requireInternalToken(token);
+        return ApiResponse.ok(engine.start(request.getDefKey(), request.getBizType(),
+                request.getBizId(), request.getVariables(), null));
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/internal/instances/by-biz")
+    public ApiResponse<WorkflowInstance> internalByBiz(
+            @org.springframework.web.bind.annotation.RequestParam String bizType,
+            @org.springframework.web.bind.annotation.RequestParam Long bizId,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        requireInternalToken(token);
+        WorkflowInstance instance = engine.findByBiz(bizType, bizId);
+        return ApiResponse.ok(instance);
+    }
+
+    @Value("${openforge.internal.token:openforge-internal-dev-token}")
+    private String internalToken;
+
+    private void requireInternalToken(String token) {
+        if (internalToken == null || internalToken.isBlank() || !internalToken.equals(token)) {
+            throw new com.openforge.common.api.BizException(
+                    com.openforge.common.api.ErrorCode.UNAUTHORIZED, "内部接口令牌无效");
         }
     }
 
