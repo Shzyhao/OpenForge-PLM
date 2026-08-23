@@ -72,6 +72,12 @@ public class WorkflowEngine {
                 .orElseThrow(() -> new BizException(ErrorCode.RESOURCE_NOT_FOUND, "流程定义不存在: " + defKey));
     }
 
+    /** 全部定义（按 key+版本倒序）。 */
+    public List<WorkflowDef> listDefs() {
+        return defMapper.selectList(new LambdaQueryWrapper<WorkflowDef>()
+                .orderByAsc(WorkflowDef::getDefKey).orderByDesc(WorkflowDef::getVersion));
+    }
+
     // ===== 实例 =====
 
     @Transactional
@@ -126,7 +132,7 @@ public class WorkflowEngine {
         return taskMapper.selectList(wrapper);
     }
 
-    /** 办理任务（APPROVE 推进 / REJECT 终止实例）。 */
+    /** 办理任务。APPROVE：ALL 会签需全票通过才推进，ANY 或签一人即决定；REJECT：按 rejectTo 回退或终止。 */
     @Transactional
     public WorkflowInstance act(Long taskId, Long userId, String action, String comment) {
         WorkflowTask task = taskMapper.selectById(taskId);
@@ -147,17 +153,61 @@ public class WorkflowEngine {
         task.setActedAt(LocalDateTime.now());
         taskMapper.updateById(task);
 
+        ProcessDefinition.NodeDef node = parse(inst.getDefSnapshot()).node(task.getNodeId());
+        List<WorkflowTask> nodeTasks = taskMapper.selectList(new LambdaQueryWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getInstanceId, inst.getId())
+                .eq(WorkflowTask::getNodeId, task.getNodeId()));
+        List<WorkflowTask> openTasks = nodeTasks.stream().filter(WorkflowTask::isOpen).toList();
+        boolean anyMode = "ANY".equals(node.mode());
+        boolean allApproved = openTasks.isEmpty()
+                && nodeTasks.stream().allMatch(t -> "APPROVE".equals(t.getAction()));
+
         if ("REJECT".equals(action)) {
-            inst.setState("REJECTED");
-            inst.setCurrentNode(null);
-            inst.setEndedAt(LocalDateTime.now());
-            instanceMapper.updateById(inst);
-            log.info("workflow rejected: instance={} task={} by={}", inst.getId(), taskId, userId);
+            cancelOpenTasks(openTasks);
+            if (node.rejectTo() != null) {
+                return fallBack(inst, node.rejectTo());
+            }
+            return terminate(inst, "REJECTED");
+        }
+        if (anyMode) {
+            cancelOpenTasks(openTasks); // 或签：一人通过即决定
+        } else if (!allApproved) {
+            instanceMapper.updateById(inst); // 会签：还有未办理的，等待
+            log.debug("workflow node {} waiting for remaining approvals, instance {}", node.id(), inst.getId());
             return inst;
         }
         Map<String, Object> vars = vars(inst);
         advance(inst, task.getNodeId(), vars);
         return inst;
+    }
+
+    /** 回退到指定节点：重新生成该节点任务。 */
+    private WorkflowInstance fallBack(WorkflowInstance inst, String targetNodeId) {
+        ProcessDefinition definition = parse(inst.getDefSnapshot());
+        ProcessDefinition.NodeDef target = definition.node(targetNodeId);
+        createTasks(inst, target);
+        inst.setCurrentNode(target.id());
+        instanceMapper.updateById(inst);
+        log.info("workflow fell back to {} instance {}", target.id(), inst.getId());
+        return inst;
+    }
+
+    private WorkflowInstance terminate(WorkflowInstance inst, String state) {
+        inst.setState(state);
+        inst.setCurrentNode(null);
+        inst.setEndedAt(LocalDateTime.now());
+        instanceMapper.updateById(inst);
+        log.info("workflow {} : instance {}", state, inst.getId());
+        return inst;
+    }
+
+    private void cancelOpenTasks(List<WorkflowTask> openTasks) {
+        for (WorkflowTask t : openTasks) {
+            t.setAction("CANCELLED");
+            t.setComment("由节点决定自动取消");
+            t.setActedAt(LocalDateTime.now());
+            taskMapper.updateById(t);
+        }
     }
 
     // ===== 推进内核 =====
@@ -172,16 +222,7 @@ public class WorkflowEngine {
             ProcessDefinition.NodeDef node = definition.node(nextId);
             switch (node.type()) {
                 case "APPROVAL" -> {
-                    WorkflowTask task = new WorkflowTask();
-                    task.setInstanceId(instance.getId());
-                    task.setNodeId(node.id());
-                    task.setNodeName(node.name());
-                    if ("USER".equals(node.assignee().type())) {
-                        task.setAssigneeId(Long.valueOf(node.assignee().value()));
-                    } else {
-                        task.setCandidateRole(node.assignee().value());
-                    }
-                    taskMapper.insert(task);
+                    createTasks(instance, node);
                     instance.setCurrentNode(node.id());
                     instanceMapper.updateById(instance);
                     log.debug("workflow waiting at approval node {} instance {}", node.id(), instance.getId());
@@ -218,6 +259,34 @@ public class WorkflowEngine {
                 }
                 default -> throw new BizException(ErrorCode.INTERNAL_ERROR, "未知节点类型: " + node.type());
             }
+        }
+    }
+
+    /** 按审批人配置生成任务：USER/ROLE 单条；USERS 每人一条（会签/或签由 mode 决定）。 */
+    private void createTasks(WorkflowInstance instance, ProcessDefinition.NodeDef node) {
+        ProcessDefinition.AssigneeDef assignee = node.assignee();
+        switch (assignee.type()) {
+            case "USER", "ROLE" -> {
+                WorkflowTask task = new WorkflowTask();
+                task.setInstanceId(instance.getId());
+                task.setNodeId(node.id());
+                task.setNodeName(node.name());
+                if ("USER".equals(assignee.type())) {
+                    task.setAssigneeId(Long.valueOf(assignee.value()));
+                } else {
+                    task.setCandidateRole(assignee.value());
+                }
+                taskMapper.insert(task);
+            }
+            case "USERS" -> assignee.values().forEach(uid -> {
+                WorkflowTask task = new WorkflowTask();
+                task.setInstanceId(instance.getId());
+                task.setNodeId(node.id());
+                task.setNodeName(node.name());
+                task.setAssigneeId(Long.valueOf(uid));
+                taskMapper.insert(task);
+            });
+            default -> throw new BizException(ErrorCode.INVALID_ARGUMENT, "未知审批人类型: " + assignee.type());
         }
     }
 
