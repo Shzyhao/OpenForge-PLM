@@ -2,6 +2,7 @@ package com.openforge.material.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import com.openforge.material.client.NumberClient;
@@ -10,26 +11,35 @@ import com.openforge.material.dto.PageResponse;
 import com.openforge.material.dto.UpdatePartRequest;
 import com.openforge.material.entity.Part;
 import com.openforge.material.entity.PartCategory;
+import com.openforge.material.entity.PartVersion;
 import com.openforge.material.mapper.PartMapper;
+import com.openforge.material.mapper.PartVersionMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/** 物料主数据（M2-1：草稿 CRUD + 自动取号；状态机流转 M2-2 随发布流程交付）。 */
+/** 物料主数据：草稿 CRUD + 属性模板校验 + 状态机 + 发布版本快照。 */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PartService {
 
-    /** 物料默认取号规则（V5 已内置，可在 auth 编号规则管理中调整段定义） */
     static final String NUMBER_RULE_KEY = "part";
 
     private final PartMapper partMapper;
+    private final PartVersionMapper partVersionMapper;
     private final CategoryService categoryService;
+    private final AttrTemplateService attrTemplateService;
     private final NumberClient numberClient;
+    /** Spring 配置的 ObjectMapper（含 JavaTimeModule，支持 LocalDateTime 快照序列化） */
+    private final ObjectMapper objectMapper;
 
     public Part create(CreatePartRequest request) {
         PartCategory category = categoryService.requireCategory(request.getCategoryId());
+        attrTemplateService.validate(category.getAttrTemplate(), request.getAttrs());
         String partNumber = numberClient.next(NUMBER_RULE_KEY);
 
         Part part = new Part();
@@ -79,9 +89,12 @@ public class PartService {
         return new PageResponse<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize());
     }
 
-    /** 仅草稿可编辑（非草稿需走变更流程，开发文档 3.3）。 */
+    /** 仅草稿可编辑（非草稿走变更流程，开发文档 3.3）。 */
     public Part updateDraft(Long id, UpdatePartRequest request) {
         Part part = requireDraft(id);
+        PartCategory category = categoryService.requireCategory(part.getCategoryId());
+        String newAttrs = request.getAttrs() != null ? request.getAttrs() : part.getAttrs();
+        attrTemplateService.validate(category.getAttrTemplate(), newAttrs);
         if (request.getName() != null && !request.getName().isBlank()) {
             part.setName(request.getName());
         }
@@ -92,7 +105,7 @@ public class PartService {
             part.setUnit(request.getUnit());
         }
         if (request.getAttrs() != null) {
-            part.setAttrs(request.getAttrs());
+            part.setAttrs(newAttrs);
         }
         partMapper.updateById(part);
         return part;
@@ -102,6 +115,46 @@ public class PartService {
     public void deleteDraft(Long id) {
         requireDraft(id);
         partMapper.deleteById(id);
+    }
+
+    // ===== 状态机（M3 由流程引擎驱动，M2 为轻量直接流转） =====
+
+    /** DRAFT → REVIEWING */
+    public Part submit(Long id, Long operatorId) {
+        return transition(id, "REVIEWING", operatorId);
+    }
+
+    /** REVIEWING → DRAFT（驳回） */
+    public Part reject(Long id, Long operatorId) {
+        return transition(id, "DRAFT", operatorId);
+    }
+
+    /** REVIEWING → RELEASED，发布时固化版本快照。 */
+    @Transactional
+    public Part approve(Long id, Long operatorId) {
+        Part part = transition(id, "RELEASED", operatorId);
+        PartVersion version = new PartVersion();
+        version.setPartId(part.getId());
+        version.setVersion(part.getVersion());
+        version.setState("RELEASED");
+        version.setReleasedBy(operatorId);
+        try {
+            version.setSnapshot(objectMapper.writeValueAsString(part));
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "快照序列化失败");
+        }
+        partVersionMapper.insert(version);
+        log.info("part released: id={}, number={}, version={}", part.getId(), part.getPartNumber(), part.getVersion());
+        return part;
+    }
+
+    private Part transition(Long id, String target, Long operatorId) {
+        Part part = detail(id);
+        StateMachine.requireTransition(StateMachine.PART, part.getLifecycleState(), target);
+        part.setLifecycleState(target);
+        part.setUpdatedBy(operatorId);
+        partMapper.updateById(part);
+        return part;
     }
 
     private Part requireDraft(Long id) {

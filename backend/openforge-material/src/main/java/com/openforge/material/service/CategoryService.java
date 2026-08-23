@@ -65,6 +65,16 @@ public class CategoryService {
         return roots;
     }
 
+    /** 设置属性模板 JSON（物料创建/编辑时校验，见 AttrTemplateService）。 */
+    public void setAttrTemplate(Long categoryId, String templateJson) {
+        PartCategory category = categoryMapper.selectById(categoryId);
+        if (category == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "物料分类不存在");
+        }
+        category.setAttrTemplate(templateJson);
+        categoryMapper.updateById(category);
+    }
+
     /** 校验分类存在并返回；供物料创建使用。 */
     public PartCategory requireCategory(Long categoryId) {
         PartCategory category = categoryMapper.selectById(categoryId);
