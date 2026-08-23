@@ -27,6 +27,10 @@ spring:
           uri: ${CHANGE_SERVICE_URI:http://localhost:8085}
           predicates:
             - Path=/api/v1/changes/**
+        - id: ai-gateway
+          uri: ${AI_GATEWAY_URI:http://localhost:8001}
+          predicates:
+            - Path=/api/v1/ai/**
 
 management:
   endpoints:
