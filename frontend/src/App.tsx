@@ -4,6 +4,9 @@ import Home from './pages/Home'
 import MaterialPage from './pages/MaterialPage'
 import BomPage from './pages/BomPage'
 import DocPage from './pages/DocPage'
+import MyTasksPage from './pages/MyTasksPage'
+import WorkflowDefsPage from './pages/WorkflowDefsPage'
+import ChangePage from './pages/ChangePage'
 import Placeholder from './pages/Placeholder'
 import AppLayout from './layouts/AppLayout'
 import { getToken } from './api/client'
@@ -26,9 +29,11 @@ export default function App() {
       >
         <Route index element={<Home />} />
         <Route path="material" element={<MaterialPage />} />
-        <Route path="doc" element={<DocPage />} />
         <Route path="bom" element={<BomPage />} />
-        <Route path="change" element={<Placeholder title="变更管理（M3）" />} />
+        <Route path="doc" element={<DocPage />} />
+        <Route path="tasks" element={<MyTasksPage />} />
+        <Route path="workflow" element={<WorkflowDefsPage />} />
+        <Route path="change" element={<ChangePage />} />
         <Route path="project" element={<Placeholder title="项目管理（M6）" />} />
         <Route path="knowledge" element={<Placeholder title="知识库（M5）" />} />
         <Route path="admin" element={<Placeholder title="管理后台（按需开放）" />} />
