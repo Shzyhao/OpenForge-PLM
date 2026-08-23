@@ -13,8 +13,11 @@
 
     <modules>
         <module>openforge-common</module>
+        <module>openforge-security</module>
         <module>openforge-gateway</module>
         <module>openforge-auth</module>
+        <module>openforge-material</module>
+        <module>openforge-doc</module>
     </modules>
 
     <properties>
