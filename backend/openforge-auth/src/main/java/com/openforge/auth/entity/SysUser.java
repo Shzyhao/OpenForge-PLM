@@ -1,6 +1,8 @@
 package com.openforge.auth.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -30,6 +32,10 @@ public class SysUser {
     private String status;
 
     private Long tenantId;
+
+    /** 所属组织（sys_org.id），注册时为空，由管理员分配；ALWAYS 使"移出组织"(置null)生效 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Long orgId;
 
     private Long createdBy;
 
