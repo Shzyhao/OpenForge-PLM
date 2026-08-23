@@ -18,13 +18,13 @@ import { fetchCurrentUser, type UserInfo } from '../api/user'
 
 const { Header, Sider, Content } = Layout
 
-/** 侧边导航菜单（M2 起逐项接入真实模块） */
+/** 侧边导航菜单（已接入模块为真实页面，其余按里程碑标注） */
 const NAV_ITEMS = [
   { key: '/', icon: <HomeOutlined />, label: '工作台' },
-  { key: '/material', icon: <AppstoreOutlined />, label: '物料 / BOM' },
+  { key: '/material', icon: <AppstoreOutlined />, label: '物料' },
+  { key: '/bom', icon: <ProjectOutlined />, label: 'BOM' },
   { key: '/doc', icon: <FileTextOutlined />, label: '文档' },
   { key: '/change', icon: <SwapOutlined />, label: '变更' },
-  { key: '/project', icon: <ProjectOutlined />, label: '项目' },
   { key: '/knowledge', icon: <BookOutlined />, label: '知识库' },
   { key: '/admin', icon: <ApartmentOutlined />, label: '管理' },
 ]

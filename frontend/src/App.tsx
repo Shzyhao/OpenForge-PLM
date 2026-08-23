@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Login from './pages/Login'
 import Home from './pages/Home'
+import MaterialPage from './pages/MaterialPage'
+import BomPage from './pages/BomPage'
+import DocPage from './pages/DocPage'
 import Placeholder from './pages/Placeholder'
 import AppLayout from './layouts/AppLayout'
 import { getToken } from './api/client'
@@ -22,8 +25,9 @@ export default function App() {
         }
       >
         <Route index element={<Home />} />
-        <Route path="material" element={<Placeholder title="物料 / BOM（M2）" />} />
-        <Route path="doc" element={<Placeholder title="文档管理（M2）" />} />
+        <Route path="material" element={<MaterialPage />} />
+        <Route path="doc" element={<DocPage />} />
+        <Route path="bom" element={<BomPage />} />
         <Route path="change" element={<Placeholder title="变更管理（M3）" />} />
         <Route path="project" element={<Placeholder title="项目管理（M6）" />} />
         <Route path="knowledge" element={<Placeholder title="知识库（M5）" />} />

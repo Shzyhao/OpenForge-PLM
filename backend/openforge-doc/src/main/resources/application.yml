@@ -1,0 +1,38 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: openforge-doc
+  datasource:
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
+    username: ${PG_USER:openforge}
+    password: ${PG_PASSWORD:openforge}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    table: flyway_doc_history
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 110MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+openforge:
+  security:
+    auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
+    internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
+  doc:
+    # 本地磁盘存储（M2）；M3 换 MinIO（架构文档 7.1）
+    storage-dir: ${DOC_STORAGE_DIR:./data/doc-files}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
