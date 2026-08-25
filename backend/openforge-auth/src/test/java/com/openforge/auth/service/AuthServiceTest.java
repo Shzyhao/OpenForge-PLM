@@ -28,12 +28,16 @@ class AuthServiceTest {
 
     @Mock
     private UserMapper userMapper;
+    @Mock
+    private com.openforge.auth.mapper.RoleMapper roleMapper;
+    @Mock
+    private com.openforge.auth.mapper.UserRoleMapper userRoleMapper;
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userMapper,
+        authService = new AuthService(userMapper, roleMapper, userRoleMapper,
                 new BCryptPasswordEncoder(),
                 new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120));
     }
@@ -92,6 +96,25 @@ class AuthServiceTest {
         Claims claims = new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120).parse(resp.accessToken());
         assertThat(claims.getSubject()).isEqualTo("zhangsan");
         assertThat(claims.get("uid", Long.class)).isEqualTo(42L);
+    }
+
+    @Test
+    @DisplayName("首用户注册自动授予 ADMIN（引导缺陷修复）")
+    void firstUserGetsAdminRole() {
+        when(userMapper.selectCount(any())).thenReturn(0L)   // 用户名查重
+                .thenReturn(1L);                              // 全库总数 = 首用户
+        when(userMapper.insert(any(SysUser.class))).thenAnswer(inv -> {
+            inv.getArgument(0, SysUser.class).setId(1L);
+            return 1;
+        });
+        com.openforge.auth.entity.SysRole admin = new com.openforge.auth.entity.SysRole();
+        admin.setId(10L);
+        admin.setRoleCode("ADMIN");
+        when(roleMapper.selectOne(any())).thenReturn(admin);
+
+        authService.register(request("firstadmin", "password123"));
+
+        org.mockito.Mockito.verify(userRoleMapper).insert(any(com.openforge.auth.entity.SysUserRole.class));
     }
 
     private RegisterRequest request(String username, String password) {
