@@ -20,6 +20,11 @@ public class SysRole {
 
     private Integer builtin;
 
+    private String description;
+
+    /** 停用后权限失效但绑定保留 */
+    private Integer enabled;
+
     private Long tenantId;
 
     private LocalDateTime createdAt;

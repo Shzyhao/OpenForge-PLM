@@ -6,6 +6,8 @@ spring:
     password: ""
 
 openforge:
+  security:
+    open-registration: true   # 注册逻辑单测需要；默认关闭语义由专项测试验证
   jwt:
     secret: test-secret-key-for-unit-tests-32-bytes-min!!
     ttl-minutes: 120
