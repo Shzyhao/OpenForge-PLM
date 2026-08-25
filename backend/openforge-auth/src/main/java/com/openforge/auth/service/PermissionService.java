@@ -81,6 +81,18 @@ public class PermissionService {
         return java.util.Map.of("menus", menus, "operations", operations);
     }
 
+    /** 用户可见菜单编码（方案 F2 动态菜单）：SUPER 全量，其余按角色菜单权限。 */
+    public List<String> menuCodesOfUser(com.openforge.auth.entity.SysUser user) {
+        if ("SUPER".equals(user.getUserType())) {
+            return permissionMapper.selectList(
+                            new LambdaQueryWrapper<com.openforge.auth.entity.SysPermission>()
+                                    .eq(com.openforge.auth.entity.SysPermission::getPermType, "MENU"))
+                    .stream().map(com.openforge.auth.entity.SysPermission::getPermCode).toList();
+        }
+        return getPermissionCodesOfUser(user.getId()).stream()
+                .filter(c -> c.startsWith("menu:")).toList();
+    }
+
     public List<String> getPermissionCodesOfRole(Long roleId) {
         List<SysRolePermission> bindings = rolePermissionMapper.selectList(
                 new LambdaQueryWrapper<SysRolePermission>().eq(SysRolePermission::getRoleId, roleId));

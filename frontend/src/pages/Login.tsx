@@ -11,6 +11,8 @@ interface TokenData {
   accessToken: string
   tokenType: string
   expiresInSeconds: number
+  passwordStatus?: string
+  daysToExpiry?: number | null
 }
 
 export default function Login() {
@@ -19,7 +21,7 @@ export default function Login() {
   const onFinish = async (values: LoginForm) => {
     try {
       const data = await post<TokenData>('/api/v1/auth/login', values)
-      saveToken(data.accessToken)
+      saveToken(data.accessToken, data.passwordStatus)
       message.success('登录成功')
       navigate('/')
     } catch (e) {
