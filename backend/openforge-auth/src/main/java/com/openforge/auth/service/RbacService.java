@@ -23,6 +23,7 @@ public class RbacService {
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
     private final UserMapper userMapper;
+    private final com.openforge.auth.mapper.RolePermissionMapper rolePermissionMapper;
 
     public List<SysRole> listRoles() {
         return roleMapper.selectList(null);
@@ -38,8 +39,93 @@ public class RbacService {
         role.setRoleCode(roleCode);
         role.setRoleName(roleName);
         role.setBuiltin(0);
+        role.setEnabled(1);
         role.setTenantId(0L);
         roleMapper.insert(role);
+        return role;
+    }
+
+    /** 编辑角色（方案 B3）：名称/描述可改；内置角色编码不可变（无编码修改入口即天然满足）。 */
+    public SysRole updateRole(Long id, String roleName, String description) {
+        SysRole role = roleMapper.selectById(id);
+        if (role == null) {
+            throw new BizException(ErrorCode.ROLE_NOT_FOUND);
+        }
+        if (roleName != null && !roleName.isBlank()) {
+            role.setRoleName(roleName);
+        }
+        if (description != null) {
+            role.setDescription(description);
+        }
+        roleMapper.updateById(role);
+        return role;
+    }
+
+    /** 删除角色（方案 B4）：内置角色与仍有成员绑定的角色拒绝删除。 */
+    @Transactional
+    public void deleteRole(Long id) {
+        SysRole role = roleMapper.selectById(id);
+        if (role == null) {
+            throw new BizException(ErrorCode.ROLE_NOT_FOUND);
+        }
+        if (role.getBuiltin() != null && role.getBuiltin() == 1) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "内置角色不可删除");
+        }
+        Long members = userRoleMapper.selectCount(
+                new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getRoleId, id));
+        if (members != null && members > 0) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "角色仍有 " + members + " 名成员，请先移除后再删除");
+        }
+        rolePermissionMapper.delete(
+                new LambdaQueryWrapper<com.openforge.auth.entity.SysRolePermission>()
+                        .eq(com.openforge.auth.entity.SysRolePermission::getRoleId, id));
+        roleMapper.deleteById(id);
+    }
+
+    // ===== 成员管理（方案 B5） =====
+
+    public List<SysUser> members(Long roleId) {
+        requireRole(roleId);
+        List<Long> userIds = userRoleMapper.selectList(
+                        new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getRoleId, roleId))
+                .stream().map(SysUserRole::getUserId).toList();
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        return userMapper.selectBatchIds(userIds);
+    }
+
+    @Transactional
+    public void addMembers(Long roleId, List<Long> userIds) {
+        requireRole(roleId);
+        for (Long userId : userIds) {
+            SysUser user = userMapper.selectById(userId);
+            if (user == null) {
+                throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在: " + userId);
+            }
+            Long exists = userRoleMapper.selectCount(new LambdaQueryWrapper<SysUserRole>()
+                    .eq(SysUserRole::getUserId, userId).eq(SysUserRole::getRoleId, roleId));
+            if (exists == null || exists == 0) {
+                SysUserRole ur = new SysUserRole();
+                ur.setUserId(userId);
+                ur.setRoleId(roleId);
+                userRoleMapper.insert(ur);
+            }
+        }
+    }
+
+    @Transactional
+    public void removeMember(Long roleId, Long userId) {
+        requireRole(roleId);
+        userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>()
+                .eq(SysUserRole::getRoleId, roleId).eq(SysUserRole::getUserId, userId));
+    }
+
+    private SysRole requireRole(Long roleId) {
+        SysRole role = roleMapper.selectById(roleId);
+        if (role == null) {
+            throw new BizException(ErrorCode.ROLE_NOT_FOUND);
+        }
         return role;
     }
 

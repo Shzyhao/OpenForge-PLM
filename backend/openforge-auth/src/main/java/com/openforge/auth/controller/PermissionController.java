@@ -25,6 +25,11 @@ public class PermissionController {
 
     private final PermissionService permissionService;
 
+    @GetMapping("/tree")
+    public ApiResponse<java.util.Map<String, Object>> tree() {
+        return ApiResponse.ok(permissionService.permissionTree());
+    }
+
     @GetMapping
     public ApiResponse<List<SysPermission>> list() {
         return ApiResponse.ok(permissionService.listPermissions());
