@@ -39,9 +39,11 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public AuthGlobalFilter(JwtVerifier jwtVerifier,
-                            @org.springframework.beans.factory.annotation.Value("${openforge.security.whitelist}") List<String> whitelist) {
+                            @org.springframework.beans.factory.annotation.Value(
+                                    "${openforge.security.whitelist}") String whitelistCsv) {
+        // @Value 占位符不支持 yml 列表绑定，用逗号分隔字符串注入（真实启动冒烟暴露）
         this.jwtVerifier = jwtVerifier;
-        this.whitelist = whitelist;
+        this.whitelist = List.of(whitelistCsv.split("\\s*,\\s*"));
     }
 
     @Override
