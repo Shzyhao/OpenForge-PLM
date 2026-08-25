@@ -65,6 +65,16 @@ class PasswordHistoryTest {
     }
 
     @Test
+    @DisplayName("改密：与当前密码相同被拒（冒烟暴露：改密后立即改回旧密码）")
+    void sameAsCurrentPasswordRejected() {
+        SysUser u = user();
+        when(userMapper.selectById(5L)).thenReturn(u);
+        assertThatThrownBy(() -> service.changeMyPassword(5L, "Old12345", "Old12345"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("当前密码相同");
+    }
+
+    @Test
     @DisplayName("改密：与最近 3 次历史密码重复被拒")
     void reusedRecentPasswordRejected() {
         SysUser u = user();

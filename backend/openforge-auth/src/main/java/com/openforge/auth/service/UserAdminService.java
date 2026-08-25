@@ -165,7 +165,7 @@ public class UserAdminService {
         SysUser target = require(id);
         assertCanOperate(operatorId, target, true);
         validatePasswordStrength(newPassword);
-        assertNotRecentPassword(id, newPassword);
+        assertNotRecentPassword(id, newPassword, target.getPasswordHash());
         recordPasswordHistory(id, newPassword);
         target.setPasswordHash(passwordEncoder.encode(newPassword));
         target.setPasswordUpdatedAt(LocalDateTime.now());
@@ -206,7 +206,7 @@ public class UserAdminService {
             throw new BizException(ErrorCode.BAD_CREDENTIALS, "原密码不正确");
         }
         validatePasswordStrength(newPassword);
-        assertNotRecentPassword(userId, newPassword);
+        assertNotRecentPassword(userId, newPassword, user.getPasswordHash());
         recordPasswordHistory(userId, newPassword);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setPasswordUpdatedAt(LocalDateTime.now());
@@ -219,8 +219,11 @@ public class UserAdminService {
         log.info("password changed by user {}", user.getUsername());
     }
 
-    /** 密码历史（方案 E8）：新密码不得与最近 3 次（含当前）重复。 */
-    private void assertNotRecentPassword(Long userId, String newPassword) {
+    /** 密码历史（方案 E8）：新密码不得与当前密码及最近 3 次历史重复。 */
+    private void assertNotRecentPassword(Long userId, String newPassword, String currentHash) {
+        if (currentHash != null && passwordEncoder.matches(newPassword, currentHash)) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "新密码与当前密码相同，请更换");
+        }
         var recent = passwordHistoryMapper.selectList(
                 new LambdaQueryWrapper<com.openforge.auth.entity.SysPasswordHistory>()
                         .eq(com.openforge.auth.entity.SysPasswordHistory::getUserId, userId)
