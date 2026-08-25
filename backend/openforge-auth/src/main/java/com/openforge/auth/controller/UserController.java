@@ -34,6 +34,7 @@ public class UserController {
     private final RbacService rbacService;
     private final OrgService orgService;
     private final com.openforge.auth.service.UserAdminService userAdminService;
+    private final com.openforge.auth.service.PermissionService permissionService;
 
     @GetMapping("/me")
     public ApiResponse<UserInfoResponse> me(HttpServletRequest request) {
@@ -54,7 +55,10 @@ public class UserController {
         }
         return ApiResponse.ok(new UserInfoResponse(
                 user.getId(), user.getUsername(), user.getDisplayName(),
-                rbacService.getRoleCodesOfUser(userId)));
+                rbacService.getRoleCodesOfUser(userId),
+                permissionService.menuCodesOfUser(user),
+                permissionService.getPermissionCodesOfUser(userId),
+                user.getUserType()));
     }
 
     /** 将用户挂接到组织（org:manage 权限）。body: {"orgId": 123}，orgId 为 null 表示移出组织。 */

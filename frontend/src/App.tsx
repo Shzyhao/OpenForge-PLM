@@ -9,7 +9,8 @@ import WorkflowDefsPage from './pages/WorkflowDefsPage'
 import ChangePage from './pages/ChangePage'
 import KnowledgePage from './pages/KnowledgePage'
 import ProjectPage from './pages/ProjectPage'
-import Placeholder from './pages/Placeholder'
+import UserAdminPage from './pages/UserAdminPage'
+import RoleAdminPage from './pages/RoleAdminPage'
 import AppLayout from './layouts/AppLayout'
 import { getToken } from './api/client'
 
@@ -38,7 +39,8 @@ export default function App() {
         <Route path="change" element={<ChangePage />} />
         <Route path="project" element={<ProjectPage />} />
         <Route path="knowledge" element={<KnowledgePage />} />
-        <Route path="admin" element={<Placeholder title="管理后台（按需开放）" />} />
+        <Route path="system/users" element={<UserAdminPage />} />
+        <Route path="system/roles" element={<RoleAdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

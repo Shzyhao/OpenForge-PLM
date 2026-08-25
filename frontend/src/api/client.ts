@@ -13,9 +13,19 @@ export class ApiError extends Error {
 }
 
 export const TOKEN_KEY = 'openforge_token'
+export const PASSWORD_STATUS_KEY = 'openforge_password_status'
 
-export function saveToken(token: string): void {
+export function saveToken(token: string, passwordStatus?: string): void {
   localStorage.setItem(TOKEN_KEY, token)
+  if (passwordStatus) {
+    localStorage.setItem(PASSWORD_STATUS_KEY, passwordStatus)
+  } else {
+    localStorage.removeItem(PASSWORD_STATUS_KEY)
+  }
+}
+
+export function getPasswordStatus(): string | null {
+  return localStorage.getItem(PASSWORD_STATUS_KEY)
 }
 
 export function getToken(): string | null {
@@ -24,6 +34,7 @@ export function getToken(): string | null {
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(PASSWORD_STATUS_KEY)
 }
 
 function authHeaders(): Record<string, string> {
@@ -54,6 +65,10 @@ export async function get<T>(path: string): Promise<T> {
 
 export async function post<T>(path: string, body?: unknown): Promise<T> {
   return request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) })
+}
+
+export async function del<T>(path: string): Promise<T> {
+  return request<T>(path, { method: 'DELETE' })
 }
 
 export async function put<T>(path: string, body?: unknown): Promise<T> {
