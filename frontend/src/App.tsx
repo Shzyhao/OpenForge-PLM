@@ -11,6 +11,7 @@ import KnowledgePage from './pages/KnowledgePage'
 import ProjectPage from './pages/ProjectPage'
 import UserAdminPage from './pages/UserAdminPage'
 import RoleAdminPage from './pages/RoleAdminPage'
+import SecurityLogPage from './pages/SecurityLogPage'
 import AppLayout from './layouts/AppLayout'
 import { getToken } from './api/client'
 
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="knowledge" element={<KnowledgePage />} />
         <Route path="system/users" element={<UserAdminPage />} />
         <Route path="system/roles" element={<RoleAdminPage />} />
+        <Route path="system/logs" element={<SecurityLogPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

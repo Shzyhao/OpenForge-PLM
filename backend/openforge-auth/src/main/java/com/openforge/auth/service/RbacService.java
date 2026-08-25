@@ -24,6 +24,7 @@ public class RbacService {
     private final UserRoleMapper userRoleMapper;
     private final UserMapper userMapper;
     private final com.openforge.auth.mapper.RolePermissionMapper rolePermissionMapper;
+    private final SecurityLogService securityLogService;
 
     public List<SysRole> listRoles() {
         return roleMapper.selectList(null);
@@ -148,6 +149,8 @@ public class RbacService {
             ur.setRoleId(roleId);
             userRoleMapper.insert(ur);
         });
+        securityLogService.audit(null, "ROLE_ASSIGN", "USER",
+                String.valueOf(userId), "覆盖式分配角色: " + roleIds);
     }
 
     /** 用户信息 + 角色编码列表（/users/me 用）。用户不存在返回 null 由调用方决定响应。 */

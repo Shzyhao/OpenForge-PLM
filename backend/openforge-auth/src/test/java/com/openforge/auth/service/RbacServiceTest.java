@@ -36,12 +36,14 @@ class RbacServiceTest {
     private UserMapper userMapper;
     @Mock
     private com.openforge.auth.mapper.RolePermissionMapper rolePermissionMapper;
+    @Mock
+    private SecurityLogService securityLogService;
 
     private RbacService rbacService;
 
     @BeforeEach
     void setUp() {
-        rbacService = new RbacService(roleMapper, userRoleMapper, userMapper, rolePermissionMapper);
+        rbacService = new RbacService(roleMapper, userRoleMapper, userMapper, rolePermissionMapper, securityLogService);
     }
 
     @Test

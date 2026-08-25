@@ -26,6 +26,7 @@ public class PermissionService {
     private final RoleMapper roleMapper;
     private final RolePermissionMapper rolePermissionMapper;
     private final UserRoleMapper userRoleMapper;
+    private final SecurityLogService securityLogService;
 
     public List<SysPermission> listPermissions() {
         return permissionMapper.selectList(null);
@@ -67,6 +68,8 @@ public class PermissionService {
             rp.setPermissionId(pid);
             rolePermissionMapper.insert(rp);
         });
+        securityLogService.audit(null, "PERM_BIND", "ROLE",
+                String.valueOf(roleId), "覆盖式绑定权限: " + permissionIds.size() + " 项");
     }
 
     /** 权限树（方案 C3）：菜单（MENU，含预留 children）+ 操作（OPERATION，按模块排序）。 */
