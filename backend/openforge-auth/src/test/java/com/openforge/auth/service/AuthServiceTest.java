@@ -94,8 +94,8 @@ class AuthServiceTest {
 
         TokenResponse resp = authService.login(login("zhangsan", "password123"));
 
-        assertThat(resp.tokenType()).isEqualTo("Bearer");
-        Claims claims = new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120).parse(resp.accessToken());
+        assertThat(resp.getTokenType()).isEqualTo("Bearer");
+        Claims claims = new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120).parse(resp.getAccessToken());
         assertThat(claims.getSubject()).isEqualTo("zhangsan");
         assertThat(claims.get("uid", Long.class)).isEqualTo(42L);
     }
