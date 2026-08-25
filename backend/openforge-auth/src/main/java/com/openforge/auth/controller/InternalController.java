@@ -26,15 +26,18 @@ public class InternalController {
     private final NumberRuleService numberRuleService;
     private final RbacService rbacService;
     private final PermissionService permissionService;
+    private final com.openforge.auth.mapper.UserMapper userMapper;
     private final String internalToken;
 
     public InternalController(NumberRuleService numberRuleService,
                               RbacService rbacService,
                               PermissionService permissionService,
+                              com.openforge.auth.mapper.UserMapper userMapper,
                               @Value("${openforge.internal.token:openforge-internal-dev-token}") String internalToken) {
         this.numberRuleService = numberRuleService;
         this.rbacService = rbacService;
         this.permissionService = permissionService;
+        this.userMapper = userMapper;
         this.internalToken = internalToken;
     }
 
@@ -50,8 +53,11 @@ public class InternalController {
             @PathVariable Long userId,
             @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         requireInternal(token);
+        com.openforge.auth.entity.SysUser user = userMapper.selectById(userId);
+        String userType = user == null ? "NORMAL" : user.getUserType();
         return ApiResponse.ok(new InternalPermissionView(
                 userId,
+                userType,
                 rbacService.getRoleCodesOfUser(userId),
                 permissionService.getPermissionCodesOfUser(userId)));
     }

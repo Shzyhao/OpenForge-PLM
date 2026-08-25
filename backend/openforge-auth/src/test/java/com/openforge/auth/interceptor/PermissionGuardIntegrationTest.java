@@ -98,10 +98,10 @@ class PermissionGuardIntegrationTest {
     }
 
     @Test
-    @DisplayName("ADMIN 角色免检通过")
-    void adminShouldPassGuard() throws Exception {
-        Long uid = createUser("guard_admin");
-        bindRole(uid, "ADMIN");
+    @DisplayName("ADMINS 角色用户经由全权限点绑定通过校验（V15 后 ADMINS 持全部权限）")
+    void adminsShouldPassGuard() throws Exception {
+        Long uid = createUser("guard_admins");
+        bindRole(uid, "ADMINS");
 
         mockMvc.perform(put("/api/v1/roles/users/{id}", uid)
                         .header("X-User-Id", String.valueOf(uid))
@@ -112,13 +112,14 @@ class PermissionGuardIntegrationTest {
     }
 
     @Test
-    @DisplayName("V3 迁移后 ADMIN 用户应持有全部初始权限点")
-    void adminShouldHoldAllInitialPermissions() {
-        Long uid = createUser("guard_admin_perms");
-        bindRole(uid, "ADMIN");
+    @DisplayName("V14 后固定 admin 账号为 SUPER 免检；V15 后 ADMINS 持有全部权限点")
+    void superAdminAndAdminsPermissions() {
+        Long adminsUid = createUser("guard_admins_perms");
+        bindRole(adminsUid, "ADMINS");
 
-        // 直接通过 service 层验证联查（拦截器走 ADMIN 短路，这里验证数据链路本身）
-        assertThat(permissionService.getPermissionCodesOfUser(uid))
-                .contains("role:create", "role:assign", "perm:manage", "user:manage");
+        com.openforge.auth.service.PermissionService ps = permissionService;
+        assertThat(ps.getPermissionCodesOfUser(adminsUid))
+                .contains("role:create", "role:assign", "perm:manage", "user:manage",
+                        "menu:material", "material:view"); // 操作点 + 菜单 + view 全量绑定
     }
 }

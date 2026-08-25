@@ -15,6 +15,7 @@ import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +30,14 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
+    @Value("${openforge.security.open-registration:false}")
+    private boolean openRegistration;
+
     public UserCreatedResponse register(RegisterRequest request) {
+        if (!openRegistration) {
+            // 用户由管理员手动创建（方案 D8）；保留接口以便内测环境通过配置打开
+            throw new BizException(ErrorCode.FORBIDDEN, "系统未开放自助注册，请联系管理员创建账号");
+        }
         String username = request.getUsername();
         Long existing = userMapper.selectCount(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, username));
@@ -43,23 +51,13 @@ public class AuthService {
         user.setDisplayName(request.getDisplayName() == null ? username : request.getDisplayName());
         user.setEmail(request.getEmail());
         user.setStatus("ACTIVE");
+        user.setUserType("NORMAL");
+        user.setPasswordUpdatedAt(java.time.LocalDateTime.now());
+        user.setFirstLoginChange(0);
+        user.setFailedLoginCount(0);
         user.setTenantId(0L);
         user.setDeleted(0);
         userMapper.insert(user);
-
-        // 首个注册用户自动授予 ADMIN（否则无人能执行角色分配——真实部署冒烟暴露的引导缺陷）
-        Long totalUsers = userMapper.selectCount(null);
-        if (totalUsers != null && totalUsers == 1) {
-            SysRole admin = roleMapper.selectOne(
-                    new LambdaQueryWrapper<SysRole>().eq(SysRole::getRoleCode, "ADMIN"));
-            if (admin != null) {
-                SysUserRole binding = new SysUserRole();
-                binding.setUserId(user.getId());
-                binding.setRoleId(admin.getId());
-                userRoleMapper.insert(binding);
-                log.info("first user {} granted ADMIN", username);
-            }
-        }
 
         log.info("user registered: id={}, username={}", user.getId(), username);
         return new UserCreatedResponse(user.getId(), username);

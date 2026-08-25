@@ -1,5 +1,7 @@
 package com.openforge.auth.interceptor;
 
+import com.openforge.auth.entity.SysUser;
+import com.openforge.auth.mapper.UserMapper;
 import com.openforge.auth.service.PermissionService;
 import com.openforge.auth.service.RbacService;
 import com.openforge.common.annotation.RequirePermission;
@@ -16,9 +18,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * @RequirePermission 注解校验拦截器。
- * 身份来自网关信任头 X-User-Id（见 gateway AuthGlobalFilter）。
- * ADMIN 角色免检兜底（即使新权限点忘了绑定也能通过）。
+ * @RequirePermission 注解校验拦截器（auth 服务库直查版）。
+ * 身份来自网关信任头 X-User-Id。
+ * 免检：SUPER 账号（固定 admin，方案 A4）；ADMINS 角色经由"绑定全部权限点"路径通过而非免检。
  */
 @Component
 @RequiredArgsConstructor
@@ -28,6 +30,7 @@ public class PermissionInterceptor implements HandlerInterceptor {
 
     private final RbacService rbacService;
     private final PermissionService permissionService;
+    private final UserMapper userMapper;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -55,8 +58,9 @@ public class PermissionInterceptor implements HandlerInterceptor {
         }
 
         List<String> roles = rbacService.getRoleCodesOfUser(userId);
-        if (roles.contains("ADMIN")) {
-            return true;
+        SysUser user = userMapper.selectById(userId);
+        if (user != null && "SUPER".equals(user.getUserType())) {
+            return true; // 固定 admin 账号免检
         }
         if (permissionService.getPermissionCodesOfUser(userId).contains(anno.value())) {
             return true;

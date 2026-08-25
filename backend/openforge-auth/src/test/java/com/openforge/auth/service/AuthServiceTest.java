@@ -40,6 +40,8 @@ class AuthServiceTest {
         authService = new AuthService(userMapper, roleMapper, userRoleMapper,
                 new BCryptPasswordEncoder(),
                 new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120));
+        // 纯单测无 Spring 容器，@Value 不注入——显式开启注册（关闭语义由专项测试验证）
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "openRegistration", true);
     }
 
     @Test
@@ -99,22 +101,12 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("首用户注册自动授予 ADMIN（引导缺陷修复）")
-    void firstUserGetsAdminRole() {
-        when(userMapper.selectCount(any())).thenReturn(0L)   // 用户名查重
-                .thenReturn(1L);                              // 全库总数 = 首用户
-        when(userMapper.insert(any(SysUser.class))).thenAnswer(inv -> {
-            inv.getArgument(0, SysUser.class).setId(1L);
-            return 1;
-        });
-        com.openforge.auth.entity.SysRole admin = new com.openforge.auth.entity.SysRole();
-        admin.setId(10L);
-        admin.setRoleCode("ADMIN");
-        when(roleMapper.selectOne(any())).thenReturn(admin);
-
-        authService.register(request("firstadmin", "password123"));
-
-        org.mockito.Mockito.verify(userRoleMapper).insert(any(com.openforge.auth.entity.SysUserRole.class));
+    @DisplayName("注册开关关闭时拒绝自助注册（方案 D8）")
+    void registerRejectedWhenClosed() {
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "openRegistration", false);
+        assertThatThrownBy(() -> authService.register(request("newuser", "password123")))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("未开放自助注册");
     }
 
     private RegisterRequest request(String username, String password) {
