@@ -69,6 +69,18 @@ public class PermissionService {
         });
     }
 
+    /** 权限树（方案 C3）：菜单（MENU，含预留 children）+ 操作（OPERATION，按模块排序）。 */
+    public java.util.Map<String, Object> permissionTree() {
+        List<com.openforge.auth.entity.SysPermission> all = permissionMapper.selectList(
+                new LambdaQueryWrapper<com.openforge.auth.entity.SysPermission>()
+                        .orderByAsc(com.openforge.auth.entity.SysPermission::getSortOrder));
+        List<com.openforge.auth.entity.SysPermission> menus = all.stream()
+                .filter(p -> "MENU".equals(p.getPermType())).toList();
+        List<com.openforge.auth.entity.SysPermission> operations = all.stream()
+                .filter(p -> "OPERATION".equals(p.getPermType())).toList();
+        return java.util.Map.of("menus", menus, "operations", operations);
+    }
+
     public List<String> getPermissionCodesOfRole(Long roleId) {
         List<SysRolePermission> bindings = rolePermissionMapper.selectList(
                 new LambdaQueryWrapper<SysRolePermission>().eq(SysRolePermission::getRoleId, roleId));
