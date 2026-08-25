@@ -29,6 +29,7 @@ public class AuthService {
     private final UserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final SecurityLogService securityLogService;
 
     @Value("${openforge.security.open-registration:false}")
     private boolean openRegistration;
@@ -75,13 +76,14 @@ public class AuthService {
         return new UserCreatedResponse(user.getId(), username);
     }
 
-    public TokenResponse login(LoginRequest request) {
+    public TokenResponse login(LoginRequest request, String ip, String userAgent) {
         SysUser user = userMapper.selectOne(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, request.getUsername()));
 
         // 登录失败锁定（方案 E9）：锁定期间直接拒绝
         if (user != null && user.getLockedUntil() != null
                 && user.getLockedUntil().isAfter(java.time.LocalDateTime.now())) {
+            securityLogService.recordLogin(request.getUsername(), false, "LOCKED", ip, userAgent);
             throw new BizException(ErrorCode.ACCOUNT_LOCKED);
         }
 
@@ -89,10 +91,12 @@ public class AuthService {
             if (user != null) {
                 recordLoginFailure(user);
             }
+            securityLogService.recordLogin(request.getUsername(), false, "BAD_CREDENTIALS", ip, userAgent);
             // 统一模糊提示，不暴露"用户不存在/密码错误"的区别
             throw new BizException(ErrorCode.BAD_CREDENTIALS);
         }
         if (!"ACTIVE".equals(user.getStatus())) {
+            securityLogService.recordLogin(request.getUsername(), false, "DISABLED", ip, userAgent);
             throw new BizException(ErrorCode.ACCOUNT_DISABLED);
         }
 
@@ -105,6 +109,7 @@ public class AuthService {
 
         String token = jwtService.generate(user.getId(), user.getUsername(), user.getDisplayName());
         String[] status = passwordStatus(user);
+        securityLogService.recordLogin(request.getUsername(), true, status[0], ip, userAgent);
         return TokenResponse.of(token, jwtService.getTtlMinutes(), status[0],
                 "EXPIRING_SOON".equals(status[0]) ? Long.parseLong(status[1]) : null);
     }

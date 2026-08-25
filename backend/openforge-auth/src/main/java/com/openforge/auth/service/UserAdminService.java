@@ -36,6 +36,8 @@ public class UserAdminService {
     private final RoleMapper roleMapper;
     private final RbacService rbacService;
     private final PasswordEncoder passwordEncoder;
+    private final com.openforge.auth.mapper.PasswordHistoryMapper passwordHistoryMapper;
+    private final SecurityLogService securityLogService;
 
     @Value("${openforge.security.password-expiry-days:180}")
     private int passwordExpiryDays;
@@ -82,6 +84,8 @@ public class UserAdminService {
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
             rbacService.assignRoles(user.getId(), request.getRoleIds());
         }
+        securityLogService.audit(operatorId, "USER_CREATE", "USER",
+                String.valueOf(user.getId()), "创建用户 " + user.getUsername());
         log.info("user created: {} by operator {}", user.getUsername(), operatorId);
         return user;
     }
@@ -149,6 +153,8 @@ public class UserAdminService {
         }
         target.setStatus(enable ? "ACTIVE" : "DISABLED");
         userMapper.updateById(target);
+        securityLogService.audit(operatorId, enable ? "USER_ENABLE" : "USER_DISABLE", "USER",
+                String.valueOf(id), (enable ? "启用" : "停用") + "用户 " + target.getUsername());
         return target;
     }
 
@@ -159,12 +165,16 @@ public class UserAdminService {
         SysUser target = require(id);
         assertCanOperate(operatorId, target, true);
         validatePasswordStrength(newPassword);
+        assertNotRecentPassword(id, newPassword);
+        recordPasswordHistory(id, newPassword);
         target.setPasswordHash(passwordEncoder.encode(newPassword));
         target.setPasswordUpdatedAt(LocalDateTime.now());
         target.setFirstLoginChange(1); // 重置后下次登录强制改密（方案 E6）
         target.setFailedLoginCount(0);
         target.setLockedUntil(null);
         userMapper.updateById(target);
+        securityLogService.audit(operatorId, "USER_RESET_PASSWORD", "USER",
+                String.valueOf(id), "重置用户 " + target.getUsername() + " 的密码");
         log.info("password reset by operator {} for user {}", operatorId, target.getUsername());
         return newPassword;
     }
@@ -182,6 +192,8 @@ public class UserAdminService {
         }
         userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, id));
         userMapper.deleteById(id);
+        securityLogService.audit(operatorId, "USER_DELETE", "USER",
+                String.valueOf(id), "删除用户 " + target.getUsername());
         log.info("user deleted: {} by operator {}", target.getUsername(), operatorId);
     }
 
@@ -194,13 +206,38 @@ public class UserAdminService {
             throw new BizException(ErrorCode.BAD_CREDENTIALS, "原密码不正确");
         }
         validatePasswordStrength(newPassword);
+        assertNotRecentPassword(userId, newPassword);
+        recordPasswordHistory(userId, newPassword);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setPasswordUpdatedAt(LocalDateTime.now());
         user.setFirstLoginChange(0); // 完成改密，解除强制状态
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
         userMapper.updateById(user);
+        securityLogService.audit(userId, "PASSWORD_CHANGE", "USER",
+                String.valueOf(userId), "用户 " + user.getUsername() + " 修改了自己的密码");
         log.info("password changed by user {}", user.getUsername());
+    }
+
+    /** 密码历史（方案 E8）：新密码不得与最近 3 次（含当前）重复。 */
+    private void assertNotRecentPassword(Long userId, String newPassword) {
+        var recent = passwordHistoryMapper.selectList(
+                new LambdaQueryWrapper<com.openforge.auth.entity.SysPasswordHistory>()
+                        .eq(com.openforge.auth.entity.SysPasswordHistory::getUserId, userId)
+                        .orderByDesc(com.openforge.auth.entity.SysPasswordHistory::getId)
+                        .last("LIMIT 3"));
+        boolean reused = recent.stream().anyMatch(
+                h -> passwordEncoder.matches(newPassword, h.getPasswordHash()));
+        if (reused) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "新密码与最近使用的密码重复，请更换");
+        }
+    }
+
+    private void recordPasswordHistory(Long userId, String rawPassword) {
+        com.openforge.auth.entity.SysPasswordHistory h = new com.openforge.auth.entity.SysPasswordHistory();
+        h.setUserId(userId);
+        h.setPasswordHash(passwordEncoder.encode(rawPassword));
+        passwordHistoryMapper.insert(h);
     }
 
     /** 密码强度（方案 E7 最小集）：≥8 位且同时包含字母与数字。 */

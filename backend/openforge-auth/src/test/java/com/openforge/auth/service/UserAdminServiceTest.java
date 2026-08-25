@@ -37,6 +37,10 @@ class UserAdminServiceTest {
     private RoleMapper roleMapper;
     @Mock
     private RbacService rbacService;
+    @Mock
+    private com.openforge.auth.mapper.PasswordHistoryMapper passwordHistoryMapper;
+    @Mock
+    private SecurityLogService securityLogService;
 
     private UserAdminService service;
 
@@ -47,7 +51,7 @@ class UserAdminServiceTest {
     @BeforeEach
     void setUp() {
         service = new UserAdminService(userMapper, userRoleMapper, roleMapper, rbacService,
-                new BCryptPasswordEncoder());
+                new BCryptPasswordEncoder(), passwordHistoryMapper, securityLogService);
         ReflectionTestUtils.setField(service, "passwordExpiryDays", 180);
     }
 
@@ -80,6 +84,8 @@ class UserAdminServiceTest {
     @DisplayName("保护矩阵：admin 可修改自己；admin 不可被停用/删除（任何人）")
     void adminSelfModifyAndImmutable() {
         when(userMapper.selectById(ADMIN_ID)).thenReturn(user(ADMIN_ID, "SUPER"));
+        when(passwordHistoryMapper.selectList(any())).thenReturn(java.util.List.of());
+        when(passwordHistoryMapper.insert(any(com.openforge.auth.entity.SysPasswordHistory.class))).thenReturn(1);
         assertThatCode(() -> service.update(ADMIN_ID, ADMIN_ID, "Admin", null, null))
                 .doesNotThrowAnyException();
         assertThatCode(() -> service.resetPassword(ADMIN_ID, ADMIN_ID, "NewPass1234"))
@@ -129,6 +135,8 @@ class UserAdminServiceTest {
         SysUser u = user(NORMAL_USER, "NORMAL");
         u.setFirstLoginChange(1);
         when(userMapper.selectById(NORMAL_USER)).thenReturn(u);
+        when(passwordHistoryMapper.selectList(any())).thenReturn(java.util.List.of());
+        when(passwordHistoryMapper.insert(any(com.openforge.auth.entity.SysPasswordHistory.class))).thenReturn(1);
 
         assertThatThrownBy(() -> service.changeMyPassword(NORMAL_USER, "wrongpass1", "NewPass1234"))
                 .isInstanceOf(BizException.class);
