@@ -11,6 +11,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
     table: flyway_material_history   # 多服务共享库，独立迁移历史
 
 mybatis-plus:

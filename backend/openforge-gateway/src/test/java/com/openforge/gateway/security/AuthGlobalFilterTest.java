@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 class AuthGlobalFilterTest {
 
     private static final String SECRET = "gateway-test-secret-key-32-bytes-abc";
-    private static final List<String> WHITELIST = List.of("/api/v1/auth/login", "/actuator/**");
+    private static final String WHITELIST_CSV = "/api/v1/auth/login,/actuator/**";
 
     private SecretKey key;
     private GatewayFilterChain chain;
@@ -37,7 +37,7 @@ class AuthGlobalFilterTest {
     @BeforeEach
     void setUp() {
         key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-        filter = new AuthGlobalFilter(new JwtVerifier(SECRET), WHITELIST);
+        filter = new AuthGlobalFilter(new JwtVerifier(SECRET), WHITELIST_CSV);
         chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
     }

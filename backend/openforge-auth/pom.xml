@@ -39,6 +39,11 @@
             <version>${mybatis-plus.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- JWT (jjwt 0.12.x) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

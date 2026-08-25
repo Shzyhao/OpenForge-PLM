@@ -70,6 +70,17 @@ public class EcrService {
         if (instance != null) {
             resp.setFlowState(instance.state());
             resp.setFlowCurrentNode(instance.currentNode());
+            // 流程终态同步 ECR 状态（COMPLETED→APPROVED / REJECTED→REJECTED，查询时惰性回流）
+            if ("SUBMITTED".equals(ecr.getState())) {
+                if ("COMPLETED".equals(instance.state())) {
+                    ecr.setState("APPROVED");
+                    mapper.updateById(ecr);
+                } else if ("REJECTED".equals(instance.state())) {
+                    ecr.setState("REJECTED");
+                    mapper.updateById(ecr);
+                }
+                resp.setState(ecr.getState());
+            }
         }
         return resp;
     }
