@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { key: '/project', menu: 'menu:project', icon: <ProjectOutlined />, label: '项目' },
   { key: '/system/users', menu: 'menu:system', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/system/roles', menu: 'menu:system', icon: <TeamOutlined />, label: '角色权限' },
+  { key: '/system/logs', menu: 'menu:system', icon: <FileTextOutlined />, label: '安全日志' },
 ]
 
 const ROLE_COLORS: Record<string, string> = { ADMINS: 'volcano', ENGINEER: 'geekblue', VIEWER: 'default' }
