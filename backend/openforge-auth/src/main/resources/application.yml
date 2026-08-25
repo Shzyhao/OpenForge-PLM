@@ -19,6 +19,9 @@ mybatis-plus:
     banner: false
 
 openforge:
+  security:
+    # 自助注册默认关闭：用户由管理员手动创建（权限完善方案 D8）
+    open-registration: ${OPEN_REGISTRATION:false}
   jwt:
     # 仅供本地开发；生产环境必须通过环境变量覆盖（>=32 字节）
     secret: ${JWT_SECRET:openforge-dev-secret-key-change-me-in-production-0001}

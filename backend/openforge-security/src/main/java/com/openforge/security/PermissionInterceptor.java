@@ -51,8 +51,8 @@ public class PermissionInterceptor implements HandlerInterceptor {
         }
 
         PermissionView view = permissionQueryClient.fetch(userId);
-        if (view.roles().contains("ADMIN")) {
-            return true;
+        if ("SUPER".equals(view.userType())) {
+            return true; // 固定 admin 账号免检（方案 A4）
         }
         if (view.permissions().contains(anno.value())) {
             return true;

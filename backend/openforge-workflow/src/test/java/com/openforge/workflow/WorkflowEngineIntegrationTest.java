@@ -55,8 +55,8 @@ class WorkflowEngineIntegrationTest {
 
     @BeforeEach
     void stubPermissions() {
-        when(permissionQueryClient.fetch(1L)).thenReturn(new PermissionView(1L, List.of("ADMIN"), List.of()));
-        when(permissionQueryClient.fetch(7L)).thenReturn(new PermissionView(7L, List.of("ENGINEER"), List.of()));
+        when(permissionQueryClient.fetch(1L)).thenReturn(new PermissionView(1L, "NORMAL", List.of("ADMIN"), List.of()));
+        when(permissionQueryClient.fetch(7L)).thenReturn(new PermissionView(7L, "NORMAL", List.of("ENGINEER"), List.of()));
     }
 
     private WorkflowInstance startWith(Map<String, Object> vars) {
