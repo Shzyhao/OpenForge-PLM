@@ -1,42 +1,36 @@
-import { useEffect, useState } from 'react'
-import { Avatar, Dropdown, Layout, Menu, Spin, Tag, theme } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Avatar, Dropdown, Layout, Menu, Result, Spin, Tag, theme } from 'antd'
 import {
-  ApartmentOutlined,
-  AppstoreOutlined,
-  BellOutlined,
-  BookOutlined,
-  FileTextOutlined,
-  HomeOutlined,
-  LogoutOutlined,
-  ProjectOutlined,
-  SwapOutlined,
-  UserOutlined,
+  ApartmentOutlined, AppstoreOutlined, BellOutlined, BookOutlined, FileTextOutlined,
+  HomeOutlined, KeyOutlined, LogoutOutlined, ProjectOutlined, SwapOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { clearToken } from '../api/client'
+import { clearToken, getPasswordStatus } from '../api/client'
 import { fetchCurrentUser, type UserInfo } from '../api/user'
 import AiAssistant from '../components/AiAssistant'
+import PasswordModal from '../components/PasswordModal'
+import { PermContext, type PermContextValue } from '../perm/PermContext'
 
 const { Header, Sider, Content } = Layout
 
-/** 侧边导航菜单（全部模块已接入） */
+/** 菜单项与权限点映射（menu:xxx 为 V15 菜单权限编码） */
 const NAV_ITEMS = [
-  { key: '/', icon: <HomeOutlined />, label: '工作台' },
-  { key: '/tasks', icon: <BellOutlined />, label: '我的待办' },
-  { key: '/material', icon: <AppstoreOutlined />, label: '物料' },
-  { key: '/bom', icon: <ProjectOutlined />, label: 'BOM' },
-  { key: '/doc', icon: <FileTextOutlined />, label: '文档' },
-  { key: '/change', icon: <SwapOutlined />, label: '变更' },
-  { key: '/workflow', icon: <ApartmentOutlined />, label: '流程' },
-  { key: '/knowledge', icon: <BookOutlined />, label: '知识库' },
-  { key: '/project', icon: <ProjectOutlined />, label: '项目' },
+  { key: '/', menu: 'menu:dashboard', icon: <HomeOutlined />, label: '工作台' },
+  { key: '/tasks', menu: 'menu:tasks', icon: <BellOutlined />, label: '我的待办' },
+  { key: '/material', menu: 'menu:material', icon: <AppstoreOutlined />, label: '物料' },
+  { key: '/bom', menu: 'menu:bom', icon: <ProjectOutlined />, label: 'BOM' },
+  { key: '/doc', menu: 'menu:doc', icon: <FileTextOutlined />, label: '文档' },
+  { key: '/change', menu: 'menu:change', icon: <SwapOutlined />, label: '变更' },
+  { key: '/workflow', menu: 'menu:workflow', icon: <ApartmentOutlined />, label: '流程' },
+  { key: '/knowledge', menu: 'menu:knowledge', icon: <BookOutlined />, label: '知识库' },
+  { key: '/project', menu: 'menu:project', icon: <ProjectOutlined />, label: '项目' },
+  { key: '/system/users', menu: 'menu:system', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/system/roles', menu: 'menu:system', icon: <TeamOutlined />, label: '角色权限' },
+  { key: '/system/logs', menu: 'menu:system', icon: <FileTextOutlined />, label: '安全日志' },
 ]
 
-const ROLE_COLORS: Record<string, string> = {
-  ADMIN: 'volcano',
-  ENGINEER: 'geekblue',
-  VIEWER: 'default',
-}
+const ROLE_COLORS: Record<string, string> = { ADMINS: 'volcano', ENGINEER: 'geekblue', VIEWER: 'default' }
 
 export default function AppLayout() {
   const [user, setUser] = useState<UserInfo | null>(null)
@@ -45,87 +39,99 @@ export default function AppLayout() {
   const location = useLocation()
   const { token: themeToken } = theme.useToken()
 
+  // 密码状态弹窗（方案 E3/E4）
+  const savedStatus = getPasswordStatus()
+  const [pwModal, setPwModal] = useState<'FORCE_CHANGE' | 'EXPIRING_SOON' | 'VOLUNTARY' | null>(
+    savedStatus === 'FORCE_CHANGE' || savedStatus === 'EXPIRED' ? 'FORCE_CHANGE'
+      : savedStatus === 'EXPIRING_SOON' ? 'EXPIRING_SOON' : null)
+
   useEffect(() => {
     fetchCurrentUser()
       .then(setUser)
-      .catch(() => {
-        clearToken()
-        navigate('/login')
-      })
+      .catch(() => { clearToken(); navigate('/login') })
       .finally(() => setLoading(false))
   }, [navigate])
 
-  const selectedKey =
-    NAV_ITEMS.find((item) => item.key !== '/' && location.pathname.startsWith(item.key))?.key ?? '/'
+  const permValue: PermContextValue = useMemo(() => ({
+    user,
+    hasPerm: (code) => user?.userType === 'SUPER' || (user?.permissions?.includes(code) ?? false),
+    hasMenu: (menu) => user?.userType === 'SUPER' || (user?.menus?.includes(menu) ?? false),
+  }), [user])
+
+  const visibleItems = NAV_ITEMS.filter(item => permValue.hasMenu(item.menu))
+
+  // 路由守卫（方案 F4）：当前路径对应菜单不可见 → 403
+  const activeNav = NAV_ITEMS.find(item =>
+    item.key !== '/' && (location.pathname === item.key || location.pathname.startsWith(item.key + '/')))
+    ?? (location.pathname === '/' ? NAV_ITEMS[0] : undefined)
+  const forbidden = activeNav !== undefined && !permValue.hasMenu(activeNav.menu)
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}><Spin /></div>
+  }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" width={200} style={{ borderRight: `1px solid ${themeToken.colorBorderSecondary}` }}>
-        <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
-          🔨 OpenForge
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          items={NAV_ITEMS}
-          onClick={({ key }) => navigate(key)}
-        />
-      </Sider>
-      <Layout>
-        <Header
-          style={{
+    <PermContext.Provider value={permValue}>
+      <Layout style={{ minHeight: '100vh' }}>
+        <Sider theme="light" width={200} style={{ borderRight: `1px solid ${themeToken.colorBorderSecondary}` }}>
+          <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
+            🔨 OpenForge
+          </div>
+          <Menu mode="inline" selectedKeys={[activeNav?.key ?? '/']}
+            items={visibleItems.map(({ key, icon, label }) => ({ key, icon, label }))}
+            onClick={({ key }) => navigate(key)} />
+        </Sider>
+        <Layout>
+          <Header style={{
             background: themeToken.colorBgContainer,
             borderBottom: `1px solid ${themeToken.colorBorderSecondary}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            paddingInline: 24,
-            gap: 16,
-          }}
-        >
-          <AiAssistant />
-          <BellOutlined style={{ fontSize: 16, cursor: 'pointer' }} title="通知（M2）" />
-          {loading ? (
-            <Spin size="small" />
-          ) : user ? (
-            <>
-              {user.roles.map((role) => (
-                <Tag key={role} color={ROLE_COLORS[role] ?? 'default'}>
-                  {role}
-                </Tag>
-              ))}
-              <Dropdown
-                menu={{
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+            paddingInline: 24, gap: 16,
+          }}>
+            <AiAssistant />
+            {user && (
+              <>
+                {user.userType === 'SUPER' && <Tag color="red">admin</Tag>}
+                {user.roles.map(role => (
+                  <Tag key={role} color={ROLE_COLORS[role] ?? 'default'}>{role}</Tag>
+                ))}
+                <Dropdown menu={{
                   items: [
-                    { key: 'profile', icon: <UserOutlined />, label: '个人中心（建设中）' },
+                    { key: 'password', icon: <KeyOutlined />, label: '修改密码',
+                      onClick: () => setPwModal('VOLUNTARY') },
                     { type: 'divider' },
-                    {
-                      key: 'logout',
-                      icon: <LogoutOutlined />,
-                      label: '退出登录',
-                      danger: true,
-                      onClick: () => {
-                        clearToken()
-                        navigate('/login')
-                      },
-                    },
+                    { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true,
+                      onClick: () => { clearToken(); navigate('/login') } },
                   ],
-                }}
-              >
-                <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Avatar size="small" style={{ backgroundColor: themeToken.colorPrimary }}>
-                    {(user.displayName || user.username).charAt(0)}
-                  </Avatar>
-                  {user.displayName || user.username}
-                </span>
-              </Dropdown>
-            </>
-          ) : null}
-        </Header>
-        <Content style={{ padding: 24, background: themeToken.colorBgLayout }}>
-          <Outlet />
-        </Content>
+                }}>
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Avatar size="small" style={{ backgroundColor: themeToken.colorPrimary }}>
+                      {(user.displayName || user.username).charAt(0)}
+                    </Avatar>
+                    {user.displayName || user.username}
+                  </span>
+                </Dropdown>
+              </>
+            )}
+          </Header>
+          <Content style={{ padding: 24, background: themeToken.colorBgLayout }}>
+            {forbidden
+              ? <Result status="403" title="无权访问" subTitle="您没有该模块的访问权限，请联系管理员配置" />
+              : <Outlet />}
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+
+      {pwModal && (
+        <PasswordModal
+          open mode={pwModal}
+          onSuccess={() => {
+            clearToken()
+            window.location.href = '/login'
+          }}
+          onCancel={() => setPwModal(null)}
+        />
+      )}
+    </PermContext.Provider>
   )
 }

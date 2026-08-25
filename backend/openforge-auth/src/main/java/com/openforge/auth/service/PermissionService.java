@@ -26,6 +26,7 @@ public class PermissionService {
     private final RoleMapper roleMapper;
     private final RolePermissionMapper rolePermissionMapper;
     private final UserRoleMapper userRoleMapper;
+    private final SecurityLogService securityLogService;
 
     public List<SysPermission> listPermissions() {
         return permissionMapper.selectList(null);
@@ -67,6 +68,32 @@ public class PermissionService {
             rp.setPermissionId(pid);
             rolePermissionMapper.insert(rp);
         });
+        securityLogService.audit(null, "PERM_BIND", "ROLE",
+                String.valueOf(roleId), "覆盖式绑定权限: " + permissionIds.size() + " 项");
+    }
+
+    /** 权限树（方案 C3）：菜单（MENU，含预留 children）+ 操作（OPERATION，按模块排序）。 */
+    public java.util.Map<String, Object> permissionTree() {
+        List<com.openforge.auth.entity.SysPermission> all = permissionMapper.selectList(
+                new LambdaQueryWrapper<com.openforge.auth.entity.SysPermission>()
+                        .orderByAsc(com.openforge.auth.entity.SysPermission::getSortOrder));
+        List<com.openforge.auth.entity.SysPermission> menus = all.stream()
+                .filter(p -> "MENU".equals(p.getPermType())).toList();
+        List<com.openforge.auth.entity.SysPermission> operations = all.stream()
+                .filter(p -> "OPERATION".equals(p.getPermType())).toList();
+        return java.util.Map.of("menus", menus, "operations", operations);
+    }
+
+    /** 用户可见菜单编码（方案 F2 动态菜单）：SUPER 全量，其余按角色菜单权限。 */
+    public List<String> menuCodesOfUser(com.openforge.auth.entity.SysUser user) {
+        if ("SUPER".equals(user.getUserType())) {
+            return permissionMapper.selectList(
+                            new LambdaQueryWrapper<com.openforge.auth.entity.SysPermission>()
+                                    .eq(com.openforge.auth.entity.SysPermission::getPermType, "MENU"))
+                    .stream().map(com.openforge.auth.entity.SysPermission::getPermCode).toList();
+        }
+        return getPermissionCodesOfUser(user.getId()).stream()
+                .filter(c -> c.startsWith("menu:")).toList();
     }
 
     public List<String> getPermissionCodesOfRole(Long roleId) {

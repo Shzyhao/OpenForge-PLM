@@ -15,4 +15,14 @@ public class SysPermission {
     private String permCode;
 
     private String permName;
+
+    /** MENU（界面权限）/ OPERATION（操作权限） */
+    private String permType;
+
+    /** 菜单父级（MENU 树用） */
+    private Long parentId;
+
+    private String description;
+
+    private Integer sortOrder;
 }

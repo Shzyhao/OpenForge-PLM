@@ -31,6 +31,21 @@ public class SysUser {
     /** ACTIVE / DISABLED */
     private String status;
 
+    /** SUPER（固定 admin）/ NORMAL */
+    private String userType;
+
+    /** 密码更新时间（半年过期机制） */
+    private java.time.LocalDateTime passwordUpdatedAt;
+
+    /** 首登/被重置后强制改密 */
+    private Integer firstLoginChange;
+
+    /** 连续登录失败次数（锁定机制） */
+    private Integer failedLoginCount;
+
+    /** 锁定截止时间 */
+    private java.time.LocalDateTime lockedUntil;
+
     private Long tenantId;
 
     /** 所属组织（sys_org.id），注册时为空，由管理员分配；ALWAYS 使"移出组织"(置null)生效 */

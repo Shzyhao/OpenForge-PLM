@@ -59,9 +59,9 @@ class WorkflowAdvancedIntegrationTest {
 
     @BeforeEach
     void stubPermissions() {
-        when(permissionQueryClient.fetch(7L)).thenReturn(new PermissionView(7L, List.of("ENGINEER"), List.of()));
-        when(permissionQueryClient.fetch(8L)).thenReturn(new PermissionView(8L, List.of(), List.of()));
-        when(permissionQueryClient.fetch(9L)).thenReturn(new PermissionView(9L, List.of(), List.of()));
+        when(permissionQueryClient.fetch(7L)).thenReturn(new PermissionView(7L, "NORMAL", List.of("ENGINEER"), List.of()));
+        when(permissionQueryClient.fetch(8L)).thenReturn(new PermissionView(8L, "NORMAL", List.of(), List.of()));
+        when(permissionQueryClient.fetch(9L)).thenReturn(new PermissionView(9L, "NORMAL", List.of(), List.of()));
     }
 
     /** 会签两人（8/9）的待办合并视图 */
