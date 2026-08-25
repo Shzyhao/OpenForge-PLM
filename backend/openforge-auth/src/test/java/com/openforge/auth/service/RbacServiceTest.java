@@ -34,12 +34,16 @@ class RbacServiceTest {
     private UserRoleMapper userRoleMapper;
     @Mock
     private UserMapper userMapper;
+    @Mock
+    private com.openforge.auth.mapper.RolePermissionMapper rolePermissionMapper;
+    @Mock
+    private SecurityLogService securityLogService;
 
     private RbacService rbacService;
 
     @BeforeEach
     void setUp() {
-        rbacService = new RbacService(roleMapper, userRoleMapper, userMapper);
+        rbacService = new RbacService(roleMapper, userRoleMapper, userMapper, rolePermissionMapper, securityLogService);
     }
 
     @Test
@@ -78,6 +82,39 @@ class RbacServiceTest {
         assertThat(captor.getAllValues())
                 .extracting(SysUserRole::getRoleId)
                 .containsExactlyInAnyOrder(10L, 20L);
+    }
+
+    @Test
+    @DisplayName("删除角色：内置角色拒绝")
+    void deleteBuiltinRoleRejected() {
+        SysRole role = new SysRole();
+        role.setId(1L);
+        role.setBuiltin(1);
+        when(roleMapper.selectById(1L)).thenReturn(role);
+        assertThatThrownBy(() -> rbacService.deleteRole(1L))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("内置角色");
+    }
+
+    @Test
+    @DisplayName("删除角色：仍有成员拒绝；无成员自定义角色可删")
+    void deleteRoleMemberGuard() {
+        SysRole role = new SysRole();
+        role.setId(20L);
+        role.setBuiltin(0);
+        when(roleMapper.selectById(20L)).thenReturn(role);
+        when(userRoleMapper.selectCount(any())).thenReturn(3L);
+        assertThatThrownBy(() -> rbacService.deleteRole(20L))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("成员");
+
+        when(userRoleMapper.selectCount(any())).thenReturn(0L);
+        org.mockito.Mockito.verify(rolePermissionMapper, org.mockito.Mockito.never())
+                .delete(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+        rbacService.deleteRole(20L); // 无成员可删（清绑定+删角色）
+        org.mockito.Mockito.verify(rolePermissionMapper)
+                .delete(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+        org.mockito.Mockito.verify(roleMapper).deleteById(20L);
     }
 
     @Test

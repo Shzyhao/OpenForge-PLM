@@ -26,7 +26,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.login(request));
+    public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request,
+                                            jakarta.servlet.http.HttpServletRequest httpRequest) {
+        return ApiResponse.ok(authService.login(request,
+                httpRequest.getHeader("X-Forwarded-For"),
+                httpRequest.getHeader("User-Agent")));
     }
 }

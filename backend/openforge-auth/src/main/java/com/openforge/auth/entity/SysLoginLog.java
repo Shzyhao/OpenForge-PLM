@@ -8,24 +8,23 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("sys_role")
-public class SysRole {
+@TableName("sys_login_log")
+public class SysLoginLog {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String roleCode;
+    private String username;
 
-    private String roleName;
+    /** 1 成功 / 0 失败 */
+    private Integer success;
 
-    private Integer builtin;
+    /** OK/BAD_CREDENTIALS/LOCKED/DISABLED */
+    private String reason;
 
-    private String description;
+    private String ip;
 
-    /** 停用后权限失效但绑定保留 */
-    private Integer enabled;
-
-    private Long tenantId;
+    private String userAgent;
 
     private LocalDateTime createdAt;
 }

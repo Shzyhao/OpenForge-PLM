@@ -32,6 +32,8 @@ class AuthServiceTest {
     private com.openforge.auth.mapper.RoleMapper roleMapper;
     @Mock
     private com.openforge.auth.mapper.UserRoleMapper userRoleMapper;
+    @Mock
+    private SecurityLogService securityLogService;
 
     private AuthService authService;
 
@@ -39,7 +41,10 @@ class AuthServiceTest {
     void setUp() {
         authService = new AuthService(userMapper, roleMapper, userRoleMapper,
                 new BCryptPasswordEncoder(),
-                new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120));
+                new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120),
+                securityLogService);
+        // 纯单测无 Spring 容器，@Value 不注入——显式开启注册（关闭语义由专项测试验证）
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "openRegistration", true);
     }
 
     @Test
@@ -78,7 +83,7 @@ class AuthServiceTest {
         SysUser user = persistedUser("zhangsan", new BCryptPasswordEncoder().encode("password123"));
         when(userMapper.selectOne(any())).thenReturn(user);
 
-        assertThatThrownBy(() -> authService.login(login("zhangsan", "wrong-pass-1")))
+        assertThatThrownBy(() -> authService.login(login("zhangsan", "wrong-pass-1"), null, null))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
                         .isEqualTo(ErrorCode.BAD_CREDENTIALS));
@@ -90,31 +95,21 @@ class AuthServiceTest {
         SysUser user = persistedUser("zhangsan", new BCryptPasswordEncoder().encode("password123"));
         when(userMapper.selectOne(any())).thenReturn(user);
 
-        TokenResponse resp = authService.login(login("zhangsan", "password123"));
+        TokenResponse resp = authService.login(login("zhangsan", "password123"), null, null);
 
-        assertThat(resp.tokenType()).isEqualTo("Bearer");
-        Claims claims = new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120).parse(resp.accessToken());
+        assertThat(resp.getTokenType()).isEqualTo("Bearer");
+        Claims claims = new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120).parse(resp.getAccessToken());
         assertThat(claims.getSubject()).isEqualTo("zhangsan");
         assertThat(claims.get("uid", Long.class)).isEqualTo(42L);
     }
 
     @Test
-    @DisplayName("首用户注册自动授予 ADMIN（引导缺陷修复）")
-    void firstUserGetsAdminRole() {
-        when(userMapper.selectCount(any())).thenReturn(0L)   // 用户名查重
-                .thenReturn(1L);                              // 全库总数 = 首用户
-        when(userMapper.insert(any(SysUser.class))).thenAnswer(inv -> {
-            inv.getArgument(0, SysUser.class).setId(1L);
-            return 1;
-        });
-        com.openforge.auth.entity.SysRole admin = new com.openforge.auth.entity.SysRole();
-        admin.setId(10L);
-        admin.setRoleCode("ADMIN");
-        when(roleMapper.selectOne(any())).thenReturn(admin);
-
-        authService.register(request("firstadmin", "password123"));
-
-        org.mockito.Mockito.verify(userRoleMapper).insert(any(com.openforge.auth.entity.SysUserRole.class));
+    @DisplayName("注册开关关闭时拒绝自助注册（方案 D8）")
+    void registerRejectedWhenClosed() {
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "openRegistration", false);
+        assertThatThrownBy(() -> authService.register(request("newuser", "password123")))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("未开放自助注册");
     }
 
     private RegisterRequest request(String username, String password) {

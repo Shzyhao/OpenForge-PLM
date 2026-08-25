@@ -8,24 +8,15 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("sys_role")
-public class SysRole {
+@TableName("sys_password_history")
+public class SysPasswordHistory {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String roleCode;
+    private Long userId;
 
-    private String roleName;
-
-    private Integer builtin;
-
-    private String description;
-
-    /** 停用后权限失效但绑定保留 */
-    private Integer enabled;
-
-    private Long tenantId;
+    private String passwordHash;
 
     private LocalDateTime createdAt;
 }
