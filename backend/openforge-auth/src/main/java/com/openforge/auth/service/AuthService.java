@@ -5,8 +5,12 @@ import com.openforge.auth.dto.LoginRequest;
 import com.openforge.auth.dto.RegisterRequest;
 import com.openforge.auth.dto.TokenResponse;
 import com.openforge.auth.dto.UserCreatedResponse;
+import com.openforge.auth.entity.SysRole;
 import com.openforge.auth.entity.SysUser;
+import com.openforge.auth.entity.SysUserRole;
+import com.openforge.auth.mapper.RoleMapper;
 import com.openforge.auth.mapper.UserMapper;
+import com.openforge.auth.mapper.UserRoleMapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +24,8 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserMapper userMapper;
+    private final RoleMapper roleMapper;
+    private final UserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
@@ -40,6 +46,20 @@ public class AuthService {
         user.setTenantId(0L);
         user.setDeleted(0);
         userMapper.insert(user);
+
+        // 首个注册用户自动授予 ADMIN（否则无人能执行角色分配——真实部署冒烟暴露的引导缺陷）
+        Long totalUsers = userMapper.selectCount(null);
+        if (totalUsers != null && totalUsers == 1) {
+            SysRole admin = roleMapper.selectOne(
+                    new LambdaQueryWrapper<SysRole>().eq(SysRole::getRoleCode, "ADMIN"));
+            if (admin != null) {
+                SysUserRole binding = new SysUserRole();
+                binding.setUserId(user.getId());
+                binding.setRoleId(admin.getId());
+                userRoleMapper.insert(binding);
+                log.info("first user {} granted ADMIN", username);
+            }
+        }
 
         log.info("user registered: id={}, username={}", user.getId(), username);
         return new UserCreatedResponse(user.getId(), username);

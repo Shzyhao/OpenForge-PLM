@@ -106,12 +106,12 @@ public class WorkflowEngine {
         return instance;
     }
 
-    /** 按业务对象查在途实例（供业务域绑定）。 */
+    /** 按业务对象查最新实例（含终态——业务详情需展示 COMPLETED/REJECTED；冒烟暴露只查 RUNNING 导致终态不可见）。 */
     public WorkflowInstance findByBiz(String bizType, Long bizId) {
         return instanceMapper.selectOne(new LambdaQueryWrapper<WorkflowInstance>()
                 .eq(WorkflowInstance::getBizType, bizType)
                 .eq(WorkflowInstance::getBizId, bizId)
-                .eq(WorkflowInstance::getState, "RUNNING")
+                .orderByDesc(WorkflowInstance::getId)
                 .last("LIMIT 1"));
     }
 
