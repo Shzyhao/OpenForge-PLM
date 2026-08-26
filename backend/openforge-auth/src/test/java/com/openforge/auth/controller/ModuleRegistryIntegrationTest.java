@@ -164,4 +164,47 @@ class ModuleRegistryIntegrationTest {
 
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationContext springContext;
+
+    @Test
+    @DisplayName("依赖守护（A4 设计 3.4）：依赖缺失 BROKEN → 依赖注册自动恢复；停用反查 4020")
+    void dependencyGuard() throws Exception {
+        var service = springContext.getBean(com.openforge.auth.service.ModuleRegistryService.class);
+
+        // change 依赖 workflow：workflow 未注册 → change 注册后即 BROKEN
+        register("""
+                {"moduleKey":"dep_change","moduleType":"BUSINESS","displayName":"变更探针","version":"1",
+                 "routes":["/api/v1/dep-changes"],"dependencies":["dep_workflow"]}
+                """);
+        org.assertj.core.api.Assertions.assertThat(service.findByKey("dep_change").getStatus()).isEqualTo("BROKEN");
+
+        // workflow 注册 → change 自动恢复 ENABLED（定点求值）
+        register("""
+                {"moduleKey":"dep_workflow","moduleType":"BUSINESS","displayName":"流程探针","version":"1",
+                 "routes":["/api/v1/dep-workflow"],"dependencies":[]}
+                """);
+        org.assertj.core.api.Assertions.assertThat(service.findByKey("dep_change").getStatus()).isEqualTo("ENABLED");
+
+        // 停用反查：存在启用中的依赖方 dep_change → 拒绝 4020
+        try {
+            service.disable("dep_workflow");
+            org.assertj.core.api.Assertions.fail("存在依赖方时停用应被拒绝");
+        } catch (com.openforge.common.api.BizException e) {
+            org.assertj.core.api.Assertions.assertThat(e.getErrorCode().getCode()).isEqualTo(4020);
+            org.assertj.core.api.Assertions.assertThat(e.getMessage()).contains("dep_change");
+        }
+
+        // 先停依赖方再停被依赖方 → 成功；随后重启用 workflow，change 仍 DISABLED（管理端决策不被自动恢复覆盖）
+        service.disable("dep_change");
+        service.disable("dep_workflow");
+        service.enable("dep_workflow");
+        org.assertj.core.api.Assertions.assertThat(service.findByKey("dep_change").getStatus()).isEqualTo("DISABLED");
+        org.assertj.core.api.Assertions.assertThat(service.findByKey("dep_workflow").getStatus()).isEqualTo("ENABLED");
+
+        // 单模块状态端点（ensureAvailable 数据源）
+        mockMvc.perform(get("/api/v1/internal/modules/status/dep_workflow").header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("ENABLED"));
+        mockMvc.perform(get("/api/v1/internal/modules/status/no_such_module").header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.data.status").value("NOT_FOUND"));
+    }
 }

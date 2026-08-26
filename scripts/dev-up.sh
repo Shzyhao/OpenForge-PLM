@@ -13,12 +13,18 @@ echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被�
 (cd "$ROOT/backend" && mvn -B -ntp -q clean package -DskipTests)
 
 echo "=== [3/4] 串行启动 Java 服务（等待健康后启动下一个） ==="
-# 依赖顺序：auth(取号/权限) → 业务服务 → gateway
+# 依赖顺序：auth(取号/权限/模块注册中心) → 业务服务 → gateway
+# SERVICES 环境变量可裁剪启动集（A4 模块注册：不启动的服务不注册/不路由）：
+#   SERVICES="auth metadata gateway" ./scripts/dev-up.sh
 declare -A PORTS=(
   [auth]=8081 [material]=8082 [doc]=8083 [workflow]=8084
-  [change]=8085 [knowledge]=8086 [project]=8087 [gateway]=8080
+  [change]=8085 [knowledge]=8086 [project]=8087 [metadata]=8088 [gateway]=8080
 )
-for svc in auth material doc workflow change knowledge project gateway; do
+SVC_ORDER="auth material doc workflow change knowledge project metadata gateway"
+for svc in ${SERVICES:-$SVC_ORDER}; do
+  [ -z "${PORTS[$svc]}" ] && { echo "未知服务: $svc（可选: $SVC_ORDER）"; exit 1; }
+done
+for svc in ${SERVICES:-$SVC_ORDER}; do
   nohup java $JVM_OPTS -jar "$ROOT/backend/openforge-$svc/target/openforge-$svc-0.1.0-SNAPSHOT.jar" \
     > "/tmp/openforge-$svc.log" 2>&1 &
   port=${PORTS[$svc]}

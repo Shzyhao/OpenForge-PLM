@@ -22,16 +22,21 @@ public class WorkflowClient {
             };
 
     private final RestClient restClient;
+    private final com.openforge.security.ModuleAvailabilityClient moduleAvailability;
 
     public WorkflowClient(@Value("${openforge.workflow.base-url}") String workflowBaseUrl,
-                          @Value("${openforge.security.internal-token}") String internalToken) {
+                          @Value("${openforge.security.internal-token}") String internalToken,
+                          com.openforge.security.ModuleAvailabilityClient moduleAvailability) {
         this.restClient = RestClient.builder()
                 .baseUrl(workflowBaseUrl)
                 .defaultHeader("X-Internal-Token", internalToken)
                 .build();
+        this.moduleAvailability = moduleAvailability;
     }
 
     public Long start(String defKey, String bizType, Long bizId, Map<String, Object> variables) {
+        // 依赖模块前置检查（A4 设计 3.4）：workflow 未启用时返回明确语义而非连接错误
+        moduleAvailability.ensureAvailable("workflow");
         ApiResponse<InstanceView> response;
         try {
             response = restClient.post()
@@ -55,6 +60,7 @@ public class WorkflowClient {
 
     /** 按业务对象查在途实例（无则返回 null）。 */
     public InstanceView findByBiz(String bizType, Long bizId) {
+        moduleAvailability.ensureAvailable("workflow");
         ApiResponse<InstanceView> response;
         try {
             response = restClient.get()

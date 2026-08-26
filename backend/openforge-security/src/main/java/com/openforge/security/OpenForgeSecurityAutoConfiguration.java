@@ -21,6 +21,12 @@ public class OpenForgeSecurityAutoConfiguration {
     }
 
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+    public ModuleAvailabilityClient moduleAvailabilityClient(OpenForgeSecurityProperties properties) {
+        return new ModuleAvailabilityClient(properties);
+    }
+
+    @Bean
     public WebMvcConfigurer openForgePermissionInterceptorRegistrar(PermissionQueryClient client) {
         return new WebMvcConfigurer() {
             @Override
