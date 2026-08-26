@@ -139,6 +139,7 @@ def register_module():
         "version": app.version,
         "routes": ["/api/v1/ai"],
         "dependencies": [],
+        "serviceUri": os.getenv("OPENFORGE_MODULE_SERVICE_URI", "http://localhost:8001"),
     }
     req = urllib.request.Request(
         auth_base + "/api/v1/internal/modules",

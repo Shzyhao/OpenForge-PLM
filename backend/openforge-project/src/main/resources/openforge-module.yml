@@ -10,3 +10,4 @@ menu:
   - { path: /project, title: 项目, icon: ProjectOutlined }
 flyway:
   historyTable: flyway_project_history
+serviceUri: 8087

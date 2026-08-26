@@ -24,6 +24,8 @@ public class ModuleDescriptor {
     private List<Map<String, String>> menu = new ArrayList<>();
     private String flywayTable;
     private String health = "/actuator/health";
+    /** 服务直连地址（网关动态路由目标）；运行时可用 openforge.module.service-uri 覆盖 */
+    private String serviceUri;
 
     /** 从 openforge-module.yml 解析（snakeyaml → Map，手工绑定，避免引 jackson-dataformat-yaml）。 */
     public static ModuleDescriptor parse(Map<String, Object> yaml) {
@@ -50,6 +52,7 @@ public class ModuleDescriptor {
         if (yaml.get("health") != null) {
             d.setHealth(String.valueOf(yaml.get("health")));
         }
+        d.setServiceUri(str(yaml.get("serviceUri")));
         return d;
     }
 
