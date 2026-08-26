@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Avatar, Dropdown, Layout, Menu, Result, Spin, Tag, theme } from 'antd'
 import {
-  ApartmentOutlined, AppstoreOutlined, BellOutlined, BookOutlined, FileTextOutlined,
+  ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined, FileTextOutlined,
   HomeOutlined, KeyOutlined, LogoutOutlined, ProjectOutlined, SwapOutlined,
-  TeamOutlined,
+  TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearToken, getPasswordStatus } from '../api/client'
@@ -25,6 +25,8 @@ const NAV_ITEMS = [
   { key: '/workflow', menu: 'menu:workflow', icon: <ApartmentOutlined />, label: '流程' },
   { key: '/knowledge', menu: 'menu:knowledge', icon: <BookOutlined />, label: '知识库' },
   { key: '/project', menu: 'menu:project', icon: <ProjectOutlined />, label: '项目' },
+  { key: '/meta/objects', menu: 'menu:meta', icon: <BlockOutlined />, label: '对象建模' },
+  { key: '/meta/data', menu: 'menu:meta', icon: <TableOutlined />, label: '动态数据' },
   { key: '/system/users', menu: 'menu:system', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/system/roles', menu: 'menu:system', icon: <TeamOutlined />, label: '角色权限' },
   { key: '/system/logs', menu: 'menu:system', icon: <FileTextOutlined />, label: '安全日志' },
