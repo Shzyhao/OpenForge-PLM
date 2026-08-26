@@ -1,0 +1,12 @@
+# 业务模块：项目与报表
+moduleKey: project
+moduleType: BUSINESS
+displayName: 项目
+version: 0.1.0
+routes:
+  - /api/v1/projects
+dependencies: []
+menu:
+  - { path: /project, title: 项目, icon: ProjectOutlined }
+flyway:
+  historyTable: flyway_project_history
