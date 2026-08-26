@@ -32,6 +32,9 @@ public enum ErrorCode {
     INVALID_STATE_TRANSITION(3007, "非法的状态流转"),
     ATTR_VALIDATION_FAILED(3008, "属性不符合分类模板"),
     BOM_CYCLE(3009, "BOM 存在循环引用"),
+    META_OBJECT_KEY_EXISTS(3010, "元对象键已存在"),
+    META_FIELD_INVALID(3011, "字段定义不合法"),
+    META_REF_OBJECT_NOT_FOUND(3012, "引用对象不存在"),
 
     // 4xxx 资源状态
     RESOURCE_NOT_FOUND(4001, "资源不存在"),
@@ -42,6 +45,8 @@ public enum ErrorCode {
     ORG_HAS_USERS(4006, "组织下存在用户，禁止删除"),
     NUMBER_RULE_NOT_FOUND(4007, "编号规则不存在"),
     BOM_NOT_FOUND(4008, "BOM 不存在"),
+    META_OBJECT_NOT_FOUND(4009, "元对象不存在"),
+    META_OBJECT_PUBLISHED(4010, "已发布对象不可修改"),
 
     // 5xxx 系统
     INTERNAL_ERROR(5000, "系统内部错误");

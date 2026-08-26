@@ -9,8 +9,14 @@ Java 21 + Spring Boot 3.3 微服务（Maven 多模块）。
 | `openforge-gateway` | 8080 | API 网关（静态路由起步，JWT 校验过滤器随 M1 迭代补充） |
 | `openforge-auth` | 8081 | 认证服务：注册 / 登录 / JWT 签发（当前） |
 | `openforge-common` | - | 公共库：统一响应体 / 错误码 / 业务异常 / 全局异常处理 |
-
-后续按里程碑追加：material（物料 BOM）、doc（文档）、workflow（流程引擎）、metadata（元数据中心）等，见架构文档 2.2。
+| `openforge-security` | - | 公共库：`@RequirePermission` 拦截器 + auth 权限查询客户端 |
+| `openforge-material` | 8082 | 物料与 BOM 服务 |
+| `openforge-doc` | 8083 | 文档服务 |
+| `openforge-workflow` | 8084 | 流程引擎服务 |
+| `openforge-change` | 8085 | 变更服务 |
+| `openforge-knowledge` | 8086 | 知识库服务 |
+| `openforge-project` | 8087 | 项目与报表服务 |
+| `openforge-metadata` | 8088 | 元数据内核（F2）：动态对象建模 + DDL 生成器 |
 
 ## 本地开发
 

@@ -39,6 +39,10 @@ spring:
           uri: ${PROJECT_SERVICE_URI:http://localhost:8087}
           predicates:
             - Path=/api/v1/projects/**
+        - id: metadata-service
+          uri: ${METADATA_SERVICE_URI:http://localhost:8088}
+          predicates:
+            - Path=/api/v1/meta/**,/api/v1/objects/**
 
 management:
   endpoints:
