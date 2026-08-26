@@ -108,6 +108,17 @@ class UserAdminServiceTest {
     }
 
     @Test
+    @DisplayName("批量启停：含 admin 目标整体拒绝（事务语义）")
+    void batchStatusProtectsAdmin() {
+        when(userMapper.selectById(NORMAL_USER)).thenReturn(user(NORMAL_USER, "NORMAL"));
+        when(userMapper.selectById(ADMIN_ID)).thenReturn(user(ADMIN_ID, "SUPER"));
+        assertThatThrownBy(() -> service.changeStatusBatch(
+                java.util.List.of(NORMAL_USER, ADMIN_ID), ADMINS_USER, false))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("固定管理员");
+    }
+
+    @Test
     @DisplayName("创建用户：首登强制改密 + 密码强度校验")
     void createUserValidates() {
         when(userMapper.selectCount(any())).thenReturn(0L);

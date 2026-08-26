@@ -24,6 +24,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+        </dependency>
 
         <!-- JWT 校验（与 auth 服务共享 HS256 密钥；M2 演进为 RS256：auth 私钥签发、网关公钥验签） -->
         <dependency>
