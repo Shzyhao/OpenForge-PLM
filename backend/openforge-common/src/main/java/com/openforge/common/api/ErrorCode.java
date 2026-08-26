@@ -47,6 +47,8 @@ public enum ErrorCode {
     BOM_NOT_FOUND(4008, "BOM 不存在"),
     META_OBJECT_NOT_FOUND(4009, "元对象不存在"),
     META_OBJECT_PUBLISHED(4010, "已发布对象不可修改"),
+    META_OBJECT_NOT_PUBLISHED(4011, "对象未发布，动态数据不可用"),
+    META_RECORD_NOT_FOUND(4012, "记录不存在"),
 
     // 5xxx 系统
     INTERNAL_ERROR(5000, "系统内部错误");

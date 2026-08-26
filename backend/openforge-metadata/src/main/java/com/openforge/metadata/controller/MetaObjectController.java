@@ -9,6 +9,7 @@ import com.openforge.metadata.dto.MetaObjectSummaryResponse;
 import com.openforge.metadata.dto.PageResponse;
 import com.openforge.metadata.dto.UpdateMetaObjectRequest;
 import com.openforge.metadata.service.MetaObjectService;
+import com.openforge.metadata.service.MetaPublishService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MetaObjectController {
 
     private final MetaObjectService metaObjectService;
+    private final MetaPublishService metaPublishService;
 
     @PostMapping
     @RequirePermission("meta:manage")
@@ -62,6 +64,17 @@ public class MetaObjectController {
     @RequirePermission("meta:manage")
     public ApiResponse<DdlPreviewResponse> previewDdl(@PathVariable Long id) {
         return ApiResponse.ok(metaObjectService.previewDdl(id));
+    }
+
+    /**
+     * 发布（F2 设计 5）：校验引用闭合 → 生成并执行 DDL（安全门）→ 写版本快照 → PUBLISHED。
+     * 权限点创建与 Schema 知识同步随 F2-3 接入。
+     */
+    @PostMapping("/{id}/publish")
+    @RequirePermission("meta:manage")
+    public ApiResponse<java.util.Map<String, Object>> publish(
+            @PathVariable Long id, HttpServletRequest http) {
+        return ApiResponse.ok(metaPublishService.publish(id, currentUserId(http)));
     }
 
     private Long currentUserId(HttpServletRequest request) {

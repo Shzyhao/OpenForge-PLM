@@ -43,7 +43,8 @@ public class GlobalExceptionHandler {
             case UNAUTHORIZED, BAD_CREDENTIALS, ACCOUNT_DISABLED -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case RESOURCE_NOT_FOUND, ROLE_NOT_FOUND, PERMISSION_NOT_FOUND,
-                 ORG_NOT_FOUND, NUMBER_RULE_NOT_FOUND, META_OBJECT_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                 ORG_NOT_FOUND, NUMBER_RULE_NOT_FOUND, META_OBJECT_NOT_FOUND,
+                 META_RECORD_NOT_FOUND -> HttpStatus.NOT_FOUND;
             default -> HttpStatus.OK;
         };
     }
