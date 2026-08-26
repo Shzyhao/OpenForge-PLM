@@ -22,6 +22,7 @@
         <module>openforge-change</module>
         <module>openforge-knowledge</module>
         <module>openforge-project</module>
+        <module>openforge-metadata</module>
     </modules>
 
     <properties>
