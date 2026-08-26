@@ -9,6 +9,14 @@ JVM_OPTS="-Xms48m -Xmx160m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=4
 echo "=== [1/4] 基础依赖 (PostgreSQL/Redis/MinIO) ==="
 docker compose -f "$ROOT/docker-compose.yml" up -d
 
+# F1 尾：Nacos 服务发现（可选，NACOS=1 启用）——A4 模块注册表的演进实现，
+# 开启后服务注册到 Nacos（模块路由/启停语义仍由 sys_module 注册表承载）
+if [ "${NACOS:-0}" = "1" ]; then
+  echo "=== [Nacos] 启动注册中心（standalone） ==="
+  docker compose -f "$ROOT/docker-compose.yml" up -d nacos
+  export NACOS_ENABLED=true NACOS_ADDR=localhost:8848
+fi
+
 echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被锁） ==="
 (cd "$ROOT/backend" && mvn -B -ntp -q clean package -DskipTests)
 
