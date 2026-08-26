@@ -42,8 +42,12 @@ public class ModuleRegistryService {
     /** 自注册 upsert（内部接口，发布者已过令牌校验）：已存在则刷新定义与心跳，status 尊重管理端。 */
     public SysModule register(String moduleKey, String moduleType, String displayName, String version,
                               List<String> routes, List<?> menu, List<String> dependencies,
-                              String flywayTable, String healthPath, String serviceUri) {
+                              String flywayTable, String healthPath, String serviceUri, Long ownerRef) {
         validate(moduleKey, moduleType, routes);
+        if ("EXTENSION".equals(moduleType) && ownerRef == null) {
+            // A4 设计 4：EXTENSION 仅允许发布流水线注册（owner_ref 必须指向已发布元对象）
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "EXTENSION 模块必须携带 ownerRef");
+        }
         checkRouteOwnership(moduleKey, routes);
 
         SysModule existing = moduleMapper.selectOne(
@@ -60,6 +64,7 @@ public class ModuleRegistryService {
         module.setFlywayTable(flywayTable == null || flywayTable.isBlank() ? null : flywayTable);
         module.setHealthPath(healthPath == null || healthPath.isBlank() ? null : healthPath);
         module.setServiceUri(serviceUri == null || serviceUri.isBlank() ? null : serviceUri);
+        module.setOwnerRef(ownerRef);
         module.setHeartbeatAt(java.time.LocalDateTime.now());
         if (created) {
             module.setStatus("ENABLED");
