@@ -27,17 +27,20 @@ public class InternalController {
     private final NumberRuleService numberRuleService;
     private final RbacService rbacService;
     private final PermissionService permissionService;
+    private final com.openforge.auth.service.ModuleRegistryService moduleRegistryService;
     private final com.openforge.auth.mapper.UserMapper userMapper;
     private final String internalToken;
 
     public InternalController(NumberRuleService numberRuleService,
                               RbacService rbacService,
                               PermissionService permissionService,
+                              com.openforge.auth.service.ModuleRegistryService moduleRegistryService,
                               com.openforge.auth.mapper.UserMapper userMapper,
                               @Value("${openforge.internal.token:openforge-internal-dev-token}") String internalToken) {
         this.numberRuleService = numberRuleService;
         this.rbacService = rbacService;
         this.permissionService = permissionService;
+        this.moduleRegistryService = moduleRegistryService;
         this.userMapper = userMapper;
         this.internalToken = internalToken;
     }
@@ -84,6 +87,37 @@ public class InternalController {
         @jakarta.validation.constraints.NotBlank
         private String permName;
         private java.util.List<String> bindRoleCodes;
+    }
+
+    /**
+     * 模块自注册/心跳（A4 设计 3.2）：幂等 upsert，路由白名单与 KERNEL 前缀防劫持在服务层校验。
+     */
+    @PostMapping("/modules")
+    public ApiResponse<java.util.Map<String, Object>> registerModule(
+            @RequestBody ModuleRegisterRequest request,
+            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        requireInternal(token);
+        com.openforge.auth.entity.SysModule module = moduleRegistryService.register(
+                request.getModuleKey(), request.getModuleType(), request.getDisplayName(),
+                request.getVersion(), request.getRoutes(), request.getMenu(),
+                request.getDependencies(), request.getFlywayTable(), request.getHealthPath());
+        return ApiResponse.ok(java.util.Map.of("moduleKey", module.getModuleKey(),
+                "status", module.getStatus()));
+    }
+
+    @lombok.Data
+    public static class ModuleRegisterRequest {
+        @jakarta.validation.constraints.NotBlank
+        private String moduleKey;
+        @jakarta.validation.constraints.NotBlank
+        private String moduleType;
+        private String displayName;
+        private String version;
+        private java.util.List<String> routes;
+        private java.util.List<java.util.Map<String, String>> menu;
+        private java.util.List<String> dependencies;
+        private String flywayTable;
+        private String healthPath;
     }
 
     private void requireInternal(String token) {

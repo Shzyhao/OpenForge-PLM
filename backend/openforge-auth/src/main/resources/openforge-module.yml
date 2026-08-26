@@ -1,0 +1,17 @@
+# 平台内核：认证与模块注册中心（KERNEL 不可停用）
+moduleKey: auth
+moduleType: KERNEL
+displayName: 认证与权限
+version: 0.1.0
+routes:
+  - /api/v1/auth
+  - /api/v1/users
+  - /api/v1/roles
+  - /api/v1/permissions
+  - /api/v1/orgs
+  - /api/v1/numbers
+  - /api/v1/security
+  - /api/v1/modules
+dependencies: []
+flyway:
+  historyTable: flyway_auth_history

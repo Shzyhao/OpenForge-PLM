@@ -1,0 +1,12 @@
+# 业务模块：流程引擎
+moduleKey: workflow
+moduleType: BUSINESS
+displayName: 流程
+version: 0.1.0
+routes:
+  - /api/v1/workflow
+dependencies: []
+menu:
+  - { path: /workflow, title: 流程, icon: ApartmentOutlined }
+flyway:
+  historyTable: flyway_workflow_history
