@@ -45,6 +45,43 @@ public class PermissionService {
         return p;
     }
 
+    /**
+     * 幂等创建权限点（内部接口用，F2 发布流水线可重试）：已存在则复用；
+     * 可选按角色编码绑定（不存在绑定才插入，不覆盖角色既有权限）。
+     *
+     * @return true = 本次新建；false = 已存在复用
+     */
+    @Transactional
+    public boolean ensurePermission(String permCode, String permName, List<String> bindRoleCodes) {
+        SysPermission existing = permissionMapper.selectOne(
+                new LambdaQueryWrapper<SysPermission>().eq(SysPermission::getPermCode, permCode));
+        boolean created = existing == null;
+        SysPermission permission = existing != null ? existing
+                : createPermission(permCode, permName);
+        if (bindRoleCodes != null && !bindRoleCodes.isEmpty()) {
+            List<SysRole> roles = roleMapper.selectList(
+                    new LambdaQueryWrapper<SysRole>().in(SysRole::getRoleCode, bindRoleCodes));
+            for (SysRole role : roles) {
+                Long bound = rolePermissionMapper.selectCount(
+                        new LambdaQueryWrapper<SysRolePermission>()
+                                .eq(SysRolePermission::getRoleId, role.getId())
+                                .eq(SysRolePermission::getPermissionId, permission.getId()));
+                if (bound == 0) {
+                    SysRolePermission rp = new SysRolePermission();
+                    rp.setRoleId(role.getId());
+                    rp.setPermissionId(permission.getId());
+                    rolePermissionMapper.insert(rp);
+                }
+            }
+        }
+        if (created) {
+            securityLogService.audit(null, "PERM_CREATE", "PERMISSION", permCode,
+                    "内部接口创建权限点" + (bindRoleCodes == null || bindRoleCodes.isEmpty()
+                            ? "" : " 并绑定角色: " + bindRoleCodes));
+        }
+        return created;
+    }
+
     /** 覆盖式绑定角色的权限点（事务内）。 */
     @Transactional
     public void bindRolePermissions(Long roleId, List<Long> permissionIds) {

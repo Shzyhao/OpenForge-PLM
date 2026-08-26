@@ -1,5 +1,6 @@
 package com.openforge.metadata;
 
+import com.openforge.metadata.client.PublishPipelineClients;
 import com.openforge.security.PermissionQueryClient;
 import com.openforge.security.PermissionView;
 import org.junit.jupiter.api.AfterAll;
@@ -48,6 +49,9 @@ class MetadataPostgresContainerTest {
 
     @MockBean
     private PermissionQueryClient permissionQueryClient;
+
+    @MockBean
+    private PublishPipelineClients pipelineClients;
 
     @BeforeAll
     static void startContainerIfDockerAvailable() {

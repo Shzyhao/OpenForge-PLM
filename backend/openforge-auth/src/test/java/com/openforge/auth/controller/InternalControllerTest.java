@@ -1,6 +1,8 @@
 package com.openforge.auth.controller;
 
+import com.openforge.auth.mapper.RoleMapper;
 import com.openforge.auth.service.NumberRuleService;
+import com.openforge.auth.service.PermissionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,12 @@ class InternalControllerTest {
 
     @Autowired
     private NumberRuleService numberRuleService;
+
+    @Autowired
+    private PermissionService permissionService;
+
+    @Autowired
+    private RoleMapper roleMapper;
 
     private static final String TOKEN = "openforge-internal-dev-token";
 
@@ -62,5 +70,40 @@ class InternalControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.userId").value(1));
+    }
+
+    @Test
+    @DisplayName("内部权限点创建：幂等 + ADMINS 绑定 + 无令牌拒绝")
+    void internalEnsurePermission() throws Exception {
+        // 无令牌拒绝
+        mockMvc.perform(post("/api/v1/internal/permissions")
+                        .contentType("application/json")
+                        .content("{\"permCode\":\"equipment:view\",\"permName\":\"设备查看\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(2001));
+
+        // 首次创建 + 绑定 ADMINS（V14 起 ADMIN 已更名）
+        mockMvc.perform(post("/api/v1/internal/permissions")
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType("application/json")
+                        .content("{\"permCode\":\"equipment:view\",\"permName\":\"设备查看\",\"bindRoleCodes\":[\"ADMINS\"]}"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.created").value(true));
+
+        // 幂等重试：created=false，不报权限点冲突
+        mockMvc.perform(post("/api/v1/internal/permissions")
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType("application/json")
+                        .content("{\"permCode\":\"equipment:view\",\"permName\":\"设备查看\",\"bindRoleCodes\":[\"ADMINS\"]}"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.created").value(false));
+
+        // ADMINS 角色确实获得该权限点
+        com.openforge.auth.entity.SysRole admins = roleMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.openforge.auth.entity.SysRole>()
+                        .eq(com.openforge.auth.entity.SysRole::getRoleCode, "ADMINS"));
+        org.assertj.core.api.Assertions.assertThat(admins).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(permissionService.getPermissionCodesOfRole(admins.getId()))
+                .contains("equipment:view");
     }
 }

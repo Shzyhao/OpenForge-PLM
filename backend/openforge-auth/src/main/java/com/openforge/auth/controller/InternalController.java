@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -60,6 +61,29 @@ public class InternalController {
                 userType,
                 rbacService.getRoleCodesOfUser(userId),
                 permissionService.getPermissionCodesOfUser(userId)));
+    }
+
+    /**
+     * 幂等创建权限点（F2 发布流水线：发布时自动创建 {objectKey}:view/create/update/delete 四点，
+     * 可选绑定角色——如 ADMIN）。重复调用复用既有权限点，不报冲突。
+     */
+    @PostMapping("/permissions")
+    public ApiResponse<java.util.Map<String, Object>> ensurePermission(
+            @RequestBody EnsurePermissionRequest request,
+            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        requireInternal(token);
+        boolean created = permissionService.ensurePermission(
+                request.getPermCode(), request.getPermName(), request.getBindRoleCodes());
+        return ApiResponse.ok(java.util.Map.of("created", created));
+    }
+
+    @lombok.Data
+    public static class EnsurePermissionRequest {
+        @jakarta.validation.constraints.NotBlank
+        private String permCode;
+        @jakarta.validation.constraints.NotBlank
+        private String permName;
+        private java.util.List<String> bindRoleCodes;
     }
 
     private void requireInternal(String token) {
