@@ -130,6 +130,20 @@ public class UserController {
         return ApiResponse.ok();
     }
 
+    /** 批量启停（方案 D9）。body: {"ids":[1,2],"enable":true} */
+    @org.springframework.web.bind.annotation.PostMapping("/batch-status")
+    @RequirePermission("user:manage")
+    public ApiResponse<Void> batchStatus(
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
+            HttpServletRequest httpRequest) {
+        @SuppressWarnings("unchecked")
+        java.util.List<Number> rawIds = (java.util.List<Number>) body.getOrDefault("ids", java.util.List.of());
+        java.util.List<Long> ids = rawIds.stream().map(Number::longValue).toList();
+        boolean enable = Boolean.TRUE.equals(body.get("enable"));
+        userAdminService.changeStatusBatch(ids, currentUserId(httpRequest), enable);
+        return ApiResponse.ok();
+    }
+
     /** 修改自己的密码（方案 E5，无需权限点——本人凭证）。 */
     @PutMapping("/me/password")
     public ApiResponse<Void> changeMyPassword(
