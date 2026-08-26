@@ -1,5 +1,6 @@
 package com.openforge.metadata;
 
+import com.openforge.metadata.client.PublishPipelineClients;
 import com.openforge.security.PermissionQueryClient;
 import com.openforge.security.PermissionView;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +38,10 @@ class DynamicRecordIntegrationTest {
 
     @MockBean
     private PermissionQueryClient permissionQueryClient;
+
+    /** 下游（auth/knowledge/AI）以 MockBean 替换：真实链路由 auth 侧与 ai pytest 覆盖。 */
+    @MockBean
+    private PublishPipelineClients pipelineClients;
 
     private void mockPerms(long userId, String... permissions) {
         when(permissionQueryClient.fetch(ArgumentMatchers.eq(userId)))
