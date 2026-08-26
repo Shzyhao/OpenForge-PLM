@@ -8,6 +8,7 @@
 - POST /api/v1/ai/data/query      自然语言/SQL 查询（M4：SQL 直提交 + 校验 + 只读执行）
 - POST /internal/tables           动态表登记（F2 发布流水线；不经网关路由，X-Internal-Token 防护）
 """
+import json
 import re
 from typing import List, Dict, Optional
 
@@ -121,6 +122,36 @@ TABLE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 def _require_internal_token(token: Optional[str]) -> None:
     if not settings.internal_token or token != settings.internal_token:
         raise HTTPException(status_code=401, detail="内部接口令牌无效")
+
+
+@app.on_event("startup")
+def register_module():
+    """A4 模块注册（声明式，与 JVM 模块同协议）：AI 网关向 auth 注册中心上报自描述。
+    尽力而为：注册中心不可用时告警不阻塞启动（运维侧可主动补登记或等下次重启重试）。"""
+    import os
+    import urllib.request
+
+    auth_base = os.getenv("OPENFORGE_AUTH_BASE_URL", "http://localhost:8081").rstrip("/")
+    payload = {
+        "moduleKey": "ai-gateway",
+        "moduleType": "AI",
+        "displayName": "AI 中台网关",
+        "version": app.version,
+        "routes": ["/api/v1/ai"],
+        "dependencies": [],
+    }
+    req = urllib.request.Request(
+        auth_base + "/api/v1/internal/modules",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "X-Internal-Token": settings.internal_token},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                print(f"[module-registry] registered ai-gateway -> {auth_base}")
+    except Exception as e:  # noqa: BLE001 - 注册失败不阻塞启动
+        print(f"[module-registry] register failed (non-fatal): {e}")
 
 
 @app.post("/internal/tables")

@@ -49,6 +49,11 @@ public enum ErrorCode {
     META_OBJECT_PUBLISHED(4010, "已发布对象不可修改"),
     META_OBJECT_NOT_PUBLISHED(4011, "对象未发布，动态数据不可用"),
     META_RECORD_NOT_FOUND(4012, "记录不存在"),
+    MODULE_ALREADY_EXISTS(3013, "模块键或路由前缀已被占用"),
+    MODULE_HAS_DEPENDENTS(4020, "存在启用中的依赖方，禁止停用"),
+    MODULE_KERNEL_IMMUTABLE(4021, "内核模块禁止停用"),
+    MODULE_DISABLED(4022, "依赖模块未启用"),
+    MODULE_NOT_FOUND(4023, "模块不存在"),
 
     // 5xxx 系统
     INTERNAL_ERROR(5000, "系统内部错误");
