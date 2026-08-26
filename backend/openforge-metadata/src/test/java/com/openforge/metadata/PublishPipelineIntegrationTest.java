@@ -72,7 +72,7 @@ class PublishPipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("发布闭环：四权限点(ADMINS) + Schema 知识同步 + AI 表登记 一次成链")
+    @DisplayName("发布闭环：四权限点(ADMINS) + Schema 知识同步 + AI 表登记 + EXTENSION 模块注册 一次成链")
     void publishWiresAllDownstreams() throws Exception {
         when(permissionQueryClient.fetch(ArgumentMatchers.eq(1L)))
                 .thenReturn(new PermissionView(1L, "USER", List.of("USER"), List.of("meta:manage")));
@@ -100,6 +100,10 @@ class PublishPipelineIntegrationTest {
 
         // AI 表登记：dyn_ 表名 + 描述（与知识同步共用 schema 描述）
         verify(pipelineClients).registerAiTable("dyn_pipeline_obj", contents.getValue());
+
+        // A4-4：发布即注册 EXTENSION 模块（路由/菜单/ownerRef 指向元对象）
+        verify(pipelineClients).registerExtensionModule(id, "pipeline_obj", "设备台账",
+                1, "http://localhost:8088");
     }
 
     @Test

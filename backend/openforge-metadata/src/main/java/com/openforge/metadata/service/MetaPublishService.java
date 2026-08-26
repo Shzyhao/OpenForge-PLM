@@ -57,6 +57,10 @@ public class MetaPublishService {
     private final ObjectMapper objectMapper;
     private final com.openforge.metadata.client.PublishPipelineClients pipelineClients;
 
+    /** EXTENSION 模块的服务地址=本服务（动态 CRUD 由 metadata 承载），随部署覆盖。 */
+    @org.springframework.beans.factory.annotation.Value("${openforge.module.service-uri:http://localhost:8088}")
+    private String selfServiceUri;
+
     @Transactional
     public Map<String, Object> publish(Long objectId, Long userId) {
         MetaObject object = metaObjectMapper.selectById(objectId);
@@ -101,6 +105,11 @@ public class MetaPublishService {
                 "动态对象表结构：" + object.getDisplayName() + "（" + object.getTableName() + "）",
                 schemaDescription, object.getObjectKey());
         pipelineClients.registerAiTable(object.getTableName(), schemaDescription);
+
+        // A4-4：发布即注册 EXTENSION 模块——路由/菜单/模块管理与原生服务同构
+        // （与权限点同语义：失败阻断发布，auth 不可用时两者本就同命运）
+        pipelineClients.registerExtensionModule(object.getId(), object.getObjectKey(),
+                object.getDisplayName(), snapshot.getVersion(), selfServiceUri);
 
         object.setStatus("PUBLISHED");
         object.setVersion(object.getVersion() + 1);
