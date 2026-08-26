@@ -6,10 +6,12 @@
 - POST /api/v1/ai/jobs/doc-parse  文档结构化抽取
 - POST /api/v1/ai/sql/validate    SQL 安全网关校验（纯校验不执行）
 - POST /api/v1/ai/data/query      自然语言/SQL 查询（M4：SQL 直提交 + 校验 + 只读执行）
+- POST /internal/tables           动态表登记（F2 发布流水线；不经网关路由，X-Internal-Token 防护）
 """
+import re
 from typing import List, Dict, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from .config import settings
@@ -43,6 +45,11 @@ class SqlValidateRequest(BaseModel):
 class DataQueryRequest(BaseModel):
     sql: Optional[str] = None
     question: Optional[str] = None  # 自然语言（在线 LLM 生成 SQL，仍过安全网关）
+
+
+class TableRegisterRequest(BaseModel):
+    table: str                       # 物理表名（动态表为 dyn_ 前缀）
+    description: str = ""            # 表/列级业务描述（注入 nl2sql Prompt 的 Schema 知识）
 
 
 @app.get("/healthz")
@@ -106,3 +113,29 @@ def data_query(req: DataQueryRequest):
     # 执行层：独立只读数据源（M4 交付校验与护栏，执行接入随部署配置启用）
     return {"sql": final_sql, "generated_by": generated_by, "rows": [], "executed": False,
             "note": "安全校验通过；执行层随生产部署配置启用"}
+
+
+TABLE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
+
+
+def _require_internal_token(token: Optional[str]) -> None:
+    if not settings.internal_token or token != settings.internal_token:
+        raise HTTPException(status_code=401, detail="内部接口令牌无效")
+
+
+@app.post("/internal/tables")
+def register_table(req: TableRegisterRequest, x_internal_token: Optional[str] = Header(default=None)):
+    """动态表登记（F2 设计 5 发布流水线）：表白名单 + 表描述运行时注册，
+    新发布对象即刻可被 nl2sql/数据查询访问。路径在 /api/v1/ai/** 之外，
+    不经 Java 网关路由；幂等：重复登记覆盖描述、白名单不变。
+    """
+    _require_internal_token(x_internal_token)
+    table = req.table.strip()
+    if not TABLE_NAME_PATTERN.match(table):
+        raise HTTPException(status_code=400, detail="表名须匹配 ^[a-z][a-z0-9_]{2,63}$")
+    settings.sql_allowed_tables.add(table)
+    if req.description:
+        settings.table_descriptions[table] = req.description
+    return {"registered": table,
+            "allowed_tables": sorted(settings.sql_allowed_tables),
+            "has_description": table in settings.table_descriptions}

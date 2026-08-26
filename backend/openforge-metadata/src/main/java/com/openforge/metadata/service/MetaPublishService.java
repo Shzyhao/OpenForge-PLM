@@ -24,13 +24,22 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 发布流水线（F2 设计 5）。F2-2 覆盖：校验 → 生成 DDL → 安全门校验 → 执行 →
- * 写版本快照 → 状态 PUBLISHED/version+1。
- * 权限点创建（auth /internal）与 Schema 知识同步（knowledge /internal）随 F2-3 接入。
+ * 发布流水线（F2 设计 5）：校验 → 生成 DDL → 安全门校验 → 执行 →
+ * 写版本快照 → 创建权限点 ×4（auth /internal，失败阻断）→ Schema 知识同步
+ * （knowledge /internal/items，尽力而为）→ AI 网关表登记（/internal/tables，尽力而为）
+ * → 状态 PUBLISHED/version+1。
  */
 @Service
 @RequiredArgsConstructor
 public class MetaPublishService {
+
+    /** 发布时自动创建的四权限点（F2 设计 4：{objectKey}:view/create/update/delete）。 */
+    private record PermissionAction(String code, String label) {
+    }
+
+    private static final List<PermissionAction> PERMISSION_ACTIONS = List.of(
+            new PermissionAction("view", "查看"), new PermissionAction("create", "创建"),
+            new PermissionAction("update", "更新"), new PermissionAction("delete", "删除"));
 
     /**
      * DDL 安全门（F2 设计 4）：只放行幂等增量的 dyn_ 前缀语句。
@@ -46,6 +55,7 @@ public class MetaPublishService {
     private final MetaObjectVersionMapper metaObjectVersionMapper;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final com.openforge.metadata.client.PublishPipelineClients pipelineClients;
 
     @Transactional
     public Map<String, Object> publish(Long objectId, Long userId) {
@@ -78,6 +88,19 @@ public class MetaPublishService {
         snapshot.setDdlText(String.join(";\n", allStatements));
         snapshot.setPublishedBy(userId);
         metaObjectVersionMapper.insert(snapshot);
+
+        // 权限点 ×4（失败阻断发布——动态 CRUD 授权的前提）；ADMINS 默认全量管理（V14 起角色名）
+        String permPrefix = object.getObjectKey() + ":";
+        for (PermissionAction action : PERMISSION_ACTIONS) {
+            pipelineClients.ensurePermission(permPrefix + action.code(),
+                    object.getDisplayName() + "-" + action.label(), List.of("ADMINS"));
+        }
+        // Schema 知识同步 + AI 表登记（客户端内尽力而为：失败告警不回滚）
+        String schemaDescription = schemaDescription(object, fields);
+        pipelineClients.syncSchemaItem(
+                "动态对象表结构：" + object.getDisplayName() + "（" + object.getTableName() + "）",
+                schemaDescription, object.getObjectKey());
+        pipelineClients.registerAiTable(object.getTableName(), schemaDescription);
 
         object.setStatus("PUBLISHED");
         object.setVersion(object.getVersion() + 1);
@@ -121,6 +144,24 @@ public class MetaPublishService {
             throw new BizException(ErrorCode.INTERNAL_ERROR, "DDL 安全门拒绝执行语句");
         }
         jdbcTemplate.execute(normalized);
+    }
+
+    /** 表/列级业务描述：knowledge 知识条目与 AI 网关 nl2sql Prompt 共用同一份。 */
+    private String schemaDescription(MetaObject object, List<MetaField> fields) {
+        StringBuilder sb = new StringBuilder(object.getDisplayName())
+                .append("（").append(object.getTableName()).append("）：");
+        for (MetaField field : fields) {
+            sb.append(field.getFieldKey()).append(' ').append(field.getDisplayName())
+                    .append('(').append(field.getFieldType());
+            if (field.getRequired() != null && field.getRequired() == 1) {
+                sb.append(",必填");
+            }
+            if (field.getRefObject() != null && !field.getRefObject().isBlank()) {
+                sb.append(",引用 ").append(field.getRefObject());
+            }
+            sb.append("), ");
+        }
+        return sb.substring(0, sb.length() - 2);
     }
 
     private String toDefinitionJson(MetaObject object, List<MetaField> fields) {
