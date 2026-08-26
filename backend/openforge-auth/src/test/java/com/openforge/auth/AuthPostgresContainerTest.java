@@ -89,7 +89,7 @@ class AuthPostgresContainerTest {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType("application/json")
                         .content("{\"username\":\"admin\",\"password\":\"WrongPass123\"}"))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())  // BAD_CREDENTIALS 语义化映射 401
                 .andExpect(jsonPath("$.code").value(2002));
     }
 }
