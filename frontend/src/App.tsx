@@ -12,6 +12,8 @@ import ProjectPage from './pages/ProjectPage'
 import UserAdminPage from './pages/UserAdminPage'
 import RoleAdminPage from './pages/RoleAdminPage'
 import SecurityLogPage from './pages/SecurityLogPage'
+import MetaObjectsPage from './pages/MetaObjectsPage'
+import ObjectDataPage from './pages/ObjectDataPage'
 import AppLayout from './layouts/AppLayout'
 import { getToken } from './api/client'
 
@@ -40,6 +42,8 @@ export default function App() {
         <Route path="change" element={<ChangePage />} />
         <Route path="project" element={<ProjectPage />} />
         <Route path="knowledge" element={<KnowledgePage />} />
+        <Route path="meta/objects" element={<MetaObjectsPage />} />
+        <Route path="meta/data" element={<ObjectDataPage />} />
         <Route path="system/users" element={<UserAdminPage />} />
         <Route path="system/roles" element={<RoleAdminPage />} />
         <Route path="system/logs" element={<SecurityLogPage />} />
