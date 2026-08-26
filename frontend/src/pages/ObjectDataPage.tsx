@@ -41,7 +41,11 @@ export default function ObjectDataPage() {
     fetchMetaObjects().then((r) => {
       const published = r.items.filter((o) => o.status === 'PUBLISHED')
       setObjects(published)
-      if (published.length > 0 && !selectedKey) setSelectedKey(published[0].objectKey)
+      // EXTENSION 模块菜单深链：/meta/data?object=xxx 预选对象
+      const fromQuery = new URLSearchParams(window.location.search).get('object')
+      const preferred = fromQuery && published.some((o) => o.objectKey === fromQuery) ? fromQuery : undefined
+      if (preferred) setSelectedKey(preferred)
+      else if (published.length > 0 && !selectedKey) setSelectedKey(published[0].objectKey)
     }).catch(() => message.error('加载对象列表失败'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

@@ -101,7 +101,7 @@ public class InternalController {
                 request.getModuleKey(), request.getModuleType(), request.getDisplayName(),
                 request.getVersion(), request.getRoutes(), request.getMenu(),
                 request.getDependencies(), request.getFlywayTable(), request.getHealthPath(),
-                request.getServiceUri());
+                request.getServiceUri(), request.getOwnerRef());
         return ApiResponse.ok(java.util.Map.of("moduleKey", module.getModuleKey(),
                 "status", module.getStatus()));
     }
@@ -139,6 +139,7 @@ public class InternalController {
         private String flywayTable;
         private String healthPath;
         private String serviceUri;
+        private Long ownerRef;   // EXTENSION 型必填：指向 meta_object.id
     }
 
     private void requireInternal(String token) {

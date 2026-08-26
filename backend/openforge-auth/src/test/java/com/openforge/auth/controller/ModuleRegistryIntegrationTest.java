@@ -207,4 +207,25 @@ class ModuleRegistryIntegrationTest {
         mockMvc.perform(get("/api/v1/internal/modules/status/no_such_module").header("X-Internal-Token", TOKEN))
                 .andExpect(jsonPath("$.data.status").value("NOT_FOUND"));
     }
+
+    @Test
+    @DisplayName("A4-4：EXTENSION 注册须携带 ownerRef（仅发布流水线可注册动态对象模块）")
+    void extensionRequiresOwnerRef() throws Exception {
+        // 缺 ownerRef 拒绝
+        mockMvc.perform(post("/api/v1/internal/modules").header("X-Internal-Token", TOKEN)
+                        .contentType("application/json")
+                        .content("{\"moduleKey\":\"dyn:no_owner\",\"moduleType\":\"EXTENSION\",\"version\":\"1\",\n"
+                                + "   \"routes\":[\"/api/v1/objects/no_owner\"]}"))
+                .andExpect(jsonPath("$.code").value(1000))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("ownerRef")));
+
+        // 携带 ownerRef 成功（EXTENSION 不参与心跳，网关路由计划已豁免）
+        register("""
+                {"moduleKey":"dyn:ext_probe","moduleType":"EXTENSION","displayName":"探针对象","version":"1",
+                 "routes":["/api/v1/objects/ext_probe"],"dependencies":[],
+                 "serviceUri":"http://localhost:8088","ownerRef":123}
+                """);
+        mockMvc.perform(get("/api/v1/modules"))
+                .andExpect(jsonPath("$.data[?(@.moduleKey=='dyn:ext_probe')].menu").isNotEmpty());
+    }
 }

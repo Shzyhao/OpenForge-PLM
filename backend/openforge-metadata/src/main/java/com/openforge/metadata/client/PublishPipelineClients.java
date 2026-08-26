@@ -98,4 +98,39 @@ public class PublishPipelineClients {
             log.warn("AI 网关不可用，表登记跳过（不阻塞发布，下次发布重试）: {}", e.getMessage());
         }
     }
+
+    /**
+     * 注册 EXTENSION 模块（A4-4：动态对象发布即注册——路由/菜单/模块管理三面同构原生服务）。
+     * 与权限点同语义：失败阻断发布。
+     */
+    public void registerExtensionModule(Long objectId, String objectKey, String displayName,
+                                        int version, String serviceUri) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("moduleKey", "dyn:" + objectKey);
+        body.put("moduleType", "EXTENSION");
+        body.put("displayName", displayName);
+        body.put("version", String.valueOf(version));
+        body.put("routes", List.of("/api/v1/objects/" + objectKey));
+        body.put("menu", List.of(Map.of(
+                "path", "/meta/data?object=" + objectKey, "title", displayName)));
+        body.put("dependencies", List.of());
+        body.put("serviceUri", serviceUri);
+        body.put("ownerRef", objectId);
+        try {
+            ApiResponse<Map<String, Object>> response = authClient.post()
+                    .uri("/api/v1/internal/modules")
+                    .header("X-Internal-Token", internalToken)
+                    .body(body)
+                    .retrieve()
+                    .body(MAP_TYPE);
+            if (response == null || response.getCode() != 0) {
+                throw new BizException(ErrorCode.INTERNAL_ERROR,
+                        "EXTENSION 模块注册失败，发布中止: " + (response == null ? "无响应" : response.getMessage()));
+            }
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "注册中心不可用，发布中止: " + e.getMessage());
+        }
+    }
 }
