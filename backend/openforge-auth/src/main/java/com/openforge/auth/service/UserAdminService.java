@@ -219,6 +219,27 @@ public class UserAdminService {
         log.info("password changed by user {}", user.getUsername());
     }
 
+    /** 批量启停（方案 D9）：逐个走保护矩阵，任一被拒整体回滚（事务内）。 */
+    @Transactional
+    public java.util.List<String> changeStatusBatch(java.util.List<Long> ids, Long operatorId, boolean enable) {
+        java.util.List<String> changed = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            SysUser target = require(id);
+            if ("SUPER".equals(target.getUserType())) {
+                throw new BizException(ErrorCode.FORBIDDEN, "固定管理员账号不可停用: " + target.getUsername());
+            }
+            if (id.equals(operatorId)) {
+                throw new BizException(ErrorCode.FORBIDDEN, "不能停用自己的账号: " + target.getUsername());
+            }
+            target.setStatus(enable ? "ACTIVE" : "DISABLED");
+            userMapper.updateById(target);
+            changed.add(target.getUsername());
+            securityLogService.audit(operatorId, enable ? "USER_ENABLE" : "USER_DISABLE", "USER",
+                    String.valueOf(id), "批量" + (enable ? "启用" : "停用") + "用户 " + target.getUsername());
+        }
+        return changed;
+    }
+
     /** 密码历史（方案 E8）：新密码不得与当前密码及最近 3 次历史重复。 */
     private void assertNotRecentPassword(Long userId, String newPassword, String currentHash) {
         if (currentHash != null && passwordEncoder.matches(newPassword, currentHash)) {
