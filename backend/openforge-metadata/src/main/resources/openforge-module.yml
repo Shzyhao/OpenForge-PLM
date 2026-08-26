@@ -1,0 +1,14 @@
+# 平台内核：元数据内核（低代码核心，KERNEL 不可停用）
+moduleKey: metadata
+moduleType: KERNEL
+displayName: 元数据内核
+version: 0.1.0
+routes:
+  - /api/v1/meta
+  - /api/v1/objects
+dependencies: [auth]
+menu:
+  - { path: /meta/objects, title: 对象建模, icon: BlockOutlined }
+  - { path: /meta/data, title: 动态数据, icon: TableOutlined }
+flyway:
+  historyTable: flyway_metadata_history
