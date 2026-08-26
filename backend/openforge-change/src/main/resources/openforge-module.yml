@@ -10,3 +10,4 @@ menu:
   - { path: /change, title: 变更, icon: SwapOutlined }
 flyway:
   historyTable: flyway_change_history
+serviceUri: 8085

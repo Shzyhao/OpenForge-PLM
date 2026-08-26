@@ -41,7 +41,7 @@ public class ModuleRegistryService {
     /** 自注册 upsert（内部接口，发布者已过令牌校验）：已存在则刷新定义与心跳，status 尊重管理端。 */
     public SysModule register(String moduleKey, String moduleType, String displayName, String version,
                               List<String> routes, List<?> menu, List<String> dependencies,
-                              String flywayTable, String healthPath) {
+                              String flywayTable, String healthPath, String serviceUri) {
         validate(moduleKey, moduleType, routes);
         checkRouteOwnership(moduleKey, routes);
 
@@ -58,6 +58,7 @@ public class ModuleRegistryService {
         module.setDependencies(toJson(dependencies == null ? List.of() : dependencies));
         module.setFlywayTable(flywayTable == null || flywayTable.isBlank() ? null : flywayTable);
         module.setHealthPath(healthPath == null || healthPath.isBlank() ? null : healthPath);
+        module.setServiceUri(serviceUri == null || serviceUri.isBlank() ? null : serviceUri);
         module.setHeartbeatAt(java.time.LocalDateTime.now());
         if (created) {
             module.setStatus("ENABLED");
@@ -67,6 +68,33 @@ public class ModuleRegistryService {
         }
         securityLogService.audit(null, created ? "MODULE_REGISTER" : "MODULE_HEARTBEAT",
                 "MODULE", moduleKey, version);
+        return module;
+    }
+
+    /** 停用即摘除（A4 设计 3.3）：KERNEL 不可停（4021）；依赖方反查拒绝随 A4-3 依赖守护补齐。 */
+    public void disable(String moduleKey) {
+        SysModule module = requireModule(moduleKey);
+        if ("KERNEL".equals(module.getModuleType())) {
+            throw new BizException(ErrorCode.MODULE_KERNEL_IMMUTABLE);
+        }
+        module.setStatus("DISABLED");
+        moduleMapper.updateById(module);
+        securityLogService.audit(null, "MODULE_DISABLE", "MODULE", moduleKey, null);
+    }
+
+    public void enable(String moduleKey) {
+        SysModule module = requireModule(moduleKey);
+        module.setStatus("ENABLED");
+        moduleMapper.updateById(module);
+        securityLogService.audit(null, "MODULE_ENABLE", "MODULE", moduleKey, null);
+    }
+
+    private SysModule requireModule(String moduleKey) {
+        SysModule module = moduleMapper.selectOne(
+                new LambdaQueryWrapper<SysModule>().eq(SysModule::getModuleKey, moduleKey));
+        if (module == null) {
+            throw new BizException(ErrorCode.MODULE_NOT_FOUND);
+        }
         return module;
     }
 

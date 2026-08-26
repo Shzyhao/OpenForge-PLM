@@ -41,6 +41,9 @@ public class SysModule {
     /** EXTENSION 型指向 meta_object.id */
     private Long ownerRef;
 
+    /** 服务直连地址（网关动态路由目标，如 http://localhost:8082） */
+    private String serviceUri;
+
     private LocalDateTime registeredAt;
 
     private LocalDateTime heartbeatAt;

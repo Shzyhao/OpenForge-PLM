@@ -10,3 +10,4 @@ menu:
   - { path: /knowledge, title: 知识库, icon: BookOutlined }
 flyway:
   historyTable: flyway_knowledge_history
+serviceUri: 8086
