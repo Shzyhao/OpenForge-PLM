@@ -6,6 +6,8 @@ import com.openforge.common.annotation.RequirePermission;
 import com.openforge.common.api.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,5 +47,20 @@ public class ModuleController {
     @RequirePermission("module:manage")
     public ApiResponse<List<SysModule>> adminList() {
         return ApiResponse.ok(moduleRegistryService.listAll());
+    }
+
+    /** 停用即摘除（A4 设计 3.3）：KERNEL 拒绝（4021）；网关 30s 内摘除路由。 */
+    @PostMapping("/{moduleKey}/disable")
+    @RequirePermission("module:manage")
+    public ApiResponse<Void> disable(@PathVariable String moduleKey) {
+        moduleRegistryService.disable(moduleKey);
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/{moduleKey}/enable")
+    @RequirePermission("module:manage")
+    public ApiResponse<Void> enable(@PathVariable String moduleKey) {
+        moduleRegistryService.enable(moduleKey);
+        return ApiResponse.ok();
     }
 }

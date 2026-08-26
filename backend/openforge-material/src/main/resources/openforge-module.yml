@@ -13,3 +13,4 @@ menu:
   - { path: /bom, title: BOM, icon: ProjectOutlined }
 flyway:
   historyTable: flyway_material_history
+serviceUri: 8082

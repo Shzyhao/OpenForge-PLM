@@ -65,6 +65,63 @@ class ModuleRegistryIntegrationTest {
     }
 
     @Test
+    @DisplayName("启停语义：BUSINESS 可停可启；KERNEL 拒停（4021）；内部数据源含状态与心跳")
+    void disableEnableSemantics() throws Exception {
+        // 注册业务模块与内核模块（带服务地址）
+        register("""
+                {"moduleKey":"doc_svc","moduleType":"BUSINESS","displayName":"文档","version":"1",
+                 "routes":["/api/v1/docs-svc"],"dependencies":[],"serviceUri":"http://localhost:8083"}
+                """);
+        register("""
+                {"moduleKey":"auth_kernel_probe","moduleType":"KERNEL","displayName":"内核探针","version":"1",
+                 "routes":["/api/v1/kernel-probe"],"dependencies":[]}
+                """);
+
+        // 内部数据源（网关轮询用）：令牌防护 + 返回全量字段
+        mockMvc.perform(get("/api/v1/internal/modules"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/internal/modules").header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data[?(@.moduleKey=='doc_svc')].serviceUri")
+                        .value(org.hamcrest.Matchers.hasItem("http://localhost:8083")))
+                .andExpect(jsonPath("$.data[?(@.moduleKey=='doc_svc')].heartbeatAt").isNotEmpty());
+
+        // KERNEL 拒停（无信任头即 401，先验权限门）
+        mockMvc.perform(post("/api/v1/modules/auth_kernel_probe/disable"))
+                .andExpect(status().isUnauthorized());
+        // KERNEL 拒停：auth 自身拦截器走库直查，无 X-User-Id → 401；带头的语义校验由服务层单测覆盖
+    }
+
+    @Test
+    @DisplayName("停用即摘除：DISABLED 后从前端列表消失，重新启用恢复（A4-2 网关轮询同步）")
+    void disableRemovesFromEnabledList() throws Exception {
+        register("""
+                {"moduleKey":"toggle_probe","moduleType":"BUSINESS","displayName":"开关探针","version":"1",
+                 "routes":["/api/v1/toggle"],"dependencies":[]}
+                """);
+        mockMvc.perform(get("/api/v1/modules"))
+                .andExpect(jsonPath("$.data[?(@.moduleKey=='toggle_probe')]").isNotEmpty());
+
+        // 服务层停用/启用（管理端 HTTP 门禁走权限拦截器，语义在此直接验证服务行为）
+        org.springframework.context.ApplicationContext ctx = springContext;
+        var service = ctx.getBean(com.openforge.auth.service.ModuleRegistryService.class);
+        service.disable("toggle_probe");
+        mockMvc.perform(get("/api/v1/modules"))
+                .andExpect(jsonPath("$.data[?(@.moduleKey=='toggle_probe')]").isEmpty());
+        service.enable("toggle_probe");
+        mockMvc.perform(get("/api/v1/modules"))
+                .andExpect(jsonPath("$.data[?(@.moduleKey=='toggle_probe')]").isNotEmpty());
+
+        // KERNEL 停用被服务层拒绝
+        try {
+            service.disable("auth_kernel_probe");
+            org.assertj.core.api.Assertions.fail("KERNEL 停用应被拒绝");
+        } catch (com.openforge.common.api.BizException e) {
+            org.assertj.core.api.Assertions.assertThat(e.getErrorCode().getCode()).isEqualTo(4021);
+        }
+    }
+
+    @Test
     @DisplayName("安全红线：内核前缀劫持/非法路由/前缀占用 拒绝")
     void registrationRedLines() throws Exception {
         // 先注册占位模块（避免与另一用例的执行顺序耦合）
@@ -104,4 +161,7 @@ class ModuleRegistryIntegrationTest {
                                 + "   \"routes\":[\"/api/v1/ok2\"]}"))
                 .andExpect(jsonPath("$.code").value(1000));
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationContext springContext;
 }

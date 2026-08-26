@@ -100,9 +100,18 @@ public class InternalController {
         com.openforge.auth.entity.SysModule module = moduleRegistryService.register(
                 request.getModuleKey(), request.getModuleType(), request.getDisplayName(),
                 request.getVersion(), request.getRoutes(), request.getMenu(),
-                request.getDependencies(), request.getFlywayTable(), request.getHealthPath());
+                request.getDependencies(), request.getFlywayTable(), request.getHealthPath(),
+                request.getServiceUri());
         return ApiResponse.ok(java.util.Map.of("moduleKey", module.getModuleKey(),
                 "status", module.getStatus()));
+    }
+
+    /** 网关动态路由数据源（A4 设计 3.3）：全量模块的状态/路由/服务地址/心跳。 */
+    @GetMapping("/modules")
+    public ApiResponse<java.util.List<com.openforge.auth.entity.SysModule>> listModules(
+            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        requireInternal(token);
+        return ApiResponse.ok(moduleRegistryService.listAll());
     }
 
     @lombok.Data
@@ -118,6 +127,7 @@ public class InternalController {
         private java.util.List<String> dependencies;
         private String flywayTable;
         private String healthPath;
+        private String serviceUri;
     }
 
     private void requireInternal(String token) {

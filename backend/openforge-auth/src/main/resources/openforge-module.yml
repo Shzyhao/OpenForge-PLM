@@ -15,3 +15,4 @@ routes:
 dependencies: []
 flyway:
   historyTable: flyway_auth_history
+serviceUri: 8081

@@ -12,3 +12,4 @@ menu:
   - { path: /meta/data, title: 动态数据, icon: TableOutlined }
 flyway:
   historyTable: flyway_metadata_history
+serviceUri: 8088

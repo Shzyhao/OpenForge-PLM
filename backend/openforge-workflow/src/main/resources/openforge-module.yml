@@ -10,3 +10,4 @@ menu:
   - { path: /workflow, title: 流程, icon: ApartmentOutlined }
 flyway:
   historyTable: flyway_workflow_history
+serviceUri: 8084

@@ -10,3 +10,4 @@ menu:
   - { path: /doc, title: 文档, icon: FileTextOutlined }
 flyway:
   historyTable: flyway_doc_history
+serviceUri: 8083

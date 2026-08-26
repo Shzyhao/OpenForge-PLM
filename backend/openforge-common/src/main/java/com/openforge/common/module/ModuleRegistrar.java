@@ -29,10 +29,15 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
 
     public ModuleRegistrar(
             @Value("${openforge.security.auth-base-url:http://localhost:8081}") String authBaseUrl,
-            @Value("${openforge.security.internal-token:openforge-internal-dev-token}") String internalToken) {
+            @Value("${openforge.security.internal-token:openforge-internal-dev-token}") String internalToken,
+            @Value("${openforge.module.service-uri:}") String serviceUriOverride) {
         this.internalToken = internalToken;
         this.restClient = RestClient.builder().baseUrl(authBaseUrl).build();
-        this.descriptor = loadDescriptor();
+        ModuleDescriptor loaded = loadDescriptor();
+        if (loaded != null && serviceUriOverride != null && !serviceUriOverride.isBlank()) {
+            loaded.setServiceUri(serviceUriOverride);   // 部署环境覆盖（docker/k8s 网络地址）
+        }
+        this.descriptor = loaded;
     }
 
     private static ModuleDescriptor loadDescriptor() {
@@ -79,6 +84,7 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
             body.put("dependencies", descriptor.getDependencies());
             body.put("flywayTable", descriptor.getFlywayTable() == null ? "" : descriptor.getFlywayTable());
             body.put("healthPath", descriptor.getHealth() == null ? "" : descriptor.getHealth());
+            body.put("serviceUri", descriptor.getServiceUri() == null ? "" : descriptor.getServiceUri());
             restClient.post()
                     .uri("/api/v1/internal/modules")
                     .header("X-Internal-Token", internalToken)
