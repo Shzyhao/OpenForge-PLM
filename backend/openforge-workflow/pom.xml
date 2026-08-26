@@ -15,6 +15,12 @@
     <description>流程引擎（M3-1：定义/实例/任务/条件分支）</description>
 
     <dependencies>
+        <!-- Nacos 服务发现（F1 尾）：默认关闭，部署时 NACOS_ENABLED=true 开启 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.openforge</groupId>
             <artifactId>openforge-common</artifactId>
