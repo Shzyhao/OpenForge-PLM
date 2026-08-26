@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -68,18 +69,25 @@ public class ModuleRegistryService {
         }
         securityLogService.audit(null, created ? "MODULE_REGISTER" : "MODULE_HEARTBEAT",
                 "MODULE", moduleKey, version);
+        evaluateDependencies();
         return module;
     }
 
-    /** 停用即摘除（A4 设计 3.3）：KERNEL 不可停（4021）；依赖方反查拒绝随 A4-3 依赖守护补齐。 */
+    /** 停用即摘除（A4 设计 3.3/3.4）：KERNEL 不可停（4021）；存在启用中依赖方拒绝（4020）。 */
     public void disable(String moduleKey) {
         SysModule module = requireModule(moduleKey);
         if ("KERNEL".equals(module.getModuleType())) {
             throw new BizException(ErrorCode.MODULE_KERNEL_IMMUTABLE);
         }
+        List<String> dependents = enabledDependentsOf(moduleKey);
+        if (!dependents.isEmpty()) {
+            throw new BizException(ErrorCode.MODULE_HAS_DEPENDENTS,
+                    "存在启用中的依赖方，先停用它们: " + String.join(", ", dependents));
+        }
         module.setStatus("DISABLED");
         moduleMapper.updateById(module);
         securityLogService.audit(null, "MODULE_DISABLE", "MODULE", moduleKey, null);
+        evaluateDependencies();
     }
 
     public void enable(String moduleKey) {
@@ -87,6 +95,57 @@ public class ModuleRegistryService {
         module.setStatus("ENABLED");
         moduleMapper.updateById(module);
         securityLogService.audit(null, "MODULE_ENABLE", "MODULE", moduleKey, null);
+        evaluateDependencies();
+    }
+
+    /**
+     * 依赖守护（A4 设计 3.4）：非 DISABLED 模块若依赖缺失/未启用的模块 → BROKEN（路由摘除）；
+     * 依赖恢复后自动回归 ENABLED。DISABLED 为管理端决策，不参与自动恢复。定点求值至稳定。
+     */
+    void evaluateDependencies() {
+        List<SysModule> all = moduleMapper.selectList(null);
+        Map<String, String> statusByKey = new java.util.HashMap<>();
+        for (SysModule m : all) {
+            statusByKey.put(m.getModuleKey(), m.getStatus());
+        }
+        for (int round = 0; round <= all.size(); round++) {
+            boolean changed = false;
+            for (SysModule m : all) {
+                if ("DISABLED".equals(statusByKey.get(m.getModuleKey()))) {
+                    continue;
+                }
+                boolean satisfied = fromJsonList(m.getDependencies()).stream()
+                        .allMatch(dep -> "ENABLED".equals(statusByKey.get(dep)));
+                String target = satisfied ? "ENABLED" : "BROKEN";
+                if (!target.equals(statusByKey.get(m.getModuleKey()))) {
+                    statusByKey.put(m.getModuleKey(), target);
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                break;
+            }
+        }
+        for (SysModule m : all) {
+            if (!m.getStatus().equals(statusByKey.get(m.getModuleKey()))) {
+                m.setStatus(statusByKey.get(m.getModuleKey()));
+                moduleMapper.updateById(m);
+            }
+        }
+    }
+
+    /** 反查：以 moduleKey 为依赖且当前未停用的模块。 */
+    private List<String> enabledDependentsOf(String moduleKey) {
+        List<String> dependents = new ArrayList<>();
+        for (SysModule m : moduleMapper.selectList(null)) {
+            if (m.getModuleKey().equals(moduleKey) || "DISABLED".equals(m.getStatus())) {
+                continue;
+            }
+            if (fromJsonList(m.getDependencies()).contains(moduleKey)) {
+                dependents.add(m.getModuleKey());
+            }
+        }
+        return dependents;
     }
 
     private SysModule requireModule(String moduleKey) {
@@ -154,6 +213,11 @@ public class ModuleRegistryService {
     public List<SysModule> listAll() {
         return moduleMapper.selectList(
                 new LambdaQueryWrapper<SysModule>().orderByAsc(SysModule::getId));
+    }
+
+    public SysModule findByKey(String moduleKey) {
+        return moduleMapper.selectOne(
+                new LambdaQueryWrapper<SysModule>().eq(SysModule::getModuleKey, moduleKey));
     }
 
     public List<String> fromJsonList(String json) {

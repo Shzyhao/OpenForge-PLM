@@ -114,6 +114,17 @@ public class InternalController {
         return ApiResponse.ok(moduleRegistryService.listAll());
     }
 
+    /** 单模块状态（A4 设计 3.4 ensureAvailable 数据源：调用方前置检查依赖模块可用性）。 */
+    @GetMapping("/modules/status/{moduleKey}")
+    public ApiResponse<java.util.Map<String, String>> moduleStatus(
+            @PathVariable String moduleKey,
+            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        requireInternal(token);
+        com.openforge.auth.entity.SysModule module = moduleRegistryService.findByKey(moduleKey);
+        return ApiResponse.ok(module == null ? java.util.Map.of("moduleKey", moduleKey, "status", "NOT_FOUND")
+                : java.util.Map.of("moduleKey", module.getModuleKey(), "status", module.getStatus()));
+    }
+
     @lombok.Data
     public static class ModuleRegisterRequest {
         @jakarta.validation.constraints.NotBlank
