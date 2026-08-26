@@ -5,6 +5,10 @@ spring:
   application:
     name: openforge-gateway
   cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}   # F1 尾：默认关闭；dev-up.sh NACOS=1 开启
+        server-addr: ${NACOS_ADDR:localhost:8848}
     gateway:
       routes:
         # 内核兜底路由（A4 设计 4）：仅保留 auth——注册中心宿主，必须永远可达；

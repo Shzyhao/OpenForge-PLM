@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: openforge-material
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}   # F1 尾：默认关闭；dev-up.sh NACOS=1 开启
+        server-addr: ${NACOS_ADDR:localhost:8848}
   datasource:
     url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
     username: ${PG_USER:openforge}
