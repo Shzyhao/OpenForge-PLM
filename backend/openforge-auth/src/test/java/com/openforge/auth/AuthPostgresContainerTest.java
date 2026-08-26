@@ -61,6 +61,8 @@ class AuthPostgresContainerTest {
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry registry) {
+        // 真实环境语义：注册默认关闭（覆盖 test yml 为 H2 单测开启的 true）
+        registry.add("openforge.security.open-registration", () -> "false");
         if (pg != null && pg.isRunning()) {
             registry.add("spring.datasource.url", pg::getJdbcUrl);
             registry.add("spring.datasource.username", pg::getUsername);
@@ -87,7 +89,7 @@ class AuthPostgresContainerTest {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType("application/json")
                         .content("{\"username\":\"admin\",\"password\":\"WrongPass123\"}"))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())  // BAD_CREDENTIALS 语义化映射 401
                 .andExpect(jsonPath("$.code").value(2002));
     }
 }
