@@ -14,12 +14,12 @@ public final class TenantTables {
             // 认证与权限（RBAC 全局共享，登录查询不携带租户上下文）
             "sys_user", "sys_role", "sys_permission", "sys_role_permission", "sys_user_role",
             "sys_org",
-            // 审计/日志/安全（跨租户运维视角）
-            "sys_audit_log", "sys_login_log", "sys_password_history", "sys_module",
+            // 审计/日志/安全（跨租户运维视角）+ 租户主档自身
+            "sys_audit_log", "sys_login_log", "sys_password_history", "sys_module", "sys_tenant",
             // 编号（规则带租户但计数器行级全局递增）
             "sys_number_counter",
-            // 元数据定义（建模全局共享）
-            "meta_object", "meta_field", "meta_object_version",
+            // 元数据定义（建模与界面制品全局共享）
+            "meta_object", "meta_field", "meta_object_version", "meta_form_layout",
             // 各服务无 tenant_id 列的业务从表
             "part_version", "doc_file", "knowledge_feedback", "workflow_instance", "workflow_task");
 

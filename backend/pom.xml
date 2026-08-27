@@ -23,6 +23,9 @@
         <module>openforge-knowledge</module>
         <module>openforge-project</module>
         <module>openforge-metadata</module>
+        <module>openforge-starter-web</module>
+        <module>openforge-starter-security</module>
+        <module>openforge-starter-data</module>
     </modules>
 
     <properties>
