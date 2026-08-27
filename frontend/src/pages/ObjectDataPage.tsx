@@ -7,8 +7,9 @@ import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
-  FIELD_TYPES, createRecord, deleteRecord, fetchMetaObject, fetchMetaObjects, fetchRecords,
-  updateRecord, type DynamicRecord, type MetaObjectDetail, type MetaObjectSummary,
+  FIELD_TYPES, createRecord, deleteRecord, fetchLayout, fetchMetaObject, fetchMetaObjects,
+  fetchRecords, updateRecord, type DynamicRecord, type LayoutData, type MetaObjectDetail,
+  type MetaObjectSummary,
 } from '../api/metadata'
 import { usePerm } from '../perm/PermContext'
 
@@ -32,6 +33,8 @@ export default function ObjectDataPage() {
   const [filters, setFilters] = useState<string[]>([])
   const [draft, setDraft] = useState<FilterDraft | null>(null)
   const [loading, setLoading] = useState(false)
+  const [listLayout, setListLayout] = useState<LayoutData | null>(null)
+  const [formLayout, setFormLayout] = useState<LayoutData | null>(null)
   const [editing, setEditing] = useState<DynamicRecord | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -55,9 +58,14 @@ export default function ObjectDataPage() {
       setMeta(null)
       return
     }
-    fetchMetaObject(objects.find((o) => o.objectKey === selectedKey)!.id)
+    const summary = objects.find((o) => o.objectKey === selectedKey)
+    if (!summary) return
+    fetchMetaObject(summary.id)
       .then(setMeta)
       .catch(() => message.error('加载对象定义失败'))
+    // F3-2 设计器布局：未定制时后端返回默认派生（全可见按序），应用层无需分支
+    fetchLayout(summary.id, 'LIST').then(setListLayout).catch(() => setListLayout(null))
+    fetchLayout(summary.id, 'FORM').then(setFormLayout).catch(() => setFormLayout(null))
   }, [selectedKey, objects])
 
   const load = useCallback(async () => {
@@ -85,11 +93,16 @@ export default function ObjectDataPage() {
 
   const columns: ColumnsType<DynamicRecord> = useMemo(() => {
     if (!meta) return []
-    const fieldCols: ColumnsType<DynamicRecord> = meta.fields.map((f) => ({
-      title: f.displayName,
+    const layoutByKey = new Map((listLayout?.fields ?? []).map((l) => [l.fieldKey, l]))
+    const orderedFields = listLayout
+      ? listLayout.fields.filter((l) => l.visible).map((l) => meta.fields.find((f) => f.fieldKey === l.fieldKey)!).filter(Boolean)
+      : meta.fields
+    const fieldCols: ColumnsType<DynamicRecord> = orderedFields.map((f) => ({
+      title: layoutByKey.get(f.fieldKey)?.label || f.displayName,
       dataIndex: f.fieldKey,
       key: f.fieldKey,
       sorter: true,
+      width: layoutByKey.get(f.fieldKey)?.width ?? undefined,
       render: (v: unknown) => {
         if (v === null || v === undefined) return <Typography.Text type="secondary">-</Typography.Text>
         if (f.fieldType === 'BOOLEAN') return v === 1 || v === true ? <Tag color="green">是</Tag> : <Tag>否</Tag>
@@ -117,7 +130,7 @@ export default function ObjectDataPage() {
       },
     ]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, canUpdate, canDelete])
+  }, [meta, listLayout, canUpdate, canDelete])
 
   const openEdit = (row: DynamicRecord) => {
     setEditing(row)
@@ -258,11 +271,17 @@ export default function ObjectDataPage() {
       <Modal title={editing ? `编辑记录 #${editing.id}` : '新建记录'} open={modalOpen}
         onCancel={() => setModalOpen(false)} onOk={save} confirmLoading={saving} okButtonProps={{ disabled: editing ? !canUpdate : !canCreate }}>
         <Form form={form} layout="vertical">
-          {meta?.fields.map((f) => (
-            <Form.Item key={f.fieldKey} name={f.fieldKey} label={`${f.displayName}（${f.fieldKey}）`}
-              rules={f.required && !editing ? [{ required: true, message: '必填' }] : []}
-              valuePropName={f.fieldType === 'BOOLEAN' ? 'checked' : 'value'}>
-              {renderFormInput(f.fieldType, f.maxLength)}
+          {(formLayout
+            ? formLayout.fields.filter((l) => l.visible)
+                .map((l) => ({ f: meta?.fields.find((x) => x.fieldKey === l.fieldKey), l }))
+                .filter((x) => !!x.f)
+            : (meta?.fields ?? []).map((f) => ({ f, l: undefined as undefined | { label?: string | null } }))
+          ).map(({ f, l }) => (
+            <Form.Item key={f!.fieldKey} name={f!.fieldKey}
+              label={`${l?.label || f!.displayName}（${f!.fieldKey}）`}
+              rules={f!.required && !editing ? [{ required: true, message: '必填' }] : []}
+              valuePropName={f!.fieldType === 'BOOLEAN' ? 'checked' : 'value'}>
+              {renderFormInput(f!.fieldType, f!.maxLength)}
             </Form.Item>
           ))}
         </Form>

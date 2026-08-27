@@ -138,3 +138,32 @@ export function updateRecord(
 export function deleteRecord(objectKey: string, id: number): Promise<void> {
   return del(`/api/v1/objects/${objectKey}/records/${id}`)
 }
+
+/** 表单/列表布局（F3-2 设计器制品） */
+
+export interface LayoutField {
+  fieldKey: string
+  visible: boolean
+  label?: string | null
+  width?: number | null
+  colSpan?: number | null
+}
+
+export interface LayoutData {
+  objectId: number
+  layoutType: 'FORM' | 'LIST'
+  customized: boolean
+  fields: LayoutField[]
+}
+
+export function fetchLayout(objectId: number, layoutType: 'FORM' | 'LIST'): Promise<LayoutData> {
+  return get(`/api/v1/meta/objects/${objectId}/layouts/${layoutType}`)
+}
+
+export function saveLayout(
+  objectId: number,
+  layoutType: 'FORM' | 'LIST',
+  fields: LayoutField[],
+): Promise<LayoutData> {
+  return put(`/api/v1/meta/objects/${objectId}/layouts/${layoutType}`, { fields })
+}
