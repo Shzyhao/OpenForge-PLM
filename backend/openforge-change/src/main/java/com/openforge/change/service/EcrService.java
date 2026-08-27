@@ -41,7 +41,7 @@ public class EcrService {
         ecr.setAffectedItems(request.getAffectedItems());
         ecr.setState("SUBMITTED");
         ecr.setInitiatorId(initiatorId);
-        ecr.setTenantId(0L);
+        ecr.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         mapper.insert(ecr);
 
         Long instanceId = workflowClient.start(FLOW_KEY, "ECR", ecr.getId(),

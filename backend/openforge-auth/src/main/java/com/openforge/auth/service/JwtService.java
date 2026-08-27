@@ -29,11 +29,17 @@ public class JwtService {
     }
 
     public String generate(Long userId, String username, String displayName) {
+        return generate(userId, username, displayName, com.openforge.common.tenant.TenantContext.DEFAULT_TENANT);
+    }
+
+    /** 携带租户声明（架构文档 7.3：JWT 携带租户，网关转发 X-User-Tenant）。 */
+    public String generate(Long userId, String username, String displayName, Long tenantId) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(username)
                 .claim("uid", userId)
                 .claim("displayName", displayName == null ? "" : displayName)
+                .claim("tenant", tenantId == null ? com.openforge.common.tenant.TenantContext.DEFAULT_TENANT : tenantId)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + ttlMinutes * 60_000))
                 .signWith(key)

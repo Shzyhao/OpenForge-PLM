@@ -43,7 +43,7 @@ public class CategoryService {
         category.setCategoryName(categoryName);
         category.setParentId(parentId);
         category.setSortOrder(sortOrder == null ? 0 : sortOrder);
-        category.setTenantId(0L);
+        category.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         category.setPath("/"); // NOT NULL 占位，插入后回填
         categoryMapper.insert(category);
 

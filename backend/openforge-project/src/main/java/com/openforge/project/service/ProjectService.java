@@ -42,7 +42,7 @@ public class ProjectService {
         project.setStatus("ACTIVE");
         project.setPlannedStart(plannedStart);
         project.setPlannedEnd(plannedEnd);
-        project.setTenantId(0L);
+        project.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         project.setCreatedBy(operatorId);
         projectMapper.insert(project);
         return project;
@@ -83,7 +83,7 @@ public class ProjectService {
         task.setStatus("TODO");
         task.setAssigneeId(assigneeId);
         task.setDueDate(dueDate);
-        task.setTenantId(0L);
+        task.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         taskMapper.insert(task);
         return task;
     }

@@ -3,6 +3,7 @@ package com.openforge.metadata.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
+import com.openforge.common.tenant.TenantContext;
 import com.openforge.metadata.ddl.DdlGenerator;
 import com.openforge.metadata.ddl.FieldType;
 import com.openforge.metadata.entity.MetaField;
@@ -63,8 +64,9 @@ public class DynamicRecordService {
 
         String columns = String.join(", ", values.keySet()) + ", tenant_id, created_by";
         String placeholders = values.keySet().stream().map(k -> "?").collect(Collectors.joining(", "))
-                + ", 0, ?";
+                + ", ?, ?";
         List<Object> params = new ArrayList<>(values.values());
+        params.add(TenantContext.getTenantId());
         params.add(userId);
         var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
         String sql = "INSERT INTO " + meta.object.getTableName() + " (" + columns + ") VALUES (" + placeholders + ")";
@@ -86,7 +88,7 @@ public class DynamicRecordService {
 
     public Map<String, Object> detail(String objectKey, Long id) {
         PublishedMeta meta = loadPublished(objectKey);
-        return queryOne(meta, "id = ? AND deleted = 0", id)
+        return queryOne(meta, "id = ? AND tenant_id = ? AND deleted = 0", id, TenantContext.getTenantId())
                 .orElseThrow(() -> new BizException(ErrorCode.META_RECORD_NOT_FOUND));
     }
 
@@ -98,15 +100,16 @@ public class DynamicRecordService {
         String orderBy = buildOrderBy(meta, sort);
 
         Long total = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM " + meta.object.getTableName() + " WHERE deleted = 0" + where.sql(),
-                Long.class, where.params().toArray());
+                "SELECT COUNT(*) FROM " + meta.object.getTableName()
+                        + " WHERE tenant_id = ? AND deleted = 0" + where.sql(),
+                Long.class, tenantParams(where).toArray());
 
-        List<Object> params = new ArrayList<>(where.params());
+        List<Object> params = new ArrayList<>(tenantParams(where));
         params.add(pageSize);
         params.add((page - 1) * pageSize);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT " + selectColumns(meta) + " FROM " + meta.object.getTableName()
-                        + " WHERE deleted = 0" + where.sql()
+                        + " WHERE tenant_id = ? AND deleted = 0" + where.sql()
                         + " ORDER BY " + orderBy + " LIMIT ? OFFSET ?",
                 params.toArray());
         return new Page<>(total == null ? 0 : total, page, pageSize, rows.stream().map(this::convertRow).toList());
@@ -131,9 +134,10 @@ public class DynamicRecordService {
                 .collect(Collectors.joining(", ")) + ", updated_by = ?, updated_at = CURRENT_TIMESTAMP";
         List<Object> params = new ArrayList<>(values.values());
         params.add(userId);
+        params.add(TenantContext.getTenantId());
         params.add(id);
         int affected = jdbcTemplate.update("UPDATE " + meta.object.getTableName() + " SET " + setClause
-                + " WHERE id = ? AND deleted = 0", params.toArray());
+                + " WHERE tenant_id = ? AND id = ? AND deleted = 0", params.toArray());
         if (affected == 0) {
             throw new BizException(ErrorCode.META_RECORD_NOT_FOUND);
         }
@@ -144,8 +148,9 @@ public class DynamicRecordService {
         PublishedMeta meta = loadPublished(objectKey);
         int affected = jdbcTemplate.update(
                 "UPDATE " + meta.object.getTableName()
-                        + " SET deleted = 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted = 0",
-                userId, id);
+                        + " SET deleted = 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP"
+                        + " WHERE id = ? AND tenant_id = ? AND deleted = 0",
+                userId, id, TenantContext.getTenantId());
         if (affected == 0) {
             throw new BizException(ErrorCode.META_RECORD_NOT_FOUND);
         }
@@ -203,6 +208,14 @@ public class DynamicRecordService {
     // ===== 过滤与排序（白名单 + 参数化，F2 设计 4） =====
 
     private record WhereClause(String sql, List<Object> params) {
+    }
+
+    /** 租户参数前置（动态表均含 tenant_id 标准列，隔离优先于过滤条件）。 */
+    private List<Object> tenantParams(WhereClause where) {
+        List<Object> params = new ArrayList<>();
+        params.add(TenantContext.getTenantId());
+        params.addAll(where.params());
+        return params;
     }
 
     private record FilterCondition(String column, String op, List<Object> values) {
