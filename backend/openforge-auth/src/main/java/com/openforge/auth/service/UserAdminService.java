@@ -77,7 +77,7 @@ public class UserAdminService {
         user.setPasswordUpdatedAt(LocalDateTime.now());
         user.setFirstLoginChange(1); // 创建的账号首登强制改密（方案 D2/E6）
         user.setFailedLoginCount(0);
-        user.setTenantId(0L);
+        user.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         user.setDeleted(0);
         userMapper.insert(user);
 

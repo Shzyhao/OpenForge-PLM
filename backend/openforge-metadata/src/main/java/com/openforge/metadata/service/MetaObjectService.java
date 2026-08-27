@@ -55,7 +55,7 @@ public class MetaObjectService {
         object.setTableName(DdlGenerator.tableNameOf(request.getObjectKey()));
         object.setStatus("DRAFT");
         object.setVersion(1);
-        object.setTenantId(0L);
+        object.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         object.setCreatedBy(userId);
         metaObjectMapper.insert(object);
 

@@ -41,7 +41,7 @@ public class RbacService {
         role.setRoleName(roleName);
         role.setBuiltin(0);
         role.setEnabled(1);
-        role.setTenantId(0L);
+        role.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         roleMapper.insert(role);
         return role;
     }
