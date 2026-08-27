@@ -45,7 +45,7 @@ public class OrgService {
         org.setParentId(parentId);
         org.setSortOrder(sortOrder == null ? 0 : sortOrder);
         org.setStatus("ACTIVE");
-        org.setTenantId(0L);
+        org.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         org.setPath("/"); // NOT NULL 占位，插入取得 id 后立即回填真实物化路径
         orgMapper.insert(org);
 

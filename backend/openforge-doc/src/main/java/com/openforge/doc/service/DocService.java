@@ -40,7 +40,7 @@ public class DocService {
         doc.setVersionMajor("A");
         doc.setVersionMinor(0);
         doc.setLifecycleState("DRAFT");
-        doc.setTenantId(0L);
+        doc.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         doc.setCreatedBy(operatorId);
         doc.setDeleted(0);
         docInfoMapper.insert(doc);
