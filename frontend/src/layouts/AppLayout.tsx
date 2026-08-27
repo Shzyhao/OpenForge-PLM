@@ -28,6 +28,7 @@ const NAV_ITEMS = [
   { key: '/project', menu: 'menu:project', icon: <ProjectOutlined />, label: '项目', module: 'project' },
   { key: '/meta/objects', menu: 'menu:meta', icon: <BlockOutlined />, label: '对象建模', module: 'metadata' },
   { key: '/meta/data', menu: 'menu:meta', icon: <TableOutlined />, label: '动态数据', module: 'metadata' },
+  { key: '/meta/designer', menu: 'menu:meta', icon: <BlockOutlined />, label: '界面设计', module: 'metadata' },
   { key: '/system/users', menu: 'menu:system', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/system/roles', menu: 'menu:system', icon: <TeamOutlined />, label: '角色权限' },
   { key: '/system/logs', menu: 'menu:system', icon: <FileTextOutlined />, label: '安全日志' },

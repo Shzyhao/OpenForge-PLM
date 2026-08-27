@@ -8,6 +8,7 @@ import com.openforge.metadata.dto.MetaObjectDetailResponse;
 import com.openforge.metadata.dto.MetaObjectSummaryResponse;
 import com.openforge.metadata.dto.PageResponse;
 import com.openforge.metadata.dto.UpdateMetaObjectRequest;
+import com.openforge.metadata.service.MetaLayoutService;
 import com.openforge.metadata.service.MetaObjectService;
 import com.openforge.metadata.service.MetaPublishService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +33,7 @@ public class MetaObjectController {
 
     private final MetaObjectService metaObjectService;
     private final MetaPublishService metaPublishService;
+    private final MetaLayoutService metaLayoutService;
 
     @PostMapping
     @RequirePermission("meta:manage")
@@ -75,6 +77,29 @@ public class MetaObjectController {
     public ApiResponse<java.util.Map<String, Object>> publish(
             @PathVariable Long id, HttpServletRequest http) {
         return ApiResponse.ok(metaPublishService.publish(id, currentUserId(http)));
+    }
+
+    // ===== F3-2 表单/列表设计器 =====
+
+    @GetMapping("/{id}/layouts/{layoutType}")
+    public ApiResponse<java.util.Map<String, Object>> getLayout(
+            @PathVariable Long id, @PathVariable String layoutType) {
+        return ApiResponse.ok(metaLayoutService.getLayout(id, layoutType));
+    }
+
+    @PutMapping("/{id}/layouts/{layoutType}")
+    @RequirePermission("meta:manage")
+    public ApiResponse<java.util.Map<String, Object>> saveLayout(
+            @PathVariable Long id, @PathVariable String layoutType,
+            @RequestBody SaveLayoutRequest request, HttpServletRequest http) {
+        return ApiResponse.ok(metaLayoutService.saveLayout(id, layoutType, request.getFields(), currentUserId(http)));
+    }
+
+    @lombok.Data
+    public static class SaveLayoutRequest {
+        @jakarta.validation.Valid
+        @jakarta.validation.constraints.NotEmpty(message = "fields 不能为空")
+        private java.util.List<java.util.Map<String, Object>> fields;
     }
 
     private Long currentUserId(HttpServletRequest request) {
