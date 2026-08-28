@@ -30,7 +30,11 @@ openforge:
     poll-interval: 30s
 
 management:
+  metrics:
+    export:
+      defaults:
+        enabled: true   # B3: 显式开启（防环境级默认关闭），prometheus 端点随 exposure 生效
   endpoints:
     web:
       exposure:
-        include: health,info,gateway,module-routes
+        include: health,info,prometheus,gateway,module-routes

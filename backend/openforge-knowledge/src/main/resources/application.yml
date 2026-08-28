@@ -36,7 +36,11 @@ openforge:
     embedding-model: ${OPENFORGE_LLM_EMBEDDING_MODEL:embedding-3}
 
 management:
+  metrics:
+    export:
+      defaults:
+        enabled: true   # B3: 显式开启（防环境级默认关闭），prometheus 端点随 exposure 生效
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
