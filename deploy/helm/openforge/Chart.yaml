@@ -1,0 +1,9 @@
+apiVersion: v2
+name: openforge
+description: OpenForge PLM——开源 AI 原生产品全生命周期管理平台（B4 K8s 部署形态）
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: OpenForge
+keywords: [plm, low-code, ai, metadata-driven]

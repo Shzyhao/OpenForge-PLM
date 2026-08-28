@@ -10,6 +10,9 @@ Java 21 + Spring Boot 3.3 微服务（Maven 多模块）。
 | `openforge-auth` | 8081 | 认证服务：注册 / 登录 / JWT 签发（含租户声明）/ RBAC / 组织 / 编号规则 / 租户管理 / 模块注册中心 / 安全审计 |
 | `openforge-common` | - | 公共库：统一响应体 / 错误码 / 业务异常 / 全局异常处理 |
 | `openforge-security` | - | 公共库：`@RequirePermission` 拦截器 + auth 权限查询客户端 |
+| `openforge-starter-web` | - | 起步依赖：统一响应/错误码/全局异常 + 租户上下文 + 模块注册 |
+| `openforge-starter-data` | - | 起步依赖：MyBatis-Plus（分页+多租户拦截器）+ PostgreSQL + Flyway |
+| `openforge-starter-security` | - | 起步依赖：`@RequirePermission` 拦截器/权限与模块可用性客户端 |
 | `openforge-material` | 8082 | 物料与 BOM 服务 |
 | `openforge-doc` | 8083 | 文档服务 |
 | `openforge-workflow` | 8084 | 流程引擎服务 |
@@ -36,14 +39,12 @@ mvn -pl openforge-auth spring-boot:run
 mvn -pl openforge-gateway spring-boot:run
 
 # 4. 冒烟验证
-# 注册
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"zhangsan","password":"password123","displayName":"张三"}'
+# 自助注册默认关闭（OPEN_REGISTRATION=true 可打开），用户由管理员创建；
+# admin 初始密码打印在 auth 服务启动日志（首登强制改密）
 # 登录
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"zhangsan","password":"password123"}'
+  -d '{"username":"admin","password":"<auth 启动日志中的初始密码>"}'
 ```
 
 ## 约定
