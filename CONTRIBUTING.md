@@ -1,6 +1,6 @@
 # 贡献指南 ｜ Contributing to OpenForge PLM
 
-感谢你关注 OpenForge PLM！本文档说明如何参与贡献。项目当前处于**设计阶段→M1 基础平台启动期**，最需要的是设计评审与早期共建。
+感谢你关注 OpenForge PLM！本文档说明如何参与贡献。项目 v1.1.0 应用主体与框架化 F1~F3 已交付，最需要的是后续路线共建与场景输入。
 
 ## 🌿 分支模型
 
@@ -22,8 +22,8 @@ git push -u origin feature/auth-jwt
 
 ## 📋 贡献类型
 
-1. **设计评审**：对三份设计文档提出 Issue（架构、数据模型、AI 安全机制、流程引擎），标注 `design-review`；
-2. **模块认领**：认领 M1 里程碑模块（见 Roadmap），在对应 Issue 下留言认领；
+1. **设计评审**：对架构与设计文档提出 Issue（架构、数据模型、AI 安全机制、流程引擎），标注 `design-review`；
+2. **模块认领**：认领后续路线模块（事件总线 / 可观测 / K8s Helm 部署 / ERP/MES 连接器，见 Roadmap），在对应 Issue 下留言认领；
 3. **代码贡献**：遵循下方规范；
 4. **场景输入**：分享行业 PLM 痛点与流程样本，帮助打磨低代码模板库，标注 `use-case`。
 
@@ -52,11 +52,11 @@ fix(workflow): 会签或签模式下任务完成事件丢失
 docs(readme): 补充品牌指南
 ```
 
-## 🛠️ 开发环境（随 M1 推进更新）
+## 🛠️ 开发环境
 
-- JDK 21 / Node 20+ / Python 3.12 / Docker
-- 后端：Spring Boot 3.x；前端：React 18 + Vite；AI：LangGraph
-- 本地依赖（PostgreSQL/Redis/Milvus 等）统一用 `docker-compose` 启动（M1 提供）
+- JDK 21 / Node 20+ / Python 3.11 / Docker
+- 后端：Spring Boot 3.x；前端：React 18 + Vite；AI：FastAPI（OpenAI 兼容协议接入）
+- 本地依赖（PostgreSQL/Redis/MinIO 等）统一用 `docker-compose` 启动
 
 ## 🤖 与智能体贡献者协作
 
