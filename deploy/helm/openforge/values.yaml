@@ -1,0 +1,79 @@
+# OpenForge Helm values（B4）
+# 注意：chart 骨架随 compose 形态同源生成，helm lint/template 需在装有 helm 的环境执行（本仓 CI 未覆盖）
+
+global:
+  imageRegistry: ""            # 留空用本地构建镜像名
+  imagePullPolicy: IfNotPresent
+  postgres:
+    host: postgres
+    port: 5432
+    database: openforge
+    user: openforge
+    password: change-me        # 生产用 externalSecret 注入
+  jwtSecret: change-me-jwt-secret-at-least-32-bytes-long!
+  internalToken: change-me-internal-token
+  nacos:
+    enabled: false
+    addr: nacos:8848
+
+# 后端服务清单（模块注册自动路由：MODULE_SERVICE_URI=http://{name}:{port}）
+services:
+  - name: auth
+    module: openforge-auth
+    port: 8081
+    replicas: 1
+  - name: material
+    module: openforge-material
+    port: 8082
+    replicas: 1
+  - name: doc
+    module: openforge-doc
+    port: 8083
+    replicas: 1
+  - name: workflow
+    module: openforge-workflow
+    port: 8084
+    replicas: 1
+  - name: change
+    module: openforge-change
+    port: 8085
+    replicas: 1
+  - name: knowledge
+    module: openforge-knowledge
+    port: 8086
+    replicas: 1
+  - name: project
+    module: openforge-project
+    port: 8087
+    replicas: 1
+  - name: metadata
+    module: openforge-metadata
+    port: 8088
+    replicas: 1
+
+gateway:
+  name: gateway
+  module: openforge-gateway
+  port: 8080
+  replicas: 1
+  ingress:
+    enabled: true
+    host: openforge.example.com
+
+aiGateway:
+  name: ai-gateway
+  port: 8001
+  replicas: 1
+  llm:
+    baseUrl: ""
+    apiKey: ""
+    model: glm-4-flash
+
+frontend:
+  name: frontend
+  port: 80
+  replicas: 1
+
+resources:
+  requests: { cpu: 200m, memory: 512Mi }
+  limits: { cpu: "1", memory: 1Gi }
