@@ -28,7 +28,7 @@ OpenForge 当前是一套**业务写死的 PLM 应用**。框架化 = 变成**�
 
 | # | 事项 | 现状 |
 |---|------|------|
-| B1 | 服务注册发现 + 配置中心 | URL 硬编码 localhost，待 Nacos |
+| B1 | 服务注册发现 + 配置中心 | Nacos 服务发现已接（#45，默认关闭，NACOS=1 或部署环境启用）；配置中心未接 |
 | B2 | 事件总线 | RocketMQ 未接（知识自动沉淀依赖它，现为同步 HTTP 轮询） |
 | B3 | 可观测 | SkyWalking/Prometheus 设计有实现零 |
 | B4 | 部署形态 | K8s Helm + 生产 compose 待做（现有 dev-up.sh 仅开发用） |

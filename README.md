@@ -6,13 +6,13 @@
 
 > v1.1.0 新增：完整权限体系——固定 admin 账号、角色自定义与界面级增删改查权限矩阵、密码半年过期强制重置、登录锁定与安全审计。
 >
-> 框架化 F1~F3 新增：OpenAPI 文档与 Testcontainers 测试矩阵、Nacos 服务发现（默认关闭）、动态对象运行时与建模→DDL→AI 闭环、模块注册机制、多租户、表单/列表设计器、Starter 化与 `openforge-cli` 脚手架。
+> 框架化 F1~F3 已交付：OpenAPI 文档 + Testcontainers 测试矩阵、动态对象运行时与建模→DDL→AI 闭环、模块注册机制（部署即注册/停用即摘除）、多租户全链路、表单/列表设计器、Starter 化与脚手架 CLI（详见[框架化路线](docs/OpenForge-框架化路线.md)）。
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-active%20development-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.1.0%20%2B%20F3-blue)]()
 [![Docs](https://img.shields.io/badge/docs-7%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -61,16 +61,16 @@
 | [OpenForge-开发文档](docs/OpenForge-开发文档.md) | 功能规格、数据库设计、API 规范、里程碑 | 全体开发/QA |
 | [OpenForge-架构文档](docs/OpenForge-架构文档.md) | 分层架构、C4 视图、低代码平台架构、ADR、部署 | 架构师/DevOps |
 | [OpenForge-多智能体与LoopEngineering](docs/OpenForge-多智能体与LoopEngineering.md) | 双平面 MAS、四层循环验证体系、Agent 基础设施 | AI 工程师 |
+| [OpenForge-权限体系完善方案](docs/OpenForge-权限体系完善方案.md) | 固定 admin、双层权限、密码时效与登录安全（P1~P6 已交付） | 后端/前端 |
 | [OpenForge-框架化路线](docs/OpenForge-框架化路线.md) | 从应用到框架的差距分析与实施计划（F1~F3 已完成） | 全体开发/架构师 |
-| [OpenForge-F2动态对象运行时设计](docs/OpenForge-F2动态对象运行时设计.md) | 动态对象运行时与建模→DDL→AI 闭环详细设计 | 平台开发 |
-| [OpenForge-F2模块注册机制设计](docs/OpenForge-F2模块注册机制设计.md) | 模块注册机制（部署即注册/停用即摘除）设计 | 平台开发 |
-| [OpenForge-权限体系完善方案](docs/OpenForge-权限体系完善方案.md) | 权限专项（P1~P6）设计与交付记录 | 后端/安全 |
+| [OpenForge-F2动态对象运行时设计](docs/OpenForge-F2动态对象运行时设计.md) | 动态对象建模→DDL→AI 闭环实施蓝图（已交付） | 后端/前端 |
+| [OpenForge-F2模块注册机制设计](docs/OpenForge-F2模块注册机制设计.md) | 部署即注册/停用即摘除的模块化机制设计（已交付） | 后端/架构师 |
 
 ## 🛠️ 技术栈
 
-**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（9 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project/metadata）+ openforge-common/security 公共库 + openforge-starter-web/data/security 起步依赖三件套 ｜ **AI** Python FastAPI + OpenAI 兼容协议多模型接入（GLM/Qwen/私有化 vLLM，支持全私有化与离线降级） ｜ **存储** PostgreSQL / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Nacos 服务发现（默认关闭） + Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
+**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（9 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project/metadata）+ openforge-common/security 公共库 + openforge-starter-web/data/security 起步依赖三件套 ｜ **AI** Python FastAPI + LangChain 生态 + 多模型接入（支持全私有化与离线降级） ｜ **存储** PostgreSQL / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
 
-## 🗺️ Roadmap（v1.0 全部交付）
+## 🗺️ Roadmap（v1.0 + 权限专项 + 框架化 F1~F3 全部交付）
 
 | 里程碑 | 内容 | 状态 |
 |--------|------|------|
@@ -81,18 +81,16 @@
 | M5 v0.5.0 | 自适应知识库：向量检索(可插拔) / 反馈闭环质量分 / 自然语言→SQL(Schema 注入+安全网关兜底) | ✅ |
 | M6 v1.0.0 | 项目与任务管理 / 跨服务统计报表(ECharts) / 一键启动脚本 | ✅ |
 | 权限专项 v1.1.0 | 固定admin / 双层权限(菜单+每界面增删改查) / ADMINS次级管理员 / 用户管理 / 密码半年过期强制重置 / 登录锁定 / 密码历史 / 登录日志与审计 / 前端权限联动 | ✅ |
-| 框架化 F1 基础达标 | OpenAPI 文档(springdoc 全服务) + Testcontainers 测试矩阵(真实 PG) + Nacos 服务发现(默认关闭，随部署环境启用) | ✅ |
-| 框架化 F2 核心卖点 | 动态对象运行时 + 建模→DDL→AI 闭环(发布=DDL+权限点+知识同步+AI表登记) + 模块注册机制(部署即注册/停用即摘除/启动自检/依赖守护) | ✅ |
-| 框架化 F3 商业化 | 多租户(JWT 租户声明+SQL 行级隔离) + 表单/列表设计器(布局制品) + openforge-cli 脚手架 + Starter 化(Helm 随部署环境另行交付) | ✅ |
+| 框架化 F1~F3 | OpenAPI 文档 + Testcontainers 测试矩阵 + Nacos 服务发现(默认关闭) / 动态对象运行时 + 建模→DDL→AI 闭环 + 模块注册机制(部署即注册/停用即摘除) / 多租户全链路 + 表单列表设计器 + 脚手架 CLI + Starter 化 | ✅ |
 
-**后续路线**：bpmn-js 可视化流程设计器、pgvector/Milvus 切换、事件总线(RocketMQ)知识自动沉淀、可观测(SkyWalking/Prometheus)、ERP/MES 连接器、K8s Helm 部署清单、多租户文件/向量隔离。
+**后续路线**：bpmn-js 可视化流程设计器、pgvector/Milvus 切换、事件总线(RocketMQ)知识自动沉淀、二开文档(扩展点/插件指南)、ERP/MES 连接器、K8s 部署清单。
 
 ## 🚀 快速开始
 
 ```bash
 # 一键启动（依赖 + 9 个 Java 服务）
 ./scripts/dev-up.sh
-# 可选：NACOS=1 启用 Nacos 注册中心；SERVICES="auth metadata gateway" 裁剪启动集
+# NACOS=1 ./scripts/dev-up.sh   # 可选：启用 Nacos 服务注册（默认关闭）
 
 # AI 网关与前端（另开终端）
 cd ai && pip install -r requirements.txt && uvicorn gateway.main:app --port 8001
@@ -112,15 +110,15 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ## 🤝 参与贡献
 
-项目 v1.1.0 应用主体与框架化 F1~F3 已交付，欢迎在以下方向参与：
+应用主体（M1~M6 + 权限专项 v1.1.0）与框架化 F1~F3 已交付，欢迎在以下方向参与：
 
-- 设计评审：对架构、数据模型、AI 安全机制提出 Issue 讨论；
-- 后续共建：后续路线模块认领（事件总线 / 可观测 / K8s Helm 部署 / ERP/MES 连接器）；
+- 方向讨论：框架化路线剩余域（基础设施事件总线/可观测、二开文档、行业模板包）提出 Issue 讨论；
+- 早期共建：后续迭代方向的模块认领（RocketMQ 事件总线、SkyWalking/Prometheus 可观测、bpmn-js 流程设计器）；
 - 场景输入：分享你所在行业的 PLM 痛点与流程样本，帮助打磨低代码模板库。
 
 ## 📄 License
 
-采用 **Apache-2.0**（完整许可证文本见 [LICENSE](LICENSE)）：与主流生态兼容、含明确专利授权、对企业用户友好，同时保留双重许可（开源版 + 商业版增值模块）的演进空间。
+采用 **Apache-2.0**（完整许可证文本见仓库根目录 [LICENSE](LICENSE)）：与主流生态兼容、含明确专利授权、对企业用户友好，同时保留双重许可（开源版 + 商业版增值模块）的演进空间。
 
 ---
 

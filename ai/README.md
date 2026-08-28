@@ -1,4 +1,4 @@
-# OpenForge AI 中台网关
+# OpenForge AI 中台网关（M4/M5）
 
 Python 3.11 + FastAPI。统一 LLM 接入（OpenAI 兼容协议，支持 GLM/Qwen/vLLM 等），
 未配置模型时自动进入**离线降级模式**：服务可启动、文档解析降级为规则抽取、SQL 安全网关不受影响。
@@ -24,8 +24,8 @@ export OPENFORGE_LLM_MODEL=glm-4-flash
 | `POST /api/v1/ai/chat` | 对话（离线返回降级标识回复） |
 | `POST /api/v1/ai/jobs/doc-parse` | 文档结构化抽取（在线 LLM / 离线规则，返回 degraded 与 confidence） |
 | `POST /api/v1/ai/sql/validate` | SQL 安全网关校验（单语句/SELECT only/表白名单/危险函数/LIMIT 强制） |
-| `POST /api/v1/ai/data/query` | 自然语言（`question`→LLM 生成 SQL）或直接提交 SQL；均过安全网关后只读执行（数据源未配置时返回校验通过未执行） |
-| `POST /internal/tables` | 动态表登记（F2 发布流水线）：表白名单 + 表描述运行时注册，新发布对象即刻可被 nl2sql/数据查询访问；`X-Internal-Token` 防护，不经 Java 网关路由 |
+| `POST /api/v1/ai/data/query` | 校验 + 只读执行（`sql` 直提交或 `question` 自然语言生成，均过安全网关；执行层随生产部署配置启用） |
+| `POST /internal/tables` | 动态表登记（F2 发布流水线）：表白名单 + Schema 描述注入，X-Internal-Token 防护 |
 
 ## SQL 安全网关（架构文档 4.7.2 M4 子集）
 
@@ -39,4 +39,5 @@ cd ai && pytest
 
 ## 路线
 
-自然语言→SQL（M5）已交付：白名单表业务描述注入 Prompt 生成 SELECT，生成结果必过 SQL 安全网关；动态对象发布经 `/internal/tables` 自动登记表描述。后续：向量检索、BOM 清洗管道、Token 计量与熔断。
+M5 已交付：自然语言→SQL（`question=` 双入口 + 动态表登记注入 Schema 知识）、向量检索（knowledge 服务，可插拔）。
+后续：BOM 清洗管道、Token 计量与熔断。
