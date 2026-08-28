@@ -1,0 +1,24 @@
+# OpenForge 监控采集配置（B3）：docker compose --profile monitoring 启动时挂载
+# 抓取网关 + 全部 JVM 服务的 /actuator/prometheus；AI 网关指标随其接入 prometheus_client 后补
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: openforge-gateway
+    static_configs: [{ targets: ['gateway:8080'] }]
+  - job_name: openforge-auth
+    static_configs: [{ targets: ['auth:8081'] }]
+  - job_name: openforge-material
+    static_configs: [{ targets: ['material:8082'] }]
+  - job_name: openforge-doc
+    static_configs: [{ targets: ['doc:8083'] }]
+  - job_name: openforge-workflow
+    static_configs: [{ targets: ['workflow:8084'] }]
+  - job_name: openforge-change
+    static_configs: [{ targets: ['change:8085'] }]
+  - job_name: openforge-knowledge
+    static_configs: [{ targets: ['knowledge:8086'] }]
+  - job_name: openforge-project
+    static_configs: [{ targets: ['project:8087'] }]
+  - job_name: openforge-metadata
+    static_configs: [{ targets: ['metadata:8088'] }]

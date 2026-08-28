@@ -14,3 +14,17 @@ openforge:
   security:
     auth-base-url: http://localhost:0   # 测试中权限查询走 MockBean/免检路径，不实际调用
     internal-token: test-internal-token
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  defaults:
+    metrics:
+      export:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
