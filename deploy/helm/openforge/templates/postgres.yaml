@@ -1,0 +1,53 @@
+{{- $pg := .Values.global.postgres }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $pg.host }}
+  labels:
+    {{- include "openforge.labels" (dict "name" "postgres" "Chart" $.Chart) | nindent 4 }}
+spec:
+  serviceName: {{ $pg.host }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $pg.host }}
+  template:
+    metadata:
+      labels:
+        {{- include "openforge.labels" (dict "name" "postgres" "Chart" $.Chart) | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_USER
+              value: {{ $pg.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ $pg.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ $pg.database | quote }}
+          ports:
+            - containerPort: {{ $pg.port }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $pg.host }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $pg.host }}
+  ports:
+    - port: {{ $pg.port }}
+      targetPort: {{ $pg.port }}

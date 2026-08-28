@@ -30,12 +30,16 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
     public ModuleRegistrar(
             @Value("${openforge.security.auth-base-url:http://localhost:8081}") String authBaseUrl,
             @Value("${openforge.security.internal-token:openforge-internal-dev-token}") String internalToken,
+            @Value("${MODULE_SERVICE_URI:}") String moduleServiceUriEnv,
             @Value("${openforge.module.service-uri:}") String serviceUriOverride) {
         this.internalToken = internalToken;
         this.restClient = RestClient.builder().baseUrl(authBaseUrl).build();
         ModuleDescriptor loaded = loadDescriptor();
-        if (loaded != null && serviceUriOverride != null && !serviceUriOverride.isBlank()) {
-            loaded.setServiceUri(serviceUriOverride);   // 部署环境覆盖（docker/k8s 网络地址）
+        // 容器/编排注入优先级：MODULE_SERVICE_URI 环境变量 > openforge.module.service-uri 属性 > 描述符声明
+        String override = moduleServiceUriEnv != null && !moduleServiceUriEnv.isBlank()
+                ? moduleServiceUriEnv : serviceUriOverride;
+        if (loaded != null && override != null && !override.isBlank()) {
+            loaded.setServiceUri(override);
         }
         this.descriptor = loaded;
     }

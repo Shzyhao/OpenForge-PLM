@@ -1,0 +1,139 @@
+# OpenForge PLM 生产部署栈（B4）：全服务容器化 + 模块注册自动路由
+# 用法: cp .env.example .env && docker compose -f docker-compose.prod.yml up -d --build
+# 可观测栈另行叠加: docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --profile monitoring up -d
+#
+# 关键约定：
+# - 服务经 MODULE_SERVICE_URI 上报容器网络地址 → 模块注册表 → 网关动态路由（零手工路由配置）
+# - 基础设施密码与 JWT 密钥一律走 .env，勿用默认值上线
+name: openforge
+
+x-java-env: &java-env
+  PG_HOST: postgres
+  PG_PORT: "5432"
+  PG_DB: openforge
+  PG_USER: ${PG_USER:-openforge}
+  PG_PASSWORD: ${PG_PASSWORD:?请在 .env 设置 PG_PASSWORD}
+  AUTH_SERVICE_URI: http://auth:8081
+  INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置 INTERNAL_TOKEN}
+  JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET（≥32 字节）}
+  NACOS_ENABLED: ${NACOS_ENABLED:-false}
+  NACOS_ADDR: ${NACOS_ADDR:-nacos:8848}
+
+x-java-build: &java-build
+  context: .
+  dockerfile: backend/Dockerfile
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PG_USER:-openforge}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?请在 .env 设置 PG_PASSWORD}
+      POSTGRES_DB: openforge
+      TZ: Asia/Shanghai
+    volumes: [pg_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-openforge}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    volumes: [redis_data:/data]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-openforge}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?请在 .env 设置 MINIO_ROOT_PASSWORD}
+    volumes: [minio_data:/data]
+    ports: ["9000:9000", "9001:9001"]
+
+  auth:
+    build: { <<: *java-build, args: { MODULE: openforge-auth, PORT: "8081" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://auth:8081
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  material:
+    build: { <<: *java-build, args: { MODULE: openforge-material, PORT: "8082" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://material:8082
+    depends_on: [auth]
+
+  doc:
+    build: { <<: *java-build, args: { MODULE: openforge-doc, PORT: "8083" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://doc:8083
+    depends_on: [auth]
+
+  workflow:
+    build: { <<: *java-build, args: { MODULE: openforge-workflow, PORT: "8084" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://workflow:8084
+    depends_on: [auth]
+
+  change:
+    build: { <<: *java-build, args: { MODULE: openforge-change, PORT: "8085" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://change:8085
+    depends_on: [auth, workflow]
+
+  knowledge:
+    build: { <<: *java-build, args: { MODULE: openforge-knowledge, PORT: "8086" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://knowledge:8086
+    depends_on: [auth]
+
+  project:
+    build: { <<: *java-build, args: { MODULE: openforge-project, PORT: "8087" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://project:8087
+    depends_on: [auth]
+
+  metadata:
+    build: { <<: *java-build, args: { MODULE: openforge-metadata, PORT: "8088" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://metadata:8088
+    depends_on: [auth]
+
+  gateway:
+    build: { <<: *java-build, args: { MODULE: openforge-gateway, PORT: "8080" } }
+    environment:
+      <<: *java-env
+      AUTH_SERVICE_URI: http://auth:8081
+    ports: ["8080:8080"]
+    depends_on: [auth]
+
+  ai-gateway:
+    build: { context: ., dockerfile: ai/Dockerfile }
+    environment:
+      OPENFORGE_AUTH_BASE_URL: http://auth:8081
+      OPENFORGE_INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置 INTERNAL_TOKEN}
+      OPENFORGE_MODULE_SERVICE_URI: http://ai-gateway:8001
+      OPENFORGE_LLM_BASE_URL: ${OPENFORGE_LLM_BASE_URL:-}
+      OPENFORGE_LLM_API_KEY: ${OPENFORGE_LLM_API_KEY:-}
+      OPENFORGE_LLM_MODEL: ${OPENFORGE_LLM_MODEL:-glm-4-flash}
+    depends_on: [auth]
+
+  frontend:
+    build: { context: ., dockerfile: frontend/Dockerfile }
+    ports: ["80:80"]
+    depends_on: [gateway]
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:
