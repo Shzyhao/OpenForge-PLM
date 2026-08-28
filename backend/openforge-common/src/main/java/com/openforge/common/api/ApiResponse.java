@@ -18,14 +18,20 @@ public class ApiResponse<T> {
     private String traceId;
 
     public static <T> ApiResponse<T> ok(T data) {
-        return new ApiResponse<>(ErrorCode.OK.getCode(), ErrorCode.OK.getMessage(), data, java.util.UUID.randomUUID().toString());
+        return new ApiResponse<>(ErrorCode.OK.getCode(), ErrorCode.OK.getMessage(), data, currentTraceId());
     }
 
-    public static ApiResponse<Void> ok() {
+    public static <T> ApiResponse<T> ok() {
         return ok(null);
     }
 
     public static <T> ApiResponse<T> fail(ErrorCode errorCode, String message) {
-        return new ApiResponse<>(errorCode.getCode(), message, null, java.util.UUID.randomUUID().toString());
+        return new ApiResponse<>(errorCode.getCode(), message, null, currentTraceId());
+    }
+
+    /** 复用请求链路 traceId（网关 X-Trace-Id → MDC）；无过滤器上下文时回退随机值。 */
+    private static String currentTraceId() {
+        String traceId = org.slf4j.MDC.get(com.openforge.common.trace.TraceIdFilter.MDC_KEY);
+        return traceId != null ? traceId : java.util.UUID.randomUUID().toString();
     }
 }
