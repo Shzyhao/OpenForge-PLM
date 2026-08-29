@@ -40,10 +40,12 @@ services:
       retries: 12
 
   redis:
+    profiles: ["extras"]   # 零代码使用，按需启用
     image: redis:7-alpine
     volumes: [redis_data:/data]
 
   minio:
+    profiles: ["extras"]   # 文档存储现为容器本地盘（已挂数据卷）；MinIO 接线时启用
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
@@ -72,6 +74,8 @@ services:
     environment:
       <<: *java-env
       MODULE_SERVICE_URI: http://doc:8083
+    volumes:
+      - doc_data:/data/doc-files   # LocalDiskStorage 目录（容器内临时盘 → 持久卷，重部署不丢文件）
     depends_on: [auth]
 
   workflow:
@@ -135,5 +139,6 @@ services:
 
 volumes:
   pg_data:
+  doc_data:
   redis_data:
   minio_data:
