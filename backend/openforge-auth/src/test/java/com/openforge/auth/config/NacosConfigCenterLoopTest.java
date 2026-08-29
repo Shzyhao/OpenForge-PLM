@@ -7,8 +7,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -72,21 +70,19 @@ class NacosConfigCenterLoopTest {
         HttpResponse<String> resp = HttpClient.newHttpClient()
                 .send(request, HttpResponse.BodyHandlers.ofString());
         assertThat(resp.body()).isEqualTo("true");
+
+        // B1 关键坑位：@DynamicPropertySource 在 config-data 解析阶段不可见（晚于环境准备），
+        // 必须用系统属性让 spring.cloud.nacos.config.* 在 import 解析期生效
+        System.setProperty("NACOS_CONFIG_ENABLED", "true");
+        System.setProperty("NACOS_ADDR", nacos.getHost() + ":" + nacos.getMappedPort(8848));
     }
 
     @AfterAll
     static void stopNacos() {
+        System.clearProperty("NACOS_CONFIG_ENABLED");
+        System.clearProperty("NACOS_ADDR");
         if (nacos != null) {
             nacos.stop();
-        }
-    }
-
-    @DynamicPropertySource
-    static void nacosProps(DynamicPropertyRegistry registry) {
-        if (nacos != null && nacos.isRunning()) {
-            registry.add("spring.cloud.nacos.config.enabled", () -> "true");
-            registry.add("spring.cloud.nacos.config.server-addr",
-                    () -> nacos.getHost() + ":" + nacos.getMappedPort(8848));
         }
     }
 
