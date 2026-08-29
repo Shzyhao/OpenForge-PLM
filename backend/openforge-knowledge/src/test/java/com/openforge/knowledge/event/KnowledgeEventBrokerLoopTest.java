@@ -51,14 +51,16 @@ class KnowledgeEventBrokerLoopTest {
         network = Network.newNetwork();
         namesrv = new GenericContainer<>(DockerImageName.parse(IMAGE))
                 .withNetwork(network).withNetworkAliases("namesrv")
+                .withEnv("JAVA_OPT_EXT", "-Xms256m -Xmx512m -Xmn128m")   // 官方脚本默认 4g，CI 7GB 机器起不来
                 .withCommand("sh", "mqnamesrv")
                 .withExposedPorts(9876)
-                .waitingFor(Wait.forLogMessage(".*Boot success.*", 1))
+                .waitingFor(Wait.forLogMessage(".*Name Server boot success.*", 1))
                 .withStartupTimeout(Duration.ofSeconds(90));
         namesrv.start();
         // brokerIP1=127.0.0.1：broker 向 namesrv 注册宿主回环地址，host 侧客户端经固定映射端口回连
         broker = new GenericContainer<>(DockerImageName.parse(IMAGE))
                 .withNetwork(network).withNetworkAliases("broker")
+                .withEnv("JAVA_OPT_EXT", "-Xms256m -Xmx512m -Xmn128m -XX:MaxDirectMemorySize=256m")   // 官方脚本默认 8g
                 .withCommand("sh", "-c",
                         "printf 'brokerIP1 = 127.0.0.1\\nautoCreateTopicEnable = true\\nlistenPort = 10911\\n' "
                                 + "> /home/rocketmq/b.conf && sh mqbroker -n namesrv:9876 -c /home/rocketmq/b.conf")
