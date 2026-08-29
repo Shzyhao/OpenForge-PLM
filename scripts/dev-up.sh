@@ -6,8 +6,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(which java)")")")}"
 JVM_OPTS="-Xms48m -Xmx160m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=48m -XX:TieredStopAtLevel=1"
 
-echo "=== [1/4] 基础依赖 (PostgreSQL/Redis/MinIO) ==="
+echo "=== [1/4] 基础依赖 (PostgreSQL；Redis/MinIO 为 extras 可选) ==="
 docker compose -f "$ROOT/docker-compose.yml" up -d
+# EXTRAS=1 附加 Redis/MinIO（当前零代码使用）；NACOS=1 见下
 
 # F1 尾：Nacos 服务发现（可选，NACOS=1 启用）——A4 模块注册表的演进实现，
 # 开启后服务注册到 Nacos（模块路由/启停语义仍由 sys_module 注册表承载）
