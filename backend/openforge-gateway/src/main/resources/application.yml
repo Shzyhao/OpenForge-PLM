@@ -2,6 +2,8 @@ server:
   port: 8080   # WebFlux/Netty：无 Tomcat 线程池、无数据源（响应式网关）
 
 spring:
+  config:
+    import: ${NACOS_CONFIG_IMPORT:optional:nacos:openforge-gateway.yml}   # B1 配置中心：optional=断连不阻塞启动
   application:
     name: openforge-gateway
   cloud:
@@ -9,6 +11,10 @@ spring:
       discovery:
         enabled: ${NACOS_ENABLED:false}   # F1 尾：默认关闭；dev-up.sh NACOS=1 开启
         server-addr: ${NACOS_ADDR:localhost:8848}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:false}   # B1：默认关闭；远程配置覆盖本地（openforge-<svc>.yml）
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        file-extension: yml
     gateway:
       routes:
         # 内核兜底路由（A4 设计 4）：仅保留 auth——注册中心宿主，必须永远可达；
