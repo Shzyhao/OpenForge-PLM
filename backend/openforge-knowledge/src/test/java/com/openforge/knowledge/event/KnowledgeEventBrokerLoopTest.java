@@ -71,6 +71,15 @@ class KnowledgeEventBrokerLoopTest {
                 .waitingFor(Wait.forLogMessage(".*boot success.*", 1))
                 .withStartupTimeout(Duration.ofSeconds(120));
         broker.start();
+        // 预建 topic（autoCreateTopicEnable 下生产者仍常拿不到路由：No route info of this topic）
+        try {
+            broker.execInContainer("sh", "mqadmin", "updateTopic",
+                    "-n", "namesrv:9876", "-b", "127.0.0.1:10911", "-t", "openforge-meta");
+            broker.execInContainer("sh", "mqadmin", "updateTopic",
+                    "-n", "namesrv:9876", "-b", "127.0.0.1:10911", "-t", "openforge-object");
+        } catch (Exception e) {
+            throw new IllegalStateException("topic 预建失败: " + e.getMessage(), e);
+        }
     }
 
     @AfterAll
