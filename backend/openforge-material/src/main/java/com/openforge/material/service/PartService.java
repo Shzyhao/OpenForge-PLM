@@ -53,7 +53,7 @@ public class PartService {
         part.setLifecycleState("DRAFT");
         part.setVersion("A/1");
         part.setSecurityLevel("PUBLIC");
-        part.setTenantId(0L);
+        part.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         part.setDeleted(0);
         partMapper.insert(part);
         return part;

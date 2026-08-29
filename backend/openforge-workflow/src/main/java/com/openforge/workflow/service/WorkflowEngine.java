@@ -57,7 +57,7 @@ public class WorkflowEngine {
         def.setVersion(maxVersion + 1);
         def.setStatus("PUBLISHED");
         def.setDefinition(definitionJson);
-        def.setTenantId(0L);
+        def.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         def.setCreatedBy(operatorId);
         defMapper.insert(def);
         return def;

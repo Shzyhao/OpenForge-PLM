@@ -15,6 +15,12 @@
     <description>API 网关（M1 壳：静态路由；JWT 校验过滤器后续 PR）</description>
 
     <dependencies>
+        <!-- Nacos 服务发现（F1 尾）：默认关闭，部署时 NACOS_ENABLED=true 开启 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
         <!-- 网关基于 WebFlux，刻意不依赖 openforge-common(含 spring-web) 避免冲突 -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
@@ -23,6 +29,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- B3 可观测：/actuator/prometheus -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>

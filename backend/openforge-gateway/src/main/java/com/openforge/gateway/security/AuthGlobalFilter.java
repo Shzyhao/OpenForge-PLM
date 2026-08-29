@@ -31,6 +31,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     public static final String HEADER_USER_ID = "X-User-Id";
     public static final String HEADER_USERNAME = "X-Username";
     public static final String HEADER_DISPLAY_NAME = "X-Display-Name";
+    public static final String HEADER_USER_TENANT = "X-User-Tenant";
 
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -71,13 +72,21 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                     headers.remove(HEADER_USER_ID);
                     headers.remove(HEADER_USERNAME);
                     headers.remove(HEADER_DISPLAY_NAME);
+                    headers.remove(HEADER_USER_TENANT);
                 })
                 .header(HEADER_USER_ID, String.valueOf(claims.get("uid", Long.class)))
                 .header(HEADER_USERNAME, claims.getSubject())
                 .header(HEADER_DISPLAY_NAME, claims.get("displayName", String.class))
+                .header(HEADER_USER_TENANT, String.valueOf(resolveTenant(claims)))
                 .build();
 
         return chain.filter(exchange.mutate().request(request).build());
+    }
+
+    /** 旧令牌（无 tenant 声明）按默认租户 0 处理。 */
+    private static long resolveTenant(Claims claims) {
+        Long tenant = claims.get("tenant", Long.class);
+        return tenant == null ? 0L : tenant;
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange, String reason) {

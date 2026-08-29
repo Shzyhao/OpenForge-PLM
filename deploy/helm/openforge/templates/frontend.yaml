@@ -1,0 +1,37 @@
+{{- $fe := .Values.frontend }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fe.name }}
+  labels:
+    {{- include "openforge.labels" (dict "name" $fe.name "Chart" $.Chart) | nindent 4 }}
+spec:
+  replicas: {{ $fe.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $fe.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "openforge.labels" (dict "name" $fe.name "Chart" $.Chart) | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $fe.name }}
+          image: "{{ $.Values.global.imageRegistry }}openforge-frontend:{{ $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $fe.port }}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fe.name }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $fe.name }}
+  ports:
+    - port: {{ $fe.port }}
+      targetPort: {{ $fe.port }}

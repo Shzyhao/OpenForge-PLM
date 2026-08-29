@@ -68,7 +68,7 @@ public class AuthService {
         user.setPasswordUpdatedAt(java.time.LocalDateTime.now());
         user.setFirstLoginChange(0);
         user.setFailedLoginCount(0);
-        user.setTenantId(0L);
+        user.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());  // 注册随请求租户
         user.setDeleted(0);
         userMapper.insert(user);
 
@@ -107,7 +107,7 @@ public class AuthService {
             userMapper.updateById(user);
         }
 
-        String token = jwtService.generate(user.getId(), user.getUsername(), user.getDisplayName());
+        String token = jwtService.generate(user.getId(), user.getUsername(), user.getDisplayName(), user.getTenantId());
         String[] status = passwordStatus(user);
         securityLogService.recordLogin(request.getUsername(), true, status[0], ip, userAgent);
         return TokenResponse.of(token, jwtService.getTtlMinutes(), status[0],

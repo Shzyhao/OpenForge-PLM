@@ -5,46 +5,18 @@ spring:
   application:
     name: openforge-gateway
   cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}   # F1 尾：默认关闭；dev-up.sh NACOS=1 开启
+        server-addr: ${NACOS_ADDR:localhost:8848}
     gateway:
       routes:
+        # 内核兜底路由（A4 设计 4）：仅保留 auth——注册中心宿主，必须永远可达；
+        # 其余业务前缀一律由模块注册表动态生成（ModuleRouteRefresher，30s 轮询）。
         - id: auth-service
           uri: ${AUTH_SERVICE_URI:http://localhost:8081}
           predicates:
-            - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/roles/**,/api/v1/permissions/**,/api/v1/orgs/**,/api/v1/numbers/**,/api/v1/security/**
-        - id: material-service
-          uri: ${MATERIAL_SERVICE_URI:http://localhost:8082}
-          predicates:
-            - Path=/api/v1/parts/**,/api/v1/part-categories/**,/api/v1/boms/**
-        - id: doc-service
-          uri: ${DOC_SERVICE_URI:http://localhost:8083}
-          predicates:
-            - Path=/api/v1/docs/**
-        - id: workflow-service
-          uri: ${WORKFLOW_SERVICE_URI:http://localhost:8084}
-          predicates:
-            - Path=/api/v1/workflow/**
-        - id: change-service
-          uri: ${CHANGE_SERVICE_URI:http://localhost:8085}
-          predicates:
-            - Path=/api/v1/changes/**
-        - id: ai-gateway
-          uri: ${AI_GATEWAY_URI:http://localhost:8001}
-          predicates:
-            - Path=/api/v1/ai/**
-        - id: knowledge-service
-          uri: ${KNOWLEDGE_SERVICE_URI:http://localhost:8086}
-          predicates:
-            - Path=/api/v1/knowledge/**
-        - id: project-service
-          uri: ${PROJECT_SERVICE_URI:http://localhost:8087}
-          predicates:
-            - Path=/api/v1/projects/**
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,gateway
+            - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/roles/**,/api/v1/permissions/**,/api/v1/orgs/**,/api/v1/numbers/**,/api/v1/security/**,/api/v1/modules/**,/api/v1/tenants/**
 
 openforge:
   jwt:
@@ -52,3 +24,17 @@ openforge:
     secret: ${JWT_SECRET:openforge-dev-secret-key-change-me-in-production-0001}
   security:
     whitelist: /api/v1/auth/login,/api/v1/auth/register,/actuator/**
+  module:
+    auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
+    internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
+    poll-interval: 30s
+
+management:
+  metrics:
+    export:
+      defaults:
+        enabled: true   # B3: 显式开启（防环境级默认关闭），prometheus 端点随 exposure 生效
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway,module-routes

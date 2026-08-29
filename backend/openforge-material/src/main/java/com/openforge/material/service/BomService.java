@@ -49,7 +49,7 @@ public class BomService {
         bom.setBomType("EBOM");
         bom.setVersion("A/1");
         bom.setLifecycleState("DRAFT");
-        bom.setTenantId(0L);
+        bom.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         bom.setCreatedBy(operatorId);
         bom.setDeleted(0);
         bomMapper.insert(bom);
@@ -82,7 +82,7 @@ public class BomService {
         line.setUsageType(request.getUsageType() == null ? "NORMAL" : request.getUsageType());
         line.setEffectiveFrom(request.getEffectiveFrom());
         line.setEffectiveTo(request.getEffectiveTo());
-        line.setTenantId(0L);
+        line.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         bomLineMapper.insert(line);
         return line;
     }

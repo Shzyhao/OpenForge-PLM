@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: openforge-knowledge
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}   # F1 尾：默认关闭；dev-up.sh NACOS=1 开启
+        server-addr: ${NACOS_ADDR:localhost:8848}
   datasource:
     url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
     username: ${PG_USER:openforge}
@@ -31,7 +36,11 @@ openforge:
     embedding-model: ${OPENFORGE_LLM_EMBEDDING_MODEL:embedding-3}
 
 management:
+  metrics:
+    export:
+      defaults:
+        enabled: true   # B3: 显式开启（防环境级默认关闭），prometheus 端点随 exposure 生效
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus

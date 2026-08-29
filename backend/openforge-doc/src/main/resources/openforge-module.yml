@@ -1,0 +1,13 @@
+# 业务模块：文档库
+moduleKey: doc
+moduleType: BUSINESS
+displayName: 文档
+version: 0.1.0
+routes:
+  - /api/v1/docs
+dependencies: []
+menu:
+  - { path: /doc, title: 文档, icon: FileTextOutlined }
+flyway:
+  historyTable: flyway_doc_history
+serviceUri: 8083
