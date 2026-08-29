@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class NacosConfigCenterLoopTest {
 
-    private static final String IMAGE = "nacos/nacos-server:v2.3.2";
+    private static final String IMAGE = "nacos/nacos-server:v2.2.3";
     private static GenericContainer<?> nacos;
 
     @Autowired
