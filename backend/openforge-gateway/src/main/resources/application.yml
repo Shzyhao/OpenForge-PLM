@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8080   # WebFlux/Netty：无 Tomcat 线程池、无数据源（响应式网关）
 
 spring:
   application:
@@ -27,7 +27,7 @@ openforge:
   module:
     auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
     internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
-    poll-interval: 30s
+    poll-interval: 30000
 
 management:
   metrics:

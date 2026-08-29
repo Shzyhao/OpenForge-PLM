@@ -83,8 +83,14 @@ public class MetaObjectService {
         Page<MetaObject> result = metaObjectMapper.selectPage(
                 new Page<>(page, pageSize),
                 new LambdaQueryWrapper<MetaObject>().orderByDesc(MetaObject::getId));
-        Map<Long, Long> fieldCounts = metaFieldMapper.selectList(null).stream()
-                .collect(Collectors.groupingBy(MetaField::getObjectId, Collectors.counting()));
+        // 聚合下推数据库（原实现拉全表到内存数数，字段行随建模量线性增长）
+        Map<Long, Long> fieldCounts = new java.util.HashMap<>();
+        for (Map<String, Object> row : metaFieldMapper.selectMaps(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<MetaField>()
+                        .select("object_id", "count(*) as cnt").groupBy("object_id"))) {
+            fieldCounts.put(Long.valueOf(String.valueOf(row.get("object_id"))),
+                    Long.valueOf(String.valueOf(row.get("cnt"))));
+        }
         return PageResponse.from(result,
                 o -> MetaObjectSummaryResponse.from(o, fieldCounts.getOrDefault(o.getId(), 0L)));
     }

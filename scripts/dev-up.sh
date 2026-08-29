@@ -18,7 +18,14 @@ if [ "${NACOS:-0}" = "1" ]; then
 fi
 
 echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被锁） ==="
-(cd "$ROOT/backend" && mvn -B -ntp -q clean package -DskipTests)
+# SKIP_BUILD=1 跳过重构建（jar 已是最新时用，省 1~2 分钟与内存峰值）
+# MAVEN_OPTS 限流构建 JVM（默认会吃 1/4 物理内存，多模块构建峰值是闪退诱因之一）
+export MAVEN_OPTS="${MAVEN_OPTS:--Xmx512m -XX:+UseSerialGC}"
+if [ "${SKIP_BUILD:-0}" != "1" ]; then
+  (cd "$ROOT/backend" && mvn -B -ntp -q clean package -DskipTests)
+else
+  echo "  SKIP_BUILD=1：复用现有 target jar"
+fi
 
 echo "=== [3/4] 串行启动 Java 服务（等待健康后启动下一个） ==="
 # 依赖顺序：auth(取号/权限/模块注册中心) → 业务服务 → gateway
