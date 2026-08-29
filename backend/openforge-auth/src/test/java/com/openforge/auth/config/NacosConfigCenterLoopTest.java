@@ -45,24 +45,18 @@ class NacosConfigCenterLoopTest {
             docker = false;
         }
         Assumptions.assumeTrue(docker, "Docker 不可用，跳过 Nacos 配置中心回路测试");
+        // host 网络模式（CI 为 Linux）：nacos 直接监听宿主机 8848/9848——
+        // Nacos 2.x 客户端从 server-addr 端口推算 gRPC 端口（+1000），host 模式下推算天然成立；
+        // 端口映射方案与 Testcontainers 等待策略/端口解析不兼容（已实测三轮）
         nacos = new GenericContainer<>(IMAGE)
                 .withEnv("MODE", "standalone")
                 .withEnv("NACOS_AUTH_ENABLE", "false")
-                // Nacos 2.x 客户端从 server-addr 端口推算 gRPC 端口（+1000）：
-                // 8848 与 9848 都必须 1:1 固定映射到宿主机，否则客户端 STARTING 连不上
-                .withCreateContainerCmdModifier(cmd -> {
-                    cmd.getPortBindings().add(
-                            new com.github.dockerjava.api.model.PortBinding(
-                                    com.github.dockerjava.api.model.Ports.Binding.bindPort(8848),
-                                    new com.github.dockerjava.api.model.ExposedPort(8848)));
-                    cmd.getPortBindings().add(
-                            new com.github.dockerjava.api.model.PortBinding(
-                                    com.github.dockerjava.api.model.Ports.Binding.bindPort(9848),
-                                    new com.github.dockerjava.api.model.ExposedPort(9848)));
-                })
-                .waitingFor(Wait.forHttp("/nacos/v1/console/health/readiness").forStatusCode(200))
+                .withEnv("JAVA_OPT_EXT", "-Xms256m -Xmx512m")
+                .withNetworkMode("host")
+                .waitingFor(Wait.forLogMessage(".*Nacos started successfully.*", 1))
                 .withStartupTimeout(Duration.ofSeconds(120));
         nacos.start();
+        waitReadiness();
 
         // 启动前发布远程配置（openforge-auth.yml）：远程新增属性 + 覆盖本地同名属性
         String content = "openforge:\n  config:\n    probe: from-nacos\n"
@@ -72,8 +66,7 @@ class NacosConfigCenterLoopTest {
                 + "&content=" + URLEncoder.encode(content, StandardCharsets.UTF_8)
                 + "&type=yaml";
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://" + nacos.getHost() + ":" + nacos.getMappedPort(8848)
-                        + "/nacos/v1/cs/configs"))
+                .uri(URI.create("http://localhost:8848/nacos/v1/cs/configs"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .timeout(Duration.ofSeconds(10))
@@ -81,6 +74,28 @@ class NacosConfigCenterLoopTest {
         HttpResponse<String> resp = HttpClient.newHttpClient()
                 .send(request, HttpResponse.BodyHandlers.ofString());
         assertThat(resp.body()).isEqualTo("true");
+    }
+
+    /** readiness 轮询（host 模式 + 日志等待后仍需确认 HTTP 可用）。 */
+    private static void waitReadiness() throws Exception {
+        long deadline = System.currentTimeMillis() + 60_000;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                HttpRequest probe = HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:8848/nacos/v1/console/health/readiness"))
+                        .timeout(Duration.ofSeconds(3))
+                        .GET().build();
+                HttpResponse<String> resp = HttpClient.newHttpClient()
+                        .send(probe, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+            Thread.sleep(2000);
+        }
+        throw new IllegalStateException("Nacos readiness 60s 未就绪");
+    }
 
         // B1 关键坑位：@DynamicPropertySource 在 config-data 解析阶段不可见（晚于环境准备），
         // 必须用系统属性让 spring.cloud.nacos.config.* 在 import 解析期生效
