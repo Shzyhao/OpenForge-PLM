@@ -61,9 +61,23 @@
 | 4 | 前端单 bundle 2.4MB | echarts/antd 与业务代码同一 chunk | ✅ manualChunks 拆分：业务 74.7KB + vendor 独立缓存块 |
 | 5 | `DynamicRecordService.loadPublished` | 每请求 2 次元数据查询 | 记录：建模量小暂可接受；发布频率低，可加带失效的 TTL 缓存（发布时 evict） |
 | 6 | 日志/审计表无清理策略 | `sys_login_log`/`sys_audit_log` 无界增长 | 记录：F 生态迭代加保留期清理任务 |
-| 7 | 网关路由刷新 30s 轮询 | 9 服务心跳写放大可接受 | 现状保留；Nacos 推送化后轮询降级兜底（A4 设计 §7 已预留） |
+| 7 | 事件总线（B2） | 发布路径同步发送最坏 3s 阻塞 | ✅ 熔断 60s + 可配超时；详见 §4 |
+| 8 | 网关路由刷新 30s 轮询 | 9 服务心跳写放大可接受 | 现状保留；Nacos 推送化后轮询降级兜底（A4 设计 §7 已预留） |
 
-## 4. 快速自查命令
+## 4. 事件总线性能画像（B2 实施后新增）
+
+| 维度 | 画像 | 优化已落地 / 建议 |
+|------|------|------------------|
+| 发布路径影响 | `EVENT_ENABLED=false`（默认）零开销（一次 boolean 判断）；`=true` 时每事件同步发送，内网 RTT 1~5ms，最坏阻塞 = send-timeout（默认 3s，可配 `openforge.event.send-timeout-millis`） | 熔断：连续 3 次失败后 60s 内 publish 快速返回 false 走回退——broker 停机不拖垮业务发布（#62 自检项） |
+| 消费侧 | 逐条回调（consumeMessageBatchMaxSize=1），线程 2~5；幂等 = 每事件一次 `sys_event_consumed` INSERT（1:1 写放大，必要代价） | 当前事件频率（发布/记录写入/任务办理）远低于阈值；高吞吐场景调大批量 + 幂等批写（P2 outbox 一并） |
+| 事件 payload | 信封 + 业务摘要 KB 级；schema.description 截断 2000 字符、record summary 截断 500 字符 | 已落地截断；payload 自包含（消费端不回读生产侧表——架构 6.3） |
+| 内存 | producer/consumer 各 ~50~100MB native + 客户端堆占用；enabled=false 时客户端不创建 | lazy 单例；应用停机 shutdown 钩子回收 |
+| 发射频率 | doc.released（检入）、change.closed（惰性终态）、task.created/completed（办理）均为低频人工动作；object.record.* = 动态记录写入频率 | 全部 EVENT_ENABLED=false 时为 no-op |
+| 可观测 | published/sent/fallback/send_failed/duplicate/consumed 六个计数进 /actuator/prometheus；死信 %DLQ%openforge-knowledge | 积压/死信告警规则随 Grafana 看板补齐（路线 B3 尾注） |
+
+**结论**：B2 在默认关闭下对现有系统零影响；启用后事件路径的代价集中在「发布路径最坏 3s 阻塞（有熔断兜底）」与「1:1 幂等写放大」，均在可接受区间，无进一步代码优化必要。
+
+## 5. 快速自查命令
 
 ```bash
 # Windows：提交内存水位（>85% 时勿再起服务/构建）
@@ -76,7 +90,7 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 
 ---
 
-## 5. 性能自检清单（开发 Loop 强制环节）
+## 6. 性能自检清单（开发 Loop 强制环节）
 
 > 2026-08-29 起纳入 Loop 验证体系（MAS 文档 §5.2 V2/V3 层）：每刀 PR 自检一遍，
 > 不通过不算完成。清单对应 §3 热点清单的反面——每个条目都来自真实踩坑或审查实锤。
@@ -106,7 +120,7 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 - [ ] 目标环境画像核对：Windows 16GB 开发机（`.wslconfig` 限 4GB）/ Linux 容器（cgroup + MaxRAMPercentage=75）
 - [ ] 若引入新基线（新服务/新依赖/新定时任务），本文档 §2/§3 已同步
 
-## 6. 治理
+## 7. 治理
 
 - 本清单由 v1.3.0 后的本地全量拉起闪退事故催生（根因：WSL2 默认吃 50% 内存 + 9 JVM +
   无限流构建，提交内存耗尽），每个条目可溯源到 §1/§3 的实证。
