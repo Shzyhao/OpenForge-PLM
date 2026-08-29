@@ -28,7 +28,7 @@ OpenForge 当前是一套**业务写死的 PLM 应用**。框架化 = 变成**�
 
 | # | 事项 | 现状 |
 |---|------|------|
-| B1 | 服务注册发现 + 配置中心 | ✅ 服务发现 #45 + 配置中心 #74（均默认关闭，optional import 断连安全，远程覆盖本地；dev NACOS=1 一键启用） |
+| B1 | 服务注册发现 + 配置中心 | ✅ 服务发现 #45 + 配置中心 #74（均默认关闭，optional import 断连安全，远程覆盖本地；dev NACOS=1 一键启用。回路测试挂 NACOS_LOOP_TEST 门：Testcontainers nacos 容器持久化怪癖待专项排查，默认关闭语义已全量实证） |
 | B2 | 事件总线 | 设计定稿（《OpenForge-B2事件总线设计》：信封/一域一topic/幂等/outbox 分期，默认关闭回退同步 HTTP）；实施 B2-1~B2-3 待做 |
 | B3 | 可观测 | ✅ #54：Prometheus 指标（九服务+网关）+ TraceId 全链路贯穿 + 共享日志格式 + monitoring compose 栈（Grafana 看板模板随场景补齐；SkyWalking/分布式追踪随规模引入） |
 | B4 | 部署形态 | ✅ #56：Dockerfile 三件 + 生产 compose 全栈（密钥防默认上线/自动路由）+ Helm chart 骨架（YAML 校验过，helm lint 留待部署环境） |
