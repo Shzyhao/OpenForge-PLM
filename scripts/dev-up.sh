@@ -14,8 +14,9 @@ docker compose -f "$ROOT/docker-compose.yml" up -d
 # 开启后服务注册到 Nacos（模块路由/启停语义仍由 sys_module 注册表承载）
 if [ "${NACOS:-0}" = "1" ]; then
   echo "=== [Nacos] 启动注册中心（standalone） ==="
-  docker compose -f "$ROOT/docker-compose.yml" up -d nacos
+  docker compose -f "$ROOT/docker-compose.yml" --profile nacos up -d nacos
   export NACOS_ENABLED=true NACOS_ADDR=localhost:8848
+  export NACOS_CONFIG_ENABLED=true   # B1：配置中心随 NACOS=1 一并启用（openforge-<svc>.yml 远程覆盖本地）
 fi
 
 echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被锁） ==="
