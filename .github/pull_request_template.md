@@ -7,7 +7,7 @@
 - [ ] Testcontainers 测试未被注释/跳过（Docker 不可用自动跳过 → CI 真实执行）
 - [ ] 前端改动：`npm run build` 绿；AI 改动：`pytest` 绿
 
-### 性能自检（细则见 docs/OpenForge-性能与容量画像.md §5）
+### 性能自检（细则见 docs/OpenForge-性能与容量画像.md §6）
 - [ ] 新增内存结构（Map/缓存/聚合）有上界与过期策略
 - [ ] 列表/统计聚合下推数据库，无全表载入内存计算
 - [ ] 线程池/连接池/GC 显式配置（无裸默认）；连接总数 < PG max_connections
