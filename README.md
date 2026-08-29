@@ -6,13 +6,15 @@
 
 > v1.1.0 新增：完整权限体系——固定 admin 账号、角色自定义与界面级增删改查权限矩阵、密码半年过期强制重置、登录锁定与安全审计。
 >
-> 框架化 F1~F3 已交付：OpenAPI 文档 + Testcontainers 测试矩阵、动态对象运行时与建模→DDL→AI 闭环、模块注册机制（部署即注册/停用即摘除）、多租户全链路、表单/列表设计器、Starter 化与脚手架 CLI（详见[框架化路线](docs/OpenForge-框架化路线.md)）。
+> v1.2.0（框架化 F1）：OpenAPI 全服务文档、Testcontainers 真实 PG 测试矩阵、Nacos 服务发现（默认关闭）。
+>
+> v1.3.0（框架化 F2~F3 + 尾项）：动态对象运行时与建模→DDL→AI 闭环、模块注册机制（部署即注册/停用即摘除/启动自检）、多租户全链路、表单/列表设计器、Starter 三件套与 `openforge-cli` 脚手架、Prometheus+TraceId 可观测、生产 compose 与 Helm 骨架、[二次开发指南](docs/OpenForge-二开指南.md)（详见[框架化路线](docs/OpenForge-框架化路线.md)）。
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.1.0%20%2B%20F3-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.3.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-7%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -81,9 +83,12 @@
 | M5 v0.5.0 | 自适应知识库：向量检索(可插拔) / 反馈闭环质量分 / 自然语言→SQL(Schema 注入+安全网关兜底) | ✅ |
 | M6 v1.0.0 | 项目与任务管理 / 跨服务统计报表(ECharts) / 一键启动脚本 | ✅ |
 | 权限专项 v1.1.0 | 固定admin / 双层权限(菜单+每界面增删改查) / ADMINS次级管理员 / 用户管理 / 密码半年过期强制重置 / 登录锁定 / 密码历史 / 登录日志与审计 / 前端权限联动 | ✅ |
-| 框架化 F1~F3 | OpenAPI 文档 + Testcontainers 测试矩阵 + Nacos 服务发现(默认关闭) / 动态对象运行时 + 建模→DDL→AI 闭环 + 模块注册机制(部署即注册/停用即摘除) / 多租户全链路 + 表单列表设计器 + 脚手架 CLI + Starter 化 | ✅ |
+| 框架化 F1 v1.2.0 | OpenAPI 全服务文档 / Testcontainers 真实 PG 测试矩阵 / Nacos 服务发现(默认关闭) | ✅ |
+| 框架化 F2 v1.3.0 | 动态对象运行时(建模→发布→DDL/权限点/AI 登记→动态 CRUD→界面) / 模块注册机制(部署即注册·停用即摘除·启动自检·依赖守护·EXTENSION 同构) | ✅ |
+| 框架化 F3 v1.3.0 | 多租户全链路(JWT/网关/SQL 行级隔离/租户管理) / 表单列表设计器 / Starter 三件套 / openforge-cli 脚手架 | ✅ |
+| 尾项 v1.3.0 | Prometheus+TraceId 可观测+监控栈 / 文件租户隔离 / 生产 compose 全栈 + Helm 骨架 / 二开指南 | ✅ |
 
-**后续路线**：bpmn-js 可视化流程设计器、pgvector/Milvus 切换、事件总线(RocketMQ)知识自动沉淀、二开文档(扩展点/插件指南)、ERP/MES 连接器、K8s 部署清单。
+**后续路线**：事件总线(RocketMQ)知识自动沉淀、Nacos 配置中心、bpmn-js 可视化流程设计器、pgvector/Milvus 切换、Grafana 看板模板、ERP/MES 连接器、行业模板包。
 
 ## 🚀 快速开始
 
@@ -112,8 +117,8 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 应用主体（M1~M6 + 权限专项 v1.1.0）与框架化 F1~F3 已交付，欢迎在以下方向参与：
 
-- 方向讨论：框架化路线剩余域（基础设施事件总线/可观测、二开文档、行业模板包）提出 Issue 讨论；
-- 早期共建：后续迭代方向的模块认领（RocketMQ 事件总线、SkyWalking/Prometheus 可观测、bpmn-js 流程设计器）；
+- 方向讨论：框架化路线剩余域（RocketMQ 事件总线、Nacos 配置中心、行业模板包）提出 Issue 讨论；
+- 早期共建：bpmn-js 流程设计器、Grafana 看板模板、ERP/MES 连接器、连接器与插件生态；
 - 场景输入：分享你所在行业的 PLM 痛点与流程样本，帮助打磨低代码模板库。
 
 ## 📄 License
