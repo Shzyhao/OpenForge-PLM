@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Button, Card, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Select, Space,
-  Switch, Table, Tag, Typography, message,
+  Switch, Table, Tag, theme, Typography, message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { CodeOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, RocketOutlined } from '@ant-design/icons'
@@ -42,6 +42,7 @@ function toEditable(f: MetaFieldDef): EditableField {
 /** 对象建模页（F2 设计 3）：定义业务对象 → 发布 → 自动获得 CRUD API/物理表/权限点 */
 export default function MetaObjectsPage() {
   const { hasPerm } = usePerm()
+  const { token } = theme.useToken()
   const canManage = hasPerm('meta:manage')
   const [data, setData] = useState<MetaObjectSummary[]>([])
   const [loading, setLoading] = useState(false)
@@ -294,7 +295,7 @@ export default function MetaObjectsPage() {
 
       <Modal title={<span>DDL 预览：<Typography.Text code>{ddl?.name}</Typography.Text></span>}
         open={!!ddl} footer={null} onCancel={() => setDdl(null)} width={760}>
-        <pre style={{ maxHeight: 480, overflow: 'auto', background: '#fafafa', padding: 12, fontSize: 12 }}>
+        <pre style={{ maxHeight: 480, overflow: 'auto', background: token.colorFillQuaternary, padding: 12, fontSize: 12 }}>
           {ddl?.text}
         </pre>
       </Modal>
