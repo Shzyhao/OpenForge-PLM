@@ -68,6 +68,25 @@ class NacosConfigCenterLoopTest {
                 + "server:\n  tomcat:\n    threads:\n      max: 7\n";
         assertThat(configService.publishConfig("openforge-auth.yml", "DEFAULT_GROUP", content)).isTrue();
         String fetched = configService.getConfig("openforge-auth.yml", "DEFAULT_GROUP", 5000);
+
+        // 诊断证据（CI 只读）：HTTP GET 交叉验证 + 服务端日志转储
+        HttpRequest httpGet = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:8848/nacos/v1/cs/configs?dataId="
+                        + URLEncoder.encode("openforge-auth.yml", StandardCharsets.UTF_8)
+                        + "&group=" + URLEncoder.encode("DEFAULT_GROUP", StandardCharsets.UTF_8)))
+                .GET().build();
+        String httpContent = HttpClient.newHttpClient()
+                .send(httpGet, HttpResponse.BodyHandlers.ofString()).body();
+        String serverLogs = nacos.execInContainer("sh", "-c",
+                "tail -c 3000 /home/nacos/logs/config-server.log 2>/dev/null; "
+                        + "tail -c 2000 /home/nacos/logs/nacos-cluster.log 2>/dev/null; "
+                        + "tail -c 2000 /home/nacos/logs/start.out 2>/dev/null").getStdout();
+        if (!"from-nacos".equals(fetched)) {
+            throw new IllegalStateException("诊断: fetched=" + fetched
+                    + " | httpGet=" + httpContent
+                    + " | serverStatus=" + configService.getServerStatus()
+                    + " | serverLogs=" + serverLogs);
+        }
         assertThat(fetched).contains("from-nacos");
 
         // B1 关键坑位：@DynamicPropertySource 在 config-data 解析阶段不可见（晚于环境准备），
