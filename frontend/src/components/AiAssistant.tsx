@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Drawer, Input, Space, Tag, Typography } from 'antd'
+import { Button, Drawer, Input, Space, Tag, theme, Typography } from 'antd'
 import { RobotOutlined, SendOutlined } from '@ant-design/icons'
 import { aiChat } from '../api/client'
 
@@ -11,6 +11,7 @@ interface Msg {
 
 /** 全局 AI 助手抽屉（M4）：右上角常驻入口，离线模式展示降级标识 */
 export default function AiAssistant() {
+  const { token } = theme.useToken()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -53,7 +54,7 @@ export default function AiAssistant() {
               <Typography.Text style={{
                 display: 'inline-block', maxWidth: '95%', whiteSpace: 'pre-wrap',
                 padding: '8px 12px', borderRadius: 8,
-                background: m.role === 'user' ? '#F25C05' : '#f5f5f5',
+                background: m.role === 'user' ? '#F25C05' : token.colorFillSecondary,
                 color: m.role === 'user' ? '#fff' : 'inherit',
                 fontSize: 13,
               }}>{m.content}</Typography.Text>
