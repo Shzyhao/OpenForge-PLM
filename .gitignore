@@ -41,6 +41,8 @@ build/
 
 # ===== 环境与密钥（禁止提交凭据）=====
 *.env.*
+# 部署配置样例（无敏感值，可入库）
+!.env.example
 **/application-local.yml
 **/application-secret.yml
 *.pem

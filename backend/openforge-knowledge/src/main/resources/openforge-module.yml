@@ -1,0 +1,13 @@
+# 业务模块：自适应知识库
+moduleKey: knowledge
+moduleType: BUSINESS
+displayName: 知识库
+version: 0.1.0
+routes:
+  - /api/v1/knowledge
+dependencies: []
+menu:
+  - { path: /knowledge, title: 知识库, icon: BookOutlined }
+flyway:
+  historyTable: flyway_knowledge_history
+serviceUri: 8086

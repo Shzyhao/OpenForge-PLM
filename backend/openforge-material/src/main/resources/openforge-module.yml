@@ -1,0 +1,16 @@
+# 业务模块：物料与 BOM
+moduleKey: material
+moduleType: BUSINESS
+displayName: 物料与 BOM
+version: 0.1.0
+routes:
+  - /api/v1/parts
+  - /api/v1/part-categories
+  - /api/v1/boms
+dependencies: []
+menu:
+  - { path: /material, title: 物料, icon: AppstoreOutlined }
+  - { path: /bom, title: BOM, icon: ProjectOutlined }
+flyway:
+  historyTable: flyway_material_history
+serviceUri: 8082

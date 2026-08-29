@@ -64,7 +64,7 @@ public class NumberRuleService {
         }
         rule.setResetPolicy(resetPolicy == null ? "NONE" : resetPolicy);
         rule.setStatus("ACTIVE");
-        rule.setTenantId(0L);
+        rule.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         ruleMapper.insert(rule);
         return rule;
     }

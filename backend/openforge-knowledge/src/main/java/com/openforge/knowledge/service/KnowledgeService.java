@@ -41,7 +41,7 @@ public class KnowledgeService {
         item.setQualityScore(BigDecimal.valueOf(60));
         item.setUsageCount(0);
         item.setStatus("PUBLISHED");
-        item.setTenantId(0L);
+        item.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         item.setCreatedBy(operatorId);
         item.setVectorId(vectorStore.add(embeddingClient.embed(title + "\n" + content)));
         itemMapper.insert(item);

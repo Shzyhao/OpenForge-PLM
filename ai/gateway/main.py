@@ -6,10 +6,13 @@
 - POST /api/v1/ai/jobs/doc-parse  文档结构化抽取
 - POST /api/v1/ai/sql/validate    SQL 安全网关校验（纯校验不执行）
 - POST /api/v1/ai/data/query      自然语言/SQL 查询（M4：SQL 直提交 + 校验 + 只读执行）
+- POST /internal/tables           动态表登记（F2 发布流水线；不经网关路由，X-Internal-Token 防护）
 """
+import json
+import re
 from typing import List, Dict, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from .config import settings
@@ -43,6 +46,11 @@ class SqlValidateRequest(BaseModel):
 class DataQueryRequest(BaseModel):
     sql: Optional[str] = None
     question: Optional[str] = None  # 自然语言（在线 LLM 生成 SQL，仍过安全网关）
+
+
+class TableRegisterRequest(BaseModel):
+    table: str                       # 物理表名（动态表为 dyn_ 前缀）
+    description: str = ""            # 表/列级业务描述（注入 nl2sql Prompt 的 Schema 知识）
 
 
 @app.get("/healthz")
@@ -106,3 +114,60 @@ def data_query(req: DataQueryRequest):
     # 执行层：独立只读数据源（M4 交付校验与护栏，执行接入随部署配置启用）
     return {"sql": final_sql, "generated_by": generated_by, "rows": [], "executed": False,
             "note": "安全校验通过；执行层随生产部署配置启用"}
+
+
+TABLE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
+
+
+def _require_internal_token(token: Optional[str]) -> None:
+    if not settings.internal_token or token != settings.internal_token:
+        raise HTTPException(status_code=401, detail="内部接口令牌无效")
+
+
+@app.on_event("startup")
+def register_module():
+    """A4 模块注册（声明式，与 JVM 模块同协议）：AI 网关向 auth 注册中心上报自描述。
+    尽力而为：注册中心不可用时告警不阻塞启动（运维侧可主动补登记或等下次重启重试）。"""
+    import os
+    import urllib.request
+
+    auth_base = os.getenv("OPENFORGE_AUTH_BASE_URL", "http://localhost:8081").rstrip("/")
+    payload = {
+        "moduleKey": "ai-gateway",
+        "moduleType": "AI",
+        "displayName": "AI 中台网关",
+        "version": app.version,
+        "routes": ["/api/v1/ai"],
+        "dependencies": [],
+        "serviceUri": os.getenv("OPENFORGE_MODULE_SERVICE_URI", "http://localhost:8001"),
+    }
+    req = urllib.request.Request(
+        auth_base + "/api/v1/internal/modules",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "X-Internal-Token": settings.internal_token},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                print(f"[module-registry] registered ai-gateway -> {auth_base}")
+    except Exception as e:  # noqa: BLE001 - 注册失败不阻塞启动
+        print(f"[module-registry] register failed (non-fatal): {e}")
+
+
+@app.post("/internal/tables")
+def register_table(req: TableRegisterRequest, x_internal_token: Optional[str] = Header(default=None)):
+    """动态表登记（F2 设计 5 发布流水线）：表白名单 + 表描述运行时注册，
+    新发布对象即刻可被 nl2sql/数据查询访问。路径在 /api/v1/ai/** 之外，
+    不经 Java 网关路由；幂等：重复登记覆盖描述、白名单不变。
+    """
+    _require_internal_token(x_internal_token)
+    table = req.table.strip()
+    if not TABLE_NAME_PATTERN.match(table):
+        raise HTTPException(status_code=400, detail="表名须匹配 ^[a-z][a-z0-9_]{2,63}$")
+    settings.sql_allowed_tables.add(table)
+    if req.description:
+        settings.table_descriptions[table] = req.description
+    return {"registered": table,
+            "allowed_tables": sorted(settings.sql_allowed_tables),
+            "has_description": table in settings.table_descriptions}

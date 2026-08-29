@@ -1,0 +1,37 @@
+# OpenForge 可观测栈（B3）：按需启用，不随默认 compose 启动
+# 用法: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml --profile monitoring up -d
+# 需与主 compose 同网络（services 以容器名互访，见 prometheus.yml targets）
+services:
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: openforge-prometheus
+    profiles: [monitoring]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: openforge-grafana
+    profiles: [monitoring]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: openforge
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+volumes:
+  grafana_data:

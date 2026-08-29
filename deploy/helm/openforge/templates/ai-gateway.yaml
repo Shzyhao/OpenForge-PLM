@@ -1,0 +1,50 @@
+{{- $ai := .Values.aiGateway }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $ai.name }}
+  labels:
+    {{- include "openforge.labels" (dict "name" $ai.name "Chart" $.Chart) | nindent 4 }}
+spec:
+  replicas: {{ $ai.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $ai.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "openforge.labels" (dict "name" $ai.name "Chart" $.Chart) | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $ai.name }}
+          image: "{{ $.Values.global.imageRegistry }}openforge-ai-gateway:{{ $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $ai.port }}
+          env:
+            - name: OPENFORGE_AUTH_BASE_URL
+              value: http://auth:8081
+            - name: OPENFORGE_INTERNAL_TOKEN
+              value: {{ $.Values.global.internalToken | quote }}
+            - name: OPENFORGE_MODULE_SERVICE_URI
+              value: http://{{ $ai.name }}:{{ $ai.port }}
+            - name: OPENFORGE_LLM_BASE_URL
+              value: {{ $ai.llm.baseUrl | quote }}
+            - name: OPENFORGE_LLM_API_KEY
+              value: {{ $ai.llm.apiKey | quote }}
+            - name: OPENFORGE_LLM_MODEL
+              value: {{ $ai.llm.model | quote }}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $ai.name }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $ai.name }}
+  ports:
+    - port: {{ $ai.port }}
+      targetPort: {{ $ai.port }}

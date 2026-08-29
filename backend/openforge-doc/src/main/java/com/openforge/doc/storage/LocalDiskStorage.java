@@ -28,7 +28,9 @@ public class LocalDiskStorage implements StorageClient {
         if (dot >= 0) {
             ext = fileName.substring(dot);
         }
-        String storageKey = java.time.LocalDate.now() + "/" + UUID.randomUUID() + ext;
+        // 租户前缀目录隔离（架构文档 7.3：文件按租户隔离；未来 MinIO 实现沿用同 key 约定）
+        String storageKey = "tenant/" + com.openforge.common.tenant.TenantContext.getTenantId()
+                + "/" + java.time.LocalDate.now() + "/" + UUID.randomUUID() + ext;
         Path target = baseDir.resolve(storageKey);
         Files.createDirectories(target.getParent());
         Files.copy(content, target, StandardCopyOption.REPLACE_EXISTING);

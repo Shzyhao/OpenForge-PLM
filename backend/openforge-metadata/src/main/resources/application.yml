@@ -1,0 +1,42 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: openforge-metadata
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}   # F1 尾：默认关闭；dev-up.sh NACOS=1 开启
+        server-addr: ${NACOS_ADDR:localhost:8848}
+  datasource:
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
+    username: ${PG_USER:openforge}
+    password: ${PG_PASSWORD:openforge}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    table: flyway_metadata_history   # 多服务共享库，独立迁移历史
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+openforge:
+  security:
+    auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
+    internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
+
+management:
+  metrics:
+    export:
+      defaults:
+        enabled: true   # B3: 显式开启（防环境级默认关闭），prometheus 端点随 exposure 生效
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

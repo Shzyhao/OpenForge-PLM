@@ -9,16 +9,30 @@ JVM_OPTS="-Xms48m -Xmx160m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=4
 echo "=== [1/4] 基础依赖 (PostgreSQL/Redis/MinIO) ==="
 docker compose -f "$ROOT/docker-compose.yml" up -d
 
+# F1 尾：Nacos 服务发现（可选，NACOS=1 启用）——A4 模块注册表的演进实现，
+# 开启后服务注册到 Nacos（模块路由/启停语义仍由 sys_module 注册表承载）
+if [ "${NACOS:-0}" = "1" ]; then
+  echo "=== [Nacos] 启动注册中心（standalone） ==="
+  docker compose -f "$ROOT/docker-compose.yml" up -d nacos
+  export NACOS_ENABLED=true NACOS_ADDR=localhost:8848
+fi
+
 echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被锁） ==="
 (cd "$ROOT/backend" && mvn -B -ntp -q clean package -DskipTests)
 
 echo "=== [3/4] 串行启动 Java 服务（等待健康后启动下一个） ==="
-# 依赖顺序：auth(取号/权限) → 业务服务 → gateway
+# 依赖顺序：auth(取号/权限/模块注册中心) → 业务服务 → gateway
+# SERVICES 环境变量可裁剪启动集（A4 模块注册：不启动的服务不注册/不路由）：
+#   SERVICES="auth metadata gateway" ./scripts/dev-up.sh
 declare -A PORTS=(
   [auth]=8081 [material]=8082 [doc]=8083 [workflow]=8084
-  [change]=8085 [knowledge]=8086 [project]=8087 [gateway]=8080
+  [change]=8085 [knowledge]=8086 [project]=8087 [metadata]=8088 [gateway]=8080
 )
-for svc in auth material doc workflow change knowledge project gateway; do
+SVC_ORDER="auth material doc workflow change knowledge project metadata gateway"
+for svc in ${SERVICES:-$SVC_ORDER}; do
+  [ -z "${PORTS[$svc]}" ] && { echo "未知服务: $svc（可选: $SVC_ORDER）"; exit 1; }
+done
+for svc in ${SERVICES:-$SVC_ORDER}; do
   nohup java $JVM_OPTS -jar "$ROOT/backend/openforge-$svc/target/openforge-$svc-0.1.0-SNAPSHOT.jar" \
     > "/tmp/openforge-$svc.log" 2>&1 &
   port=${PORTS[$svc]}
@@ -35,4 +49,4 @@ echo "=== [4/4] 可选服务（手动执行） ==="
 echo "  AI:   cd ai && pip install -r requirements.txt && python -m uvicorn gateway.main:app --port 8001"
 echo "  前端: cd frontend && npm install && npm run dev   (http://localhost:5173)"
 echo ""
-echo "完成。首个注册用户将自动获得 ADMIN 角色。"
+echo "完成。管理员账号 admin 的初始密码打印在 auth 启动日志（/tmp/openforge-auth.log），首登强制改密；自助注册默认关闭。"

@@ -75,6 +75,10 @@ export async function put<T>(path: string, body?: unknown): Promise<T> {
   return request<T>(path, { method: 'PUT', body: body === undefined ? undefined : JSON.stringify(body) })
 }
 
+export async function patch<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, { method: 'PATCH', body: body === undefined ? undefined : JSON.stringify(body) })
+}
+
 /** AI 中台对话（离线模式返回降级标识回复） */
 export async function aiChat(messages: { role: 'user' | 'assistant'; content: string }[]): Promise<{ reply: string; mode: string; model: string | null }> {
   return post('/api/v1/ai/chat', { messages })

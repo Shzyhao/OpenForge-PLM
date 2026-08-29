@@ -1,0 +1,58 @@
+{{- $gw := .Values.gateway }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $gw.name }}
+  labels:
+    {{- include "openforge.labels" (dict "name" $gw.name "Chart" $.Chart) | nindent 4 }}
+spec:
+  replicas: {{ $gw.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $gw.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "openforge.labels" (dict "name" $gw.name "Chart" $.Chart) | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $gw.name }}
+          image: "{{ $.Values.global.imageRegistry }}{{ $gw.module }}:{{ $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $gw.port }}
+          env:
+            {{- include "openforge.javaEnv" (dict "name" $gw.name "port" $gw.port "Values" $.Values "Chart" $.Chart) | nindent 12 }}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $gw.name }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $gw.name }}
+  ports:
+    - port: {{ $gw.port }}
+      targetPort: {{ $gw.port }}
+{{- if $gw.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $gw.name }}
+spec:
+  rules:
+    - host: {{ $gw.ingress.host | quote }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $gw.name }}
+                port:
+                  number: {{ $gw.port }}
+{{- end }}
