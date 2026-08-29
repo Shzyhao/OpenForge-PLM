@@ -58,22 +58,17 @@ class NacosConfigCenterLoopTest {
         nacos.start();
         waitReadiness();
 
-        // 启动前发布远程配置（openforge-auth.yml）：远程新增属性 + 覆盖本地同名属性
+        // 启动前发布远程配置（openforge-auth.yml）——用与应用同栈的 Nacos 客户端，
+        // 避免 v1 HTTP API 行为差异；发布后回读确认服务端确已持久化
+        java.util.Properties props = new java.util.Properties();
+        props.setProperty("serverAddr", "localhost:8848");
+        com.alibaba.nacos.api.config.ConfigService configService =
+                com.alibaba.nacos.api.NacosFactory.createConfigService(props);
         String content = "openforge:\n  config:\n    probe: from-nacos\n"
                 + "server:\n  tomcat:\n    threads:\n      max: 7\n";
-        String form = "dataId=" + URLEncoder.encode("openforge-auth.yml", StandardCharsets.UTF_8)
-                + "&group=" + URLEncoder.encode("DEFAULT_GROUP", StandardCharsets.UTF_8)
-                + "&content=" + URLEncoder.encode(content, StandardCharsets.UTF_8)
-                + "&type=yaml";
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8848/nacos/v1/cs/configs"))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(form))
-                .timeout(Duration.ofSeconds(10))
-                .build();
-        HttpResponse<String> resp = HttpClient.newHttpClient()
-                .send(request, HttpResponse.BodyHandlers.ofString());
-        assertThat(resp.body()).isEqualTo("true");
+        assertThat(configService.publishConfig("openforge-auth.yml", "DEFAULT_GROUP", content)).isTrue();
+        String fetched = configService.getConfig("openforge-auth.yml", "DEFAULT_GROUP", 5000);
+        assertThat(fetched).contains("from-nacos");
 
         // B1 关键坑位：@DynamicPropertySource 在 config-data 解析阶段不可见（晚于环境准备），
         // 必须用系统属性让 spring.cloud.nacos.config.* 在 import 解析期生效
