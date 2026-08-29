@@ -73,3 +73,45 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 # JVM 原生内存明细（闪退取证时在启动参数临时追加）
 -XX:NativeMemoryTracking=summary  +  jcmd <pid> VM.native_memory summary
 ```
+
+---
+
+## 5. 性能自检清单（开发 Loop 强制环节）
+
+> 2026-08-29 起纳入 Loop 验证体系（MAS 文档 §5.2 V2/V3 层）：每刀 PR 自检一遍，
+> 不通过不算完成。清单对应 §3 热点清单的反面——每个条目都来自真实踩坑或审查实锤。
+
+### 设计期（写代码前回答四个问题）
+
+- [ ] **内存**：新增的内存结构（Map/缓存/向量/列表聚合）是否有上界与过期策略？
+      反面教材：`PermissionQueryClient` 无界缓存随用户数泄漏（#62 已修）。
+- [ ] **数据库**：列表/统计是否把全表行拉进内存计算？（聚合一律下推 DB；
+      反面教材：`MetaObjectService.page` 拉全量字段行数数，#62 已修）。
+- [ ] **默认值**：线程池/连接池/GC 是否显式配置？（默认 Tomcat 200 线程、Hikari 10 连接、
+      G1——小堆场景换 SerialGC。九服务叠加时任何"默认"都会被乘以 9。）
+- [ ] **依赖**：新依赖是否最小化（starter 优先）？前端重依赖（图表/组件库）是否进 manualChunks？
+
+### 实现期
+
+- [ ] 新表带 tenant_id/审计四列/deleted；无租户语义的表登记 `TenantTables.GLOBAL_TABLES`
+      （反面教材：`meta_form_layout` 漏登记导致租户拦截器误过滤，#50 构建暴露）。
+- [ ] `@Scheduled` 值格式合法：毫秒数字或 ISO-8601 `PT30S`（**"30s" 非法**，网关启动闪退 #62）；
+      心跳/轮询频率评估写放大（9 服务 × 频率 = 注册表写 QPS）。
+- [ ] 容器内 JVM 用 `MaxRAMPercentage`，不与固定 `-Xmx` 打架；开发机小堆用 dev-up.sh 既有参数。
+- [ ] 日志走 MDC traceId；新日志/审计表在本文档 §3 登记保留策略待办。
+
+### 合并门（PR 描述勾选）
+
+- [ ] `mvn verify` 全绿（15 模块）+ 相关测试；Testcontainers 未被注释/跳过
+- [ ] 目标环境画像核对：Windows 16GB 开发机（`.wslconfig` 限 4GB）/ Linux 容器（cgroup + MaxRAMPercentage=75）
+- [ ] 若引入新基线（新服务/新依赖/新定时任务），本文档 §2/§3 已同步
+
+## 6. 治理
+
+- 本清单由 v1.3.0 后的本地全量拉起闪退事故催生（根因：WSL2 默认吃 50% 内存 + 9 JVM +
+  无限流构建，提交内存耗尽），每个条目可溯源到 §1/§3 的实证。
+- Loop 映射：设计期四问进 L1（计划自检）；实现期进 L2（特性验证器）；
+  合并门进 L2/L3（评审清单 + 冒烟）。新增条目的流程：事故/审查实锤 → 本文档 §3 登记
+  → 转为清单条目 → PR 模板同步。
+- 已知记录待办：动态元数据 TTL 缓存、日志表保留期清理、向量库租户过滤（随 M5）、
+  Redis/MinIO 在 compose 中改为可选 profile（当前零代码使用，纯占位）。
