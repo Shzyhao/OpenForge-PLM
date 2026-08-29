@@ -201,7 +201,9 @@ public class MetaPublishService {
             }
             sb.append("), ");
         }
-        return sb.substring(0, sb.length() - 2);
+        String description = sb.substring(0, sb.length() - 2);
+        // 性能护栏（画像 §4 事件总线画像）：事件 payload KB 级——字段极多的对象截断描述
+        return description.length() > 2000 ? description.substring(0, 2000) + "..." : description;
     }
 
     private String toDefinitionJson(MetaObject object, List<MetaField> fields) {
