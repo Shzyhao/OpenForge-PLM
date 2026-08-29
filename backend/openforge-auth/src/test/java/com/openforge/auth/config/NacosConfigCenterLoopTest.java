@@ -48,12 +48,15 @@ class NacosConfigCenterLoopTest {
         nacos = new GenericContainer<>(IMAGE)
                 .withEnv("MODE", "standalone")
                 .withEnv("NACOS_AUTH_ENABLE", "false")
-                // Nacos 2.x 客户端走 gRPC（端口 = 8848+1000 = 9848），必须固定映射否则客户端静默连不上
-                .withCreateContainerCmdModifier(cmd -> cmd.getPortBindings().add(
+                // Nacos 2.x 客户端从 server-addr 端口推算 gRPC 端口（+1000）：
+                // 8848 与 9848 都必须 1:1 固定映射到宿主机，否则客户端 STARTING 连不上
+                .withCreateContainerCmdModifier(cmd -> cmd.getPortBindings().addAll(java.util.List.of(
+                        new com.github.dockerjava.api.model.PortBinding(
+                                com.github.dockerjava.api.model.Ports.Binding.bindPort(8848),
+                                new com.github.dockerjava.api.model.ExposedPort(8848)),
                         new com.github.dockerjava.api.model.PortBinding(
                                 com.github.dockerjava.api.model.Ports.Binding.bindPort(9848),
-                                new com.github.dockerjava.api.model.ExposedPort(9848))))
-                .withExposedPorts(8848)
+                                new com.github.dockerjava.api.model.ExposedPort(9848)))))
                 .waitingFor(Wait.forHttp("/nacos/v1/console/health/readiness").forStatusCode(200))
                 .withStartupTimeout(Duration.ofSeconds(120));
         nacos.start();
