@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   行为与 v1.3.0 一致；客户端 lazy 创建，关闭态零连接零线程；
  * - enabled=true：事务提交后同步发送（调用方经 afterCommit），失败返回 false 并计数告警
  *   （P1 丢失窗口=现状尽力而为语义，P2 outbox 补齐）。
- * 性能护栏（画像 §5 自检项）：连续失败熔断 60s，broker 停机时不拖垮发布路径。
+ * 性能护栏（画像 §6 自检项）：连续失败熔断 60s，broker 停机时不拖垮发布路径。
  */
 @Slf4j
 @Component
