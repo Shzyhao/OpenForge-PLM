@@ -52,6 +52,9 @@ class PublishPipelineIntegrationTest {
     @MockBean
     private PublishPipelineClients pipelineClients;
 
+    @MockBean
+    private com.openforge.common.event.EventPublisher eventPublisher;
+
     private long modelObject(String objectKey) throws Exception {
         String body = """
                 {
@@ -122,6 +125,26 @@ class PublishPipelineIntegrationTest {
                 .andExpect(jsonPath("$.data.status").value("DRAFT"));
         verify(pipelineClients, never()).syncSchemaItem(anyString(), anyString(), anyString());
         verify(pipelineClients, never()).registerAiTable(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("B2-2 事件优先：MQ 发送成功时不回退 knowledge 同步 HTTP；AI 表登记保持直连")
+    void eventSentSkipsHttpFallback() throws Exception {
+        when(permissionQueryClient.fetch(ArgumentMatchers.eq(1L)))
+                .thenReturn(new PermissionView(1L, "USER", List.of("USER"), List.of("meta:manage")));
+        org.mockito.Mockito.when(eventPublisher.publish(
+                        ArgumentMatchers.eq("openforge-meta"), ArgumentMatchers.eq("schema.migrated"),
+                        ArgumentMatchers.anyMap()))
+                .thenReturn(true);
+        long id = modelObject("event_first_obj");
+
+        mockMvc.perform(post("/api/v1/meta/objects/{id}/publish", id).header("X-User-Id", 1))
+                .andExpect(jsonPath("$.code").value(0));
+
+        verify(eventPublisher).publish(ArgumentMatchers.eq("openforge-meta"),
+                ArgumentMatchers.eq("schema.migrated"), ArgumentMatchers.anyMap());
+        verify(pipelineClients, never()).syncSchemaItem(anyString(), anyString(), anyString());
+        verify(pipelineClients).registerAiTable(ArgumentMatchers.eq("dyn_event_first_obj"), anyString());
     }
 
     @Test

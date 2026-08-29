@@ -3,6 +3,7 @@ package com.openforge.metadata.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
+import com.openforge.common.event.EventPublisher;
 import com.openforge.common.tenant.TenantContext;
 import com.openforge.metadata.ddl.DdlGenerator;
 import com.openforge.metadata.ddl.FieldType;
@@ -41,6 +42,7 @@ public class DynamicRecordService {
     private final MetaObjectMapper metaObjectMapper;
     private final MetaFieldMapper metaFieldMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final EventPublisher eventPublisher;
 
     // ===== 创建 =====
 
@@ -81,7 +83,26 @@ public class DynamicRecordService {
         if (key == null) {
             throw new BizException(ErrorCode.INTERNAL_ERROR, "创建记录失败");
         }
-        return detail(objectKey, key.longValue());
+        long recordId = key.longValue();
+        emitRecordEvent("object.record.created", meta, objectKey, recordId, values);
+        return detail(objectKey, recordId);
+    }
+
+    /** 记录事件（B2：knowledge 摘要自动沉淀；MQ 关闭时静默跳过）。 */
+    private void emitRecordEvent(String eventType, PublishedMeta meta, String objectKey,
+                                 long recordId, Map<String, Object> values) {
+        String summary = values.entrySet().stream()
+                .limit(20)
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(java.util.stream.Collectors.joining(", "));
+        if (summary.length() > 500) {
+            summary = summary.substring(0, 500) + "...";
+        }
+        eventPublisher.publish("openforge-object", eventType, Map.of(
+                "objectKey", objectKey,
+                "displayName", meta.object().getDisplayName(),
+                "recordId", recordId,
+                "summary", summary));
     }
 
     // ===== 查询 =====
@@ -141,6 +162,7 @@ public class DynamicRecordService {
         if (affected == 0) {
             throw new BizException(ErrorCode.META_RECORD_NOT_FOUND);
         }
+        emitRecordEvent("object.record.updated", meta, objectKey, id, values);
         return detail(objectKey, id);
     }
 
