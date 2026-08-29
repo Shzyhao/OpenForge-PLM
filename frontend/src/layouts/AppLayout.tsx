@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Avatar, Dropdown, Layout, Menu, Result, Spin, Tag, theme } from 'antd'
+import { Avatar, Button, Dropdown, Layout, Menu, Result, Spin, Tag, theme, Typography } from 'antd'
 import {
   ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined, FileTextOutlined,
-  HomeOutlined, KeyOutlined, LogoutOutlined, ProjectOutlined, SwapOutlined,
+  HomeOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined,
   TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -10,13 +10,23 @@ import { clearToken, getPasswordStatus } from '../api/client'
 import { fetchCurrentUser, type UserInfo } from '../api/user'
 import { fetchEnabledModules } from '../api/modules'
 import AiAssistant from '../components/AiAssistant'
+import Logo from '../components/Logo'
 import PasswordModal from '../components/PasswordModal'
 import { PermContext, type PermContextValue } from '../perm/PermContext'
+import { useThemeMode } from '../theme/ThemeMode'
 
 const { Header, Sider, Content } = Layout
 
 /** 菜单项与权限点映射（menu:xxx 为 V15 菜单权限编码） */
-const NAV_ITEMS = [
+interface NavItem {
+  key: string
+  menu: string
+  icon: React.ReactElement
+  label: string
+  module?: string
+}
+
+const NAV_ITEMS: NavItem[] = [
   { key: '/', menu: 'menu:dashboard', icon: <HomeOutlined />, label: '工作台' },
   { key: '/tasks', menu: 'menu:tasks', icon: <BellOutlined />, label: '我的待办' },
   { key: '/material', menu: 'menu:material', icon: <AppstoreOutlined />, label: '物料', module: 'material' },
@@ -35,6 +45,17 @@ const NAV_ITEMS = [
   { key: '/system/modules', menu: 'menu:system', icon: <BlockOutlined />, label: '模块管理' },
 ]
 
+/** 侧边栏分组（顺序即展示顺序） */
+const NAV_GROUP_ORDER = ['概览', '产品数据', '协作', '知识', '低代码', '系统'] as const
+const NAV_GROUP_OF: Record<string, string> = {
+  '/': '概览', '/tasks': '概览',
+  '/material': '产品数据', '/bom': '产品数据', '/doc': '产品数据',
+  '/change': '协作', '/workflow': '协作',
+  '/knowledge': '知识', '/project': '知识',
+  '/meta/objects': '低代码', '/meta/data': '低代码', '/meta/designer': '低代码',
+  '/system/users': '系统', '/system/roles': '系统', '/system/logs': '系统', '/system/modules': '系统',
+}
+
 const ROLE_COLORS: Record<string, string> = { ADMINS: 'volcano', ENGINEER: 'geekblue', VIEWER: 'default' }
 
 export default function AppLayout() {
@@ -45,6 +66,7 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { token: themeToken } = theme.useToken()
+  const { mode, toggle } = useThemeMode()
 
   // 密码状态弹窗（方案 E3/E4）
   const savedStatus = getPasswordStatus()
@@ -76,6 +98,17 @@ export default function AppLayout() {
     permValue.hasMenu(item.menu)
     && (item.module === undefined || enabledModules === null || enabledModules.has(item.module)))
 
+  // 分组菜单（antd group 节点）
+  const groupedMenuItems = NAV_GROUP_ORDER
+    .map(group => ({
+      type: 'group' as const,
+      label: group,
+      children: visibleItems
+        .filter(item => (NAV_GROUP_OF[item.key] ?? '系统') === group)
+        .map(({ key, icon, label }) => ({ key, icon, label })),
+    }))
+    .filter(g => g.children.length > 0)
+
   // 路由守卫（方案 F4）：当前路径对应菜单不可见 → 403
   const activeNav = NAV_ITEMS.find(item =>
     item.key !== '/' && (location.pathname === item.key || location.pathname.startsWith(item.key + '/')))
@@ -89,21 +122,33 @@ export default function AppLayout() {
   return (
     <PermContext.Provider value={permValue}>
       <Layout style={{ minHeight: '100vh' }}>
-        <Sider theme="light" width={200} style={{ borderRight: `1px solid ${themeToken.colorBorderSecondary}` }}>
-          <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
-            🔨 OpenForge
+        <Sider theme={mode === 'dark' ? 'dark' : 'light'} width={210}
+          style={{ borderRight: `1px solid ${themeToken.colorBorderSecondary}`, overflow: 'auto' }}>
+          <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Logo size={26} />
+            <span style={{ fontWeight: 700, fontSize: 16 }}>OpenForge</span>
           </div>
           <Menu mode="inline" selectedKeys={[activeNav?.key ?? '/']}
-            items={visibleItems.map(({ key, icon, label }) => ({ key, icon, label }))}
+            items={groupedMenuItems as never}
             onClick={({ key }) => navigate(key)} />
         </Sider>
         <Layout>
           <Header style={{
             background: themeToken.colorBgContainer,
             borderBottom: `1px solid ${themeToken.colorBorderSecondary}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             paddingInline: 24, gap: 16,
           }}>
+            <Typography.Text strong style={{ fontSize: 15 }}>
+              {activeNav?.label ?? '工作台'}
+            </Typography.Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Button
+              type="text"
+              aria-label="切换主题"
+              icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={toggle}
+            />
             <AiAssistant />
             {user && (
               <>
@@ -129,6 +174,7 @@ export default function AppLayout() {
                 </Dropdown>
               </>
             )}
+            </div>
           </Header>
           <Content style={{ padding: 24, background: themeToken.colorBgLayout }}>
             {forbidden
