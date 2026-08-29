@@ -1,0 +1,19 @@
+# Docker Desktop WSL2 内存上限模板（Windows 宿主机）
+# 用法：复制到 %UserProfile%\.wslconfig（如 C:\Users\<你>\.wslconfig），然后 wsl --shutdown 重启
+#
+# 背景：WSL2 默认吃掉 50% 物理内存（16GB 主机 = 8GB），而 OpenForge 本地开发
+# 只需 pg/redis/minio 三个轻容器——不限流时与 9 个 JVM 服务叠加必然触发
+# Windows 提交内存耗尽（hs_err: malloc AllocateHeap / mmap G1 virtual space）。
+# 按 OpenForge 内存画像（docs/OpenForge-性能与容量画像.md）：
+
+[wsl2]
+# 16GB 主机：4GB 足够 pg+redis+minio+偶发容器构建
+memory=4GB
+processors=4
+swap=2GB
+# 回收不活跃内存（默认 cache 也不还给 Windows）
+autoMemoryReclaim=gradual
+
+[experimental]
+# 稀疏 VHD：容器卷删除后回缩磁盘占位
+sparseVhd=true

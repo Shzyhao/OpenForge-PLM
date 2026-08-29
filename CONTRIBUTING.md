@@ -58,6 +58,13 @@ docs(readme): 补充品牌指南
 - 后端：Spring Boot 3.x；前端：React 18 + Vite；AI：LangGraph
 - 本地依赖（PostgreSQL/Redis/MinIO 等）统一用 `docker-compose` 启动，一键脚本 `./scripts/dev-up.sh`
 
+## ⚡ 性能自检（合并门）
+
+每个 PR（含 Agent 提交）需按 PR 模板完成性能自检：内存结构上界、聚合下推数据库、
+线程/连接池显式配置、调度值格式、前端分包、环境画像核对——条目与依据见
+[性能与容量画像](docs/OpenForge-性能与容量画像.md) §6。违反导致资源泄漏或启动失败
+的改动会被打回。
+
 ## 🤖 与智能体贡献者协作
 
 本项目欢迎 AI 辅助开发，但约定：

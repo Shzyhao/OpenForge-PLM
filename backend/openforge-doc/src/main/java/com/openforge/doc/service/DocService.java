@@ -31,6 +31,7 @@ public class DocService {
     private final DocFileMapper docFileMapper;
     private final NumberClient numberClient;
     private final StorageClient storageClient;
+    private final com.openforge.common.event.EventPublisher eventPublisher;
 
     public DocInfo create(String title, String docType, Long operatorId) {
         DocInfo doc = new DocInfo();
@@ -96,6 +97,10 @@ public class DocService {
         doc.setCheckedOutBy(null);
         doc.setCheckedOutAt(null);
         docInfoMapper.updateById(doc);
+        // doc.released（B2 设计 6.2 事件清单：knowledge/search 预留消费）
+        eventPublisher.publish("openforge-doc", "doc.released", java.util.Map.of(
+                "docId", doc.getId(), "title", doc.getTitle() == null ? "" : doc.getTitle(),
+                "versionMinor", doc.getVersionMinor()));
         return doc;
     }
 
