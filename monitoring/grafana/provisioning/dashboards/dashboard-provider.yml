@@ -1,0 +1,11 @@
+# Grafana 看板自动装配（B3）：扫描 /var/lib/grafana/dashboards
+apiVersion: 1
+providers:
+  - name: openforge
+    orgId: 1
+    folder: OpenForge
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
