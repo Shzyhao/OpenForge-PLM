@@ -1,5 +1,9 @@
 server:
   port: 8082
+  tomcat:
+    threads:
+      max: 20        # 显式限流（默认 200；9 服务线程栈内存不可忽视）
+      min-spare: 5
 
 spring:
   application:
@@ -13,6 +17,9 @@ spring:
     url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
     username: ${PG_USER:openforge}
     password: ${PG_PASSWORD:openforge}
+    hikari:
+      maximum-pool-size: 5   # 9 服务×10 默认=90 连接，逼近 PG max_connections=100
+      minimum-idle: 2
   flyway:
     enabled: true
     locations: classpath:db/migration

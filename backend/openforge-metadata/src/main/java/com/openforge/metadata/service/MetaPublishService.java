@@ -61,6 +61,8 @@ public class MetaPublishService {
     @org.springframework.beans.factory.annotation.Value("${openforge.module.service-uri:http://localhost:8088}")
     private String selfServiceUri;
 
+    private final com.openforge.common.event.EventPublisher eventPublisher;
+
     @Transactional
     public Map<String, Object> publish(Long objectId, Long userId) {
         MetaObject object = metaObjectMapper.selectById(objectId);
@@ -99,12 +101,26 @@ public class MetaPublishService {
             pipelineClients.ensurePermission(permPrefix + action.code(),
                     object.getDisplayName() + "-" + action.label(), List.of("ADMINS"));
         }
-        // Schema 知识同步 + AI 表登记（客户端内尽力而为：失败告警不回滚）
+        // Schema 知识同步走事件优先（B2-2：EVENT_ENABLED=true 经 MQ，消费端幂等/租户/链路齐全）；
+        // MQ 关闭或发送失败回退既有同步 HTTP（与 v1.3.0 行为一致）。AI 表登记保持同步直连（设计 §3.4）。
+        // 事件在事务提交后发出（消费端依赖信封自包含，不回读本表；此处仍按设计延后到 afterCommit）。
         String schemaDescription = schemaDescription(object, fields);
-        pipelineClients.syncSchemaItem(
-                "动态对象表结构：" + object.getDisplayName() + "（" + object.getTableName() + "）",
-                schemaDescription, object.getObjectKey());
-        pipelineClients.registerAiTable(object.getTableName(), schemaDescription);
+        String schemaTitle = "动态对象表结构：" + object.getDisplayName() + "（" + object.getTableName() + "）";
+        String schemaRef = object.getObjectKey();
+        String tableName = object.getTableName();
+        int schemaVersion = snapshot.getVersion();
+        publishAfterCommit(() -> {
+            boolean sent = eventPublisher.publish("openforge-meta", "schema.migrated", Map.of(
+                    "objectKey", schemaRef,
+                    "displayName", object.getDisplayName(),
+                    "tableName", tableName,
+                    "version", schemaVersion,
+                    "description", schemaDescription));
+            if (!sent) {
+                pipelineClients.syncSchemaItem(schemaTitle, schemaDescription, schemaRef);
+            }
+            pipelineClients.registerAiTable(tableName, schemaDescription);
+        });
 
         // A4-4：发布即注册 EXTENSION 模块——路由/菜单/模块管理与原生服务同构
         // （与权限点同语义：失败阻断发布，auth 不可用时两者本就同命运）
@@ -155,6 +171,21 @@ public class MetaPublishService {
         jdbcTemplate.execute(normalized);
     }
 
+    /** 事务提交后执行（B2 设计 3.3：消费者不可见未提交状态）。 */
+    private void publishAfterCommit(Runnable action) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    });
+        } else {
+            action.run();
+        }
+    }
+
     /** 表/列级业务描述：knowledge 知识条目与 AI 网关 nl2sql Prompt 共用同一份。 */
     private String schemaDescription(MetaObject object, List<MetaField> fields) {
         StringBuilder sb = new StringBuilder(object.getDisplayName())
@@ -170,7 +201,9 @@ public class MetaPublishService {
             }
             sb.append("), ");
         }
-        return sb.substring(0, sb.length() - 2);
+        String description = sb.substring(0, sb.length() - 2);
+        // 性能护栏（画像 §4 事件总线画像）：事件 payload KB 级——字段极多的对象截断描述
+        return description.length() > 2000 ? description.substring(0, 2000) + "..." : description;
     }
 
     private String toDefinitionJson(MetaObject object, List<MetaField> fields) {
