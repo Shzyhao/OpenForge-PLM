@@ -30,6 +30,11 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
         </dependency>
+        <!-- B1 配置中心：默认关闭（NACOS_CONFIG_ENABLED），optional import 断连安全 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
 
 
         <!-- SpEL 条件表达式（starter-web 不传递 spring-expression） -->
