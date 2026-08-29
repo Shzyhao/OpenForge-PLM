@@ -6,6 +6,8 @@ server:
       min-spare: 5
 
 spring:
+  config:
+    import: ${NACOS_CONFIG_IMPORT:optional:nacos:openforge-workflow.yml}   # B1 配置中心：optional=断连不阻塞启动
   application:
     name: openforge-workflow
   cloud:
@@ -13,6 +15,10 @@ spring:
       discovery:
         enabled: ${NACOS_ENABLED:false}   # F1 尾：默认关闭；dev-up.sh NACOS=1 开启
         server-addr: ${NACOS_ADDR:localhost:8848}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:false}   # B1：默认关闭；远程配置覆盖本地（openforge-<svc>.yml）
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        file-extension: yml
   datasource:
     url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
     username: ${PG_USER:openforge}
