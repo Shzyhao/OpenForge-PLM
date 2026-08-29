@@ -40,6 +40,7 @@ public class WorkflowEngine {
     private final ExpressionEvaluator evaluator;
     private final PermissionQueryClient permissionQueryClient;
     private final ObjectMapper objectMapper;
+    private final com.openforge.common.event.EventPublisher eventPublisher;
 
     // ===== 定义 =====
 
@@ -161,6 +162,7 @@ public class WorkflowEngine {
         task.setAssigneeId(userId); // 角色任务认领后记录办理人
         task.setActedAt(LocalDateTime.now());
         taskMapper.updateById(task);
+        emitTask("task.completed", inst, task.getNodeName(), task);
 
         ProcessDefinition.NodeDef node = parse(inst.getDefSnapshot()).node(task.getNodeId());
         List<WorkflowTask> nodeTasks = taskMapper.selectList(new LambdaQueryWrapper<WorkflowTask>()
@@ -286,6 +288,7 @@ public class WorkflowEngine {
                     task.setCandidateRole(assignee.value());
                 }
                 taskMapper.insert(task);
+                emitTask("task.created", instance, node.name(), task);
             }
             case "USERS" -> assignee.values().forEach(uid -> {
                 WorkflowTask task = new WorkflowTask();
@@ -294,6 +297,7 @@ public class WorkflowEngine {
                 task.setNodeName(node.name());
                 task.setAssigneeId(Long.valueOf(uid));
                 taskMapper.insert(task);
+                emitTask("task.created", instance, node.name(), task);
             });
             default -> throw new BizException(ErrorCode.INVALID_ARGUMENT, "未知审批人类型: " + assignee.type());
         }
@@ -326,5 +330,16 @@ public class WorkflowEngine {
         } catch (Exception e) {
             throw new BizException(ErrorCode.INTERNAL_ERROR, "变量序列化失败");
         }
+    }
+
+    /** task.created/completed（B2 事件清单：notify/统计预留消费）。 */
+    private void emitTask(String eventType, WorkflowInstance instance, String nodeName, WorkflowTask task) {
+        eventPublisher.publish("openforge-task", eventType, java.util.Map.of(
+                "instanceId", instance.getId(), "bizType", instance.getBizType() == null ? "" : instance.getBizType(),
+                "bizId", instance.getBizId() == null ? 0 : instance.getBizId(),
+                "nodeId", task.getNodeId() == null ? "" : task.getNodeId(),
+                "nodeName", nodeName == null ? "" : nodeName,
+                "assigneeId", task.getAssigneeId() == null ? 0 : task.getAssigneeId(),
+                "action", task.getAction() == null ? "" : task.getAction()));
     }
 }
