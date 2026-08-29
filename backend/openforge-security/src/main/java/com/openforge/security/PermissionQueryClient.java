@@ -24,6 +24,8 @@ public class PermissionQueryClient {
     private final String internalToken;
     private final long cacheTtlMillis;
     private final Map<Long, CachedEntry> cache = new ConcurrentHashMap<>();
+    /** 容量上界：长期运行防无界增长（大量一次性用户 id 场景）。触顶先清过期，再全清。 */
+    private static final int MAX_CACHE_ENTRIES = 2048;
 
     public PermissionQueryClient(OpenForgeSecurityProperties properties) {
         this.restClient = RestClient.builder()
@@ -47,6 +49,11 @@ public class PermissionQueryClient {
             throw new IllegalStateException("权限查询失败: userId=" + userId);
         }
         PermissionView view = response.getData();
+        if (cache.size() >= MAX_CACHE_ENTRIES) {
+            long now = System.currentTimeMillis();
+            cache.values().removeIf(e -> e.expiresAt() <= now);
+            cache.clear();   // 仍超限（缓存全为热条目）：全清代价仅一轮 auth 回源
+        }
         cache.put(userId, new CachedEntry(view, System.currentTimeMillis() + cacheTtlMillis));
         return view;
     }

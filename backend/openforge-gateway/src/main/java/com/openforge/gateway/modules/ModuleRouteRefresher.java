@@ -59,7 +59,7 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
         refresh();
     }
 
-    @Scheduled(fixedDelayString = "${openforge.module.poll-interval:30s}")
+    @Scheduled(fixedDelayString = "${openforge.module.poll-interval:30000}")  // 毫秒；"30s" 非合法值（需 ISO-8601 PT30S）
     public void scheduledRefresh() {
         refresh();
     }
