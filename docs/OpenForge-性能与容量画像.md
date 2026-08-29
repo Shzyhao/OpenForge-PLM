@@ -114,4 +114,4 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
   合并门进 L2/L3（评审清单 + 冒烟）。新增条目的流程：事故/审查实锤 → 本文档 §3 登记
   → 转为清单条目 → PR 模板同步。
 - 已知记录待办：动态元数据 TTL 缓存、日志表保留期清理、向量库租户过滤（随 M5）、
-  Redis/MinIO 在 compose 中改为可选 profile（当前零代码使用，纯占位）。
+  Redis/MinIO 已改 compose extras/nacos/rocketmq profile（#65），零代码使用不再随默认启动。

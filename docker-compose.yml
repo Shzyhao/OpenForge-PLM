@@ -1,7 +1,8 @@
 # OpenForge PLM 本地开发依赖
-# 用法: docker compose up -d
-# M1 阶段最小集: PostgreSQL + Redis + MinIO
-# 后续里程碑按需启用注释掉的组件
+# 用法: docker compose up -d                  # 仅 PostgreSQL（唯一真存储依赖）
+#       docker compose --profile extras up -d    # + Redis/MinIO（当前零代码使用，预留位）
+#       docker compose --profile rocketmq up -d  # + RocketMQ（B2 事件总线）
+# 依赖画像见 docs/OpenForge-性能与容量画像.md
 
 services:
 
@@ -24,6 +25,7 @@ services:
       retries: 10
 
   redis:
+    profiles: ["extras"]   # 零代码使用（M1 预留）；接线前不随默认启动
     image: redis:7-alpine
     container_name: openforge-redis
     ports:
@@ -37,6 +39,7 @@ services:
       retries: 10
 
   minio:
+    profiles: ["extras"]   # 文档存储现为 LocalDiskStorage；MinIO 接线时启用
     image: minio/minio:latest
     container_name: openforge-minio
     command: server /data --console-address ":9001"
@@ -56,21 +59,42 @@ services:
 
   # ===== 以下组件按里程碑启用 =====
 
-  # nacos:               # F1 尾：服务注册发现（A4 模块注册表的演进实现，默认不启用）
-  #   # dev-up.sh NACOS=1 时启动；服务侧由 NACOS_ENABLED=true 开关注册
-  #   image: nacos/nacos-server:v2.3.2
-  #   container_name: openforge-nacos
-  #   environment:
-  #     MODE: standalone
-  #     NACOS_AUTH_ENABLE: "false"
-  #   ports:
-  #     - "8848:8848"
-  #     - "9848:9848"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-sf", "http://localhost:8848/nacos/v1/console/health/readiness"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 12
+  nacos:               # F1 尾：服务注册发现（A4 模块注册表的演进实现，默认不启用）
+    profiles: ["nacos"]  # docker compose --profile nacos up -d
+    image: nacos/nacos-server:v2.3.2
+    container_name: openforge-nacos
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # B2 事件总线（docs/OpenForge-B2事件总线设计.md）：broker 仅内网，不发布端口
+  rocketmq-namesrv:
+    profiles: ["rocketmq"]
+    image: apache/rocketmq:5.3.1
+    container_name: openforge-mq-namesrv
+    command: sh mqnamesrv
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9876/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  rocketmq-broker:
+    profiles: ["rocketmq"]
+    image: apache/rocketmq:5.3.1
+    container_name: openforge-mq-broker
+    command: sh mqbroker -n rocketmq-namesrv:9876
+    depends_on:
+      rocketmq-namesrv:
+        condition: service_healthy
 
   # rocketmq-namesrv:    # M3 事件总线
   #   image: apache/rocketmq:5.3.1
