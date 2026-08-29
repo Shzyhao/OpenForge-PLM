@@ -74,6 +74,12 @@ class NacosConfigCenterLoopTest {
         HttpResponse<String> resp = HttpClient.newHttpClient()
                 .send(request, HttpResponse.BodyHandlers.ofString());
         assertThat(resp.body()).isEqualTo("true");
+
+        // B1 关键坑位：@DynamicPropertySource 在 config-data 解析阶段不可见（晚于环境准备），
+        // 必须用系统属性让 spring.cloud.nacos.config.* 在 import 解析期生效
+        // （host 模式下地址固定 localhost:8848，gRPC 推算 +1000 天然成立）
+        System.setProperty("NACOS_CONFIG_ENABLED", "true");
+        System.setProperty("NACOS_ADDR", "localhost:8848");
     }
 
     /** readiness 轮询（host 模式 + 日志等待后仍需确认 HTTP 可用）。 */
@@ -95,12 +101,6 @@ class NacosConfigCenterLoopTest {
             Thread.sleep(2000);
         }
         throw new IllegalStateException("Nacos readiness 60s 未就绪");
-    }
-
-        // B1 关键坑位：@DynamicPropertySource 在 config-data 解析阶段不可见（晚于环境准备），
-        // 必须用系统属性让 spring.cloud.nacos.config.* 在 import 解析期生效
-        System.setProperty("NACOS_CONFIG_ENABLED", "true");
-        System.setProperty("NACOS_ADDR", nacos.getHost() + ":" + nacos.getMappedPort(8848));
     }
 
     @AfterAll
