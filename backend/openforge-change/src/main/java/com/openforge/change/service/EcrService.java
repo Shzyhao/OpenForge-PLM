@@ -30,6 +30,7 @@ public class EcrService {
     private final ChangeRequestMapper mapper;
     private final NumberClient numberClient;
     private final WorkflowClient workflowClient;
+    private final com.openforge.common.event.EventPublisher eventPublisher;
 
     @Transactional
     public ChangeRequest create(EcrRequest request, Long initiatorId) {
@@ -75,9 +76,11 @@ public class EcrService {
                 if ("COMPLETED".equals(instance.state())) {
                     ecr.setState("APPROVED");
                     mapper.updateById(ecr);
+                    emitClosed(ecr);
                 } else if ("REJECTED".equals(instance.state())) {
                     ecr.setState("REJECTED");
                     mapper.updateById(ecr);
+                    emitClosed(ecr);
                 }
                 resp.setState(ecr.getState());
             }
@@ -109,5 +112,11 @@ public class EcrService {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "变更申请不存在");
         }
         return ecr;
+    }
+
+    /** change.closed（B2 事件清单：knowledge 案例沉淀/project 预留消费）。 */
+    private void emitClosed(ChangeRequest ecr) {
+        eventPublisher.publish("openforge-change", "change.closed", java.util.Map.of(
+                "ecrId", ecr.getId(), "ecrNumber", ecr.getEcrNumber(), "finalState", ecr.getState()));
     }
 }
