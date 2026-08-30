@@ -1,18 +1,15 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { ConfigProvider } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { ThemeModeProvider } from './theme/ThemeMode'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider locale={zhCN} theme={{
-      token: { colorPrimary: '#F25C05' }, // 品牌色：锻炉橙
-    }}>
+    <ThemeModeProvider>
       <BrowserRouter>
         <App />
       </BrowserRouter>
-    </ConfigProvider>
+    </ThemeModeProvider>
   </React.StrictMode>,
 )
