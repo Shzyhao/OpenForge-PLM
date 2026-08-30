@@ -43,6 +43,9 @@ openforge:
   security:
     auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
     internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
+  metadata:
+    # 发布元数据 TTL 缓存（秒）：动态记录每请求 2 次元数据查询的承接；0=关闭；发布事务 afterCommit 驱逐
+    cache-ttl-seconds: ${META_CACHE_TTL_SECONDS:30}
 
 management:
   metrics:

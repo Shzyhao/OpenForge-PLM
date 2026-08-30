@@ -6,9 +6,9 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.7.0**（tag + GitHub Release；pgvector 向量存储切换 + 向量租户过滤） |
-| dev 最新 | 流程可视化设计器 #82（自研 SVG 画布，**未发版**） |
-| main vs dev | dev 领先 1 提交（设计器 #82），其余同步 |
+| 最新发布版 | **v1.8.0**（tag + GitHub Release；流程可视化设计器——自研 SVG 画布零依赖） |
+| dev 最新 | 元数据 TTL 缓存 + 日志保留期清理 #84（**未发版**） |
+| main vs dev | dev 领先 1 提交（#84），其余同步 |
 | 工作区 | 干净，无在途 PR，远端分支仅 main/dev |
 | 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 |
 
@@ -34,7 +34,9 @@
 | #79 | **v1.6.0 发布**（UI 主题化 + outbox → main + tag + Release + 回灌） | v1.6.0 |
 | #80 | pgvector 向量存储切换 + 向量租户过滤（SQL 级 + 行级双保险 + Testcontainers 回路） | v1.7.0 |
 | #81 | **v1.7.0 发布**（pgvector → main + tag + Release + 回灌） | v1.7.0 |
-| #82 | 流程可视化设计器——自研 SVG 画布零依赖（bpmn-js 否决，见架构决策 6） | 未发版 |
+| #82 | 流程可视化设计器——自研 SVG 画布零依赖（bpmn-js 否决，见架构决策 6） | v1.8.0 |
+| #83 | **v1.8.0 发布**（设计器 → main + tag + Release + 回灌） | v1.8.0 |
+| #84 | 元数据 TTL 缓存（租户键/30s 可配/500 上界/afterCommit 驱逐）+ 日志保留期清理（180 天可配/分批 500） | 未发版 |
 
 ## 关键架构决策（已实施）
 
@@ -48,8 +50,8 @@
 ## 下一步（按优先级）
 
 1. **Nacos 回路测试 Harness**（需 Docker 可用；已定位关键证据，见下）：CI 诊断实锤 publish true 但服务端未持久化（fetched=null + v1 HTTP "config data not exist"）；**主嫌疑=客户端 nacos-client 2.4.2 vs 服务端镜像 v2.3.2/v2.2.3 版本错配**。两处必修：① loop test 复用模式半残——NACOS_ADDR 提前 return 跳过配置发布与 NACOS_CONFIG_ENABLED 设置，复用路径必然失败；② `optional:nacos:` import 在 enabled=false 时并不跳过 loader，连接失败被吞成 "[Nacos Config] config is empty" WARN（真正兜底是 optional: 前缀）。排查路径：`NACOS=1 dev-up` 起 compose nacos（端口映射 8848/9848）→ SDK 探针验证 publish→get；若正常则怪癖锁定 CI host 网络模式，修法=改固定端口绑定替代 host 模式（客户端 +1000 推算 gRPC 端口需 9848 同号映射）
-2. **v1.8.0 发布**：设计器 #82 已在 dev 未发版。README 徽章/进度表更新 + 后续路线移除设计器项 → release PR → tag → Release → 回灌
-3. **连接器与行业模板包**：需外部场景输入
+2. **连接器与行业模板包**：需外部场景输入
+3. **v1.9.0 发布**：#84 已在 dev 未发版（发布时 README 徽章/进度表更新）
 
 ## 工程约定（全程遵守，遇新坑追加）
 
@@ -69,7 +71,7 @@
 | optional:nacos import 副作用 | enabled=false 不跳过 loader，连接失败吞为 "is empty" WARN（真正兜底是 optional: 前缀）；评估是否门控 import 位置或升级 spring-cloud-alibaba |
 | Grafana 看板告警规则 | 看板模板已内置，告警规则/通知渠道随部署环境补 |
 | outbox P3 | 事件 Schema 注册与版本兼容治理 |
-| 动态元数据 TTL 缓存 | DynamicRecordService.loadPublished 每请求 2 次元数据查询 |
-| 日志表保留期清理 | sys_login_log/sys_audit_log 无界增长 |
+| 动态元数据 TTL 缓存 | **已清偿** #84——PublishedMetaCache（租户键/TTL 30s/500 上界/afterCommit 驱逐） |
+| 日志表保留期清理 | **已清偿** #84——LogRetentionJob（180 天可配/每日 03:30/分批 500 选删） |
 | bpmn-js 流程设计器 | **已交付** #82——自研 SVG 画布实现（非 bpmn-js 库，决策见架构决策 6） |
 | SkyWalking | 随规模引入（agent ~100MB 开销） |
