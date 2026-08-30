@@ -110,6 +110,35 @@ class WorkflowEngineIntegrationTest {
         assertThat(rejected.getState()).isEqualTo("REJECTED");
     }
 
+    /** 可视化设计器产物：节点携带 x/y 布局坐标（引擎不读，仅设计器回显）——钉住未知字段宽容契约。 */
+    private static final String DESIGNED_DEFINITION = """
+            {
+              "nodes": [
+                {"id": "start", "type": "START", "x": 60, "y": 160},
+                {"id": "a1", "type": "APPROVAL", "name": "初审", "assignee": {"type": "USER", "value": "7"},
+                 "mode": "ALL", "x": 300, "y": 160},
+                {"id": "end", "type": "END", "x": 560, "y": 160}
+              ],
+              "edges": [
+                {"from": "start", "to": "a1"}, {"from": "a1", "to": "end"}
+              ]
+            }
+            """;
+
+    @Test
+    @DisplayName("设计器坐标定义：携带 x/y 的节点可部署、原样存储且可执行")
+    void designedDefinitionWithLayoutCoordinatesDeploysAndRuns() {
+        WorkflowDef def = engine.deploy("designed-flow", "设计器流程", DESIGNED_DEFINITION, 1L);
+        // 定义原样存储（坐标不丢失，设计器回显依赖此契约）
+        assertThat(def.getDefinition()).contains("\"x\": 60");
+
+        WorkflowInstance instance = engine.start("designed-flow", "ORDER", 200L, Map.of(), 1L);
+        WorkflowTask first = taskOf(instance);
+        assertThat(first.getNodeId()).isEqualTo("a1");
+        WorkflowInstance done = engine.act(first.getId(), 7L, "APPROVE", "通过");
+        assertThat(done.getState()).isEqualTo("COMPLETED");
+    }
+
     @Test
     @DisplayName("权限：非指派人也无对应角色不可办理")
     void unauthorizedUserCannotAct() {
