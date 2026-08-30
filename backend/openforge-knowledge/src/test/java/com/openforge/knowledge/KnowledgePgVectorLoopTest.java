@@ -84,7 +84,7 @@ class KnowledgePgVectorLoopTest {
     }
 
     @Test
-    @DisplayName("真实 pgvector 回路：租户隔离——租户 7 命中、租户 8 检索为空")
+    @DisplayName("真实 pgvector 回路：租户隔离——各租户仅命中自己的文档")
     void tenantIsolatedVectorSearch() {
         Assumptions.assumeTrue(pg != null && pg.isRunning(), "PG 未启动");
         // 确认 pgvector 实现 + 扩展已装
@@ -95,18 +95,18 @@ class KnowledgePgVectorLoopTest {
         createItem(7L, "锻炉橙热处理规范", "45#钢调质处理工艺：淬火温度 840 度，回火 560 度，硬度 HRC 28-32。");
         createItem(8L, "铝合金阳极氧化规范", "6061 铝合金硫酸阳极氧化：电流密度 1.5 A/dm2，氧化时间 30 分钟。");
 
-        // 租户 7：语义命中自己的文档（离线词袋向量下关键词重叠可命中）
+        // 租户 7：命中自己的文档，绝不出现租户 8 的文档（SQL 级租户过滤 + 行级双保险）
         List<SearchHit> hits7 = searchAs(7L, "淬火 回火 硬度");
         assertThat(hits7).extracting(SearchHit::title).contains("锻炉橙热处理规范");
-        // 租户 7 看不到租户 8 的文档
         assertThat(hits7).extracting(SearchHit::title).doesNotContain("铝合金阳极氧化规范");
 
-        // 租户 8：检索为空（SQL 级租户过滤——向量在库但被过滤）
+        // 租户 8：同理——不出现租户 7 的文档；可能命中自己的（离线词袋向量跨主题余弦非零）
         List<SearchHit> hits8 = searchAs(8L, "淬火 回火 硬度");
-        assertThat(hits8).isEmpty();
+        assertThat(hits8).extracting(SearchHit::title).doesNotContain("锻炉橙热处理规范");
 
         // 租户 8 命中自己的文档
         List<SearchHit> hits8Own = searchAs(8L, "阳极氧化 电流密度");
         assertThat(hits8Own).extracting(SearchHit::title).contains("铝合金阳极氧化规范");
+        assertThat(hits8Own).extracting(SearchHit::title).doesNotContain("锻炉橙热处理规范");
     }
 }
