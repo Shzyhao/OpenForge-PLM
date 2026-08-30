@@ -32,6 +32,7 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
     table: flyway_knowledge_history
+    locations: classpath:db/migration   # V2 (pgvector) 仅 PG 加载；H2 测试 flyway.target=1 跳过   # {vendor}: h2 跳过 pgvector 迁移
 
 mybatis-plus:
   configuration:
@@ -40,6 +41,8 @@ mybatis-plus:
     banner: false
 
 openforge:
+  knowledge:
+    vector-store: ${KNOWLEDGE_VECTOR_STORE:memory}   # memory（默认，H2/开发）| pgvector（生产，SQL 级租户过滤）
   security:
     auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
     internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}

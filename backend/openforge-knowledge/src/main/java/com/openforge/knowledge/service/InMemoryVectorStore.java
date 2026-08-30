@@ -1,40 +1,48 @@
 package com.openforge.knowledge.service;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 内存向量存储（余弦相似 TopK）。M5 开发/单实例够用；
- * M6 按架构文档 ADR-06 切换 pgvector（小规模）或 Milvus（集群），接口不变。
+ * 内存向量存储（默认实现，H2 测试/单实例开发用；余弦相似 TopK）。
+ * 租户分桶存储——search 仅在调用方租户桶内计算，与 pgvector 实现语义对齐。
+ * 生产/多租户场景切 openforge.knowledge.vector-store=pgvector（SQL 级租户过滤）。
  */
 @Component
-public class InMemoryVectorStore {
+@ConditionalOnProperty(name = "openforge.knowledge.vector-store", havingValue = "memory", matchIfMissing = true)
+public class InMemoryVectorStore implements VectorStore {
 
-    public record Scored(String vectorId, double score) {
-    }
+    private final Map<Long, Map<String, float[]>> vectorsByTenant = new ConcurrentHashMap<>();
 
-    private final Map<String, float[]> vectors = new ConcurrentHashMap<>();
-
-    public String add(float[] vector) {
+    @Override
+    public String add(Long tenantId, float[] vector) {
         String id = UUID.randomUUID().toString();
-        vectors.put(id, vector);
+        vectorsByTenant.computeIfAbsent(tenantId, k -> new ConcurrentHashMap<>()).put(id, vector);
         return id;
     }
 
+    @Override
     public void remove(String vectorId) {
-        if (vectorId != null) {
-            vectors.remove(vectorId);
+        if (vectorId == null) {
+            return;
         }
+        vectorsByTenant.values().forEach(m -> m.remove(vectorId));
     }
 
-    public List<Scored> search(float[] query, int topK) {
-        return vectors.entrySet().stream()
-                .map(e -> new Scored(e.getKey(), cosine(query, e.getValue())))
+    @Override
+    public List<Scored> search(Long tenantId, float[] query, int topK) {
+        Map<String, float[]> vectors = vectorsByTenant.getOrDefault(tenantId, Map.of());
+        List<Scored> scored = new ArrayList<>();
+        vectors.forEach((id, v) -> scored.add(new Scored(id, cosine(query, v))));
+        return scored.stream()
                 .filter(s -> s.score() > 0.01)
                 .sorted(Comparator.comparingDouble(Scored::score).reversed())
                 .limit(topK)
