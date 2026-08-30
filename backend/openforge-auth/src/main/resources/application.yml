@@ -46,6 +46,9 @@ openforge:
     # 登录失败锁定（方案 E9）
     login-max-failures: 5
     login-lock-minutes: 15
+    # 登录/审计日志保留期（技术债清理：每日 03:30 分批删除超期记录；0=关闭）
+    log-retention-days: ${LOG_RETENTION_DAYS:180}
+    log-retention-cron: ${LOG_RETENTION_CRON:0 30 3 * * *}
   jwt:
     # 仅供本地开发；生产环境必须通过环境变量覆盖（>=32 字节）
     secret: ${JWT_SECRET:openforge-dev-secret-key-change-me-in-production-0001}
