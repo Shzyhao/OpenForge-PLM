@@ -6,9 +6,8 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.7.0**（tag + GitHub Release；pgvector 向量存储切换 + 向量租户过滤） |
-| dev 最新 | 流程可视化设计器 #82（自研 SVG 画布，**未发版**） |
-| main vs dev | dev 领先 1 提交（设计器 #82），其余同步 |
+| 最新发布版 | **v1.8.0**（tag + GitHub Release；流程可视化设计器——自研 SVG 画布零依赖） |
+| main vs dev | 完全同步（v1.8.0 发布 PR #83 + 回灌 fast-forward） |
 | 工作区 | 干净，无在途 PR，远端分支仅 main/dev |
 | 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 |
 
@@ -34,7 +33,8 @@
 | #79 | **v1.6.0 发布**（UI 主题化 + outbox → main + tag + Release + 回灌） | v1.6.0 |
 | #80 | pgvector 向量存储切换 + 向量租户过滤（SQL 级 + 行级双保险 + Testcontainers 回路） | v1.7.0 |
 | #81 | **v1.7.0 发布**（pgvector → main + tag + Release + 回灌） | v1.7.0 |
-| #82 | 流程可视化设计器——自研 SVG 画布零依赖（bpmn-js 否决，见架构决策 6） | 未发版 |
+| #82 | 流程可视化设计器——自研 SVG 画布零依赖（bpmn-js 否决，见架构决策 6） | v1.8.0 |
+| #83 | **v1.8.0 发布**（设计器 → main + tag + Release + 回灌） | v1.8.0 |
 
 ## 关键架构决策（已实施）
 
@@ -48,8 +48,8 @@
 ## 下一步（按优先级）
 
 1. **Nacos 回路测试 Harness**（需 Docker 可用；已定位关键证据，见下）：CI 诊断实锤 publish true 但服务端未持久化（fetched=null + v1 HTTP "config data not exist"）；**主嫌疑=客户端 nacos-client 2.4.2 vs 服务端镜像 v2.3.2/v2.2.3 版本错配**。两处必修：① loop test 复用模式半残——NACOS_ADDR 提前 return 跳过配置发布与 NACOS_CONFIG_ENABLED 设置，复用路径必然失败；② `optional:nacos:` import 在 enabled=false 时并不跳过 loader，连接失败被吞成 "[Nacos Config] config is empty" WARN（真正兜底是 optional: 前缀）。排查路径：`NACOS=1 dev-up` 起 compose nacos（端口映射 8848/9848）→ SDK 探针验证 publish→get；若正常则怪癖锁定 CI host 网络模式，修法=改固定端口绑定替代 host 模式（客户端 +1000 推算 gRPC 端口需 9848 同号映射）
-2. **v1.8.0 发布**：设计器 #82 已在 dev 未发版。README 徽章/进度表更新 + 后续路线移除设计器项 → release PR → tag → Release → 回灌
-3. **连接器与行业模板包**：需外部场景输入
+2. **连接器与行业模板包**：需外部场景输入
+3. **动态元数据 TTL 缓存 / 日志表保留期清理**：小刀技术债，H2 测试即可验证，无 Docker 依赖
 
 ## 工程约定（全程遵守，遇新坑追加）
 
