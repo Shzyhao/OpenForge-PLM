@@ -44,6 +44,7 @@
 | 数据库连接 | 每副本 Hikari ≤5；副本数 × 5 + 运维连接 < PG `max_connections`（默认 100） | 多副本横向扩展时的第一道墙 |
 | GC | 容器内堆 ≥1GB 保持 G1；开发机小堆才用 SerialGC | G1 在大堆吞吐更优 |
 | SkyWalking/追踪 | 随规模引入（路线 B3 尾注） | agent 本身有 ~100MB 级开销 |
+| Grafana 看板 | JVM/网关/事件总线两张模板随 provisioning 自动装载（#76） | 自定义指标：openforge_events_* 六计数 |
 
 ### 2.3 通用（两平台）
 
