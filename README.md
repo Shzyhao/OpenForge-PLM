@@ -15,12 +15,14 @@
 > v1.5.0（B1 配置中心）：九服务接入 Nacos 配置中心——远程 `openforge-<svc>.yml` 覆盖本地、optional import 断连安全、默认关闭（NACOS_CONFIG_ENABLED），dev `NACOS=1` 一键启用 discovery+config。
 >
 > v1.6.0（体验与可靠性）：前端深度主题化——品牌 token 体系、暗色模式、品牌化分栏登录页、工作台仪表盘；事件总线 outbox 可靠性补齐——事务内原子落库 + relay 补发，丢失窗口消除。
+>
+> v1.7.0（向量存储演进）：pgvector 可插拔切换——VectorStore 租户感知接口、SQL 级租户过滤 + 行级拦截器双重隔离、HNSW 余弦检索，compose PG 镜像换 pgvector/pgvector:pg16。
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.6.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.7.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-7%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -96,8 +98,9 @@
 | 事件总线 v1.4.0 | RocketMQ 事件驱动：信封(eventId 幂等/租户/traceId) / 一域一 topic / 知识自动沉淀 / 幂等消费+死信 / 熔断+HTTP 回退(默认关闭) | ✅ |
 | 配置中心 v1.5.0 | Nacos config 九服务接入(远程覆盖本地) / optional import 断连安全 / 默认关闭 + NACOS=1 一键启用 | ✅ |
 | 体验与可靠性 v1.6.0 | UI 深度主题化(品牌 token/暗色模式/品牌化登录页/工作台仪表盘/分组菜单) / 事件 outbox 原子落库 + relay 补发(丢失窗口消除) / Grafana 看板模板 | ✅ |
+| 向量存储 v1.7.0 | pgvector 切换(VectorStore 租户感知接口 / SQL 级租户过滤 + 行级拦截器双重隔离 / HNSW 余弦检索 / 程序化建表) / compose pgvector 镜像 / Testcontainers 租户隔离回路 | ✅ |
 
-**后续路线**：Grafana 看板模板、bpmn-js 可视化流程设计器、pgvector/Milvus 切换、ERP/MES 连接器、行业模板包。
+**后续路线**：bpmn-js 可视化流程设计器、Milvus 向量库、Nacos 回路测试 Harness、ERP/MES 连接器、行业模板包。
 
 ## 🚀 快速开始
 

@@ -27,7 +27,7 @@ public class KnowledgeService {
     private final KnowledgeItemMapper itemMapper;
     private final KnowledgeFeedbackMapper feedbackMapper;
     private final EmbeddingClient embeddingClient;
-    private final InMemoryVectorStore vectorStore;
+    private final VectorStore vectorStore;
 
     public KnowledgeItem create(String title, String content, String tags,
                                 String sourceType, String sourceRef, Long operatorId) {
@@ -43,7 +43,9 @@ public class KnowledgeService {
         item.setStatus("PUBLISHED");
         item.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         item.setCreatedBy(operatorId);
-        item.setVectorId(vectorStore.add(embeddingClient.embed(title + "\n" + content)));
+        item.setVectorId(vectorStore.add(
+                com.openforge.common.tenant.TenantContext.getTenantId(),
+                embeddingClient.embed(title + "\n" + content)));
         itemMapper.insert(item);
         return item;
     }
@@ -61,7 +63,8 @@ public class KnowledgeService {
 
     /** 语义检索：向量 TopK（离线为词袋哈希降级，仍可测管道）。 */
     public List<SearchHit> search(String query, int topK) {
-        List<InMemoryVectorStore.Scored> scored = vectorStore.search(
+        List<VectorStore.Scored> scored = vectorStore.search(
+                com.openforge.common.tenant.TenantContext.getTenantId(),
                 embeddingClient.embed(query), Math.min(Math.max(topK, 1), 20));
         List<SearchHit> hits = new ArrayList<>();
         for (InMemoryVectorStore.Scored s : scored) {
