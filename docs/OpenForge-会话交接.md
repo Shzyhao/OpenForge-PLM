@@ -6,9 +6,8 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.6.0**（tag + GitHub Release；UI 深度主题化 + outbox 可靠性） |
-| dev 最新 | pgvector 切换 + 向量租户过滤（#80 已合并，**尚未发版**） |
-| main vs dev | dev 领先 2 提交（pgvector #80 + main 回灌合并），干净同步 |
+| 最新发布版 | **v1.7.0**（tag + GitHub Release；pgvector 向量存储切换 + 向量租户过滤） |
+| main vs dev | 完全同步（v1.7.0 发布 PR #81 + 回灌 fast-forward） |
 | 工作区 | 干净，无在途 PR，远端分支仅 main/dev |
 | 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 |
 
@@ -32,7 +31,8 @@
 | #77 | UI 深度主题化（品牌 token/暗色模式/品牌化登录页/工作台仪表盘/分组菜单/Logo） | — |
 | #78 | B2-P2 outbox 可靠性（事务内原子落库 + relay 补发 + 死信语义） | — |
 | #79 | **v1.6.0 发布**（UI 主题化 + outbox → main + tag + Release + 回灌） | v1.6.0 |
-| #80 | pgvector 向量存储切换 + 向量租户过滤（SQL 级 + 行级双保险 + Testcontainers 回路） | **未发版** |
+| #80 | pgvector 向量存储切换 + 向量租户过滤（SQL 级 + 行级双保险 + Testcontainers 回路） | v1.7.0 |
+| #81 | **v1.7.0 发布**（pgvector → main + tag + Release + 回灌） | v1.7.0 |
 
 ## 关键架构决策（已实施）
 
@@ -44,10 +44,9 @@
 
 ## 下一步（按优先级）
 
-1. **v1.7.0 发布**：pgvector 切换（#80 已在 dev 未发版）。README 徽章/进度表更新 → release PR → tag → GitHub Release → 回灌 dev
-2. **Nacos 回路测试 Harness**：Testcontainers nacos 2.3.2/2.2.3 standalone 持久化怪癖（publish true 但 get null/not exist），挂 NACOS_LOOP_TEST 门。可用 `NACOS=1 dev-up` + `NACOS_LOOP_TEST=true NACOS_ADDR=localhost:8848` 本地对 compose nacos 排查
-3. **bpmn-js 可视化流程设计器**：workflow 服务有 JSON 定义快照（ProcessDefinition.NodeDef），前端可做图形编辑器（非标准 BPMN，但引擎现有格式可直接映射）
-4. **连接器与行业模板包**：需外部场景输入
+1. **Nacos 回路测试 Harness**：Testcontainers nacos 2.3.2/2.2.3 standalone 持久化怪癖（publish true 但 get null/not exist），挂 NACOS_LOOP_TEST 门。可用 `NACOS=1 dev-up` + `NACOS_LOOP_TEST=true NACOS_ADDR=localhost:8848` 本地对 compose nacos 排查
+2. **bpmn-js 可视化流程设计器**：workflow 服务有 JSON 定义快照（ProcessDefinition.NodeDef），前端可做图形编辑器（非标准 BPMN，但引擎现有格式可直接映射）
+3. **连接器与行业模板包**：需外部场景输入
 
 ## 工程约定（全程遵守，遇新坑追加）
 
