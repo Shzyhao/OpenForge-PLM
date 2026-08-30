@@ -56,6 +56,7 @@ public class MetaPublishService {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
     private final com.openforge.metadata.client.PublishPipelineClients pipelineClients;
+    private final PublishedMetaCache publishedMetaCache;
 
     /** EXTENSION 模块的服务地址=本服务（动态 CRUD 由 metadata 承载），随部署覆盖。 */
     @org.springframework.beans.factory.annotation.Value("${openforge.module.service-uri:http://localhost:8088}")
@@ -132,6 +133,20 @@ public class MetaPublishService {
         object.setStatus("PUBLISHED");
         object.setVersion(object.getVersion() + 1);
         metaObjectMapper.updateById(object);
+
+        // 缓存驱逐在事务 afterCommit：提交前驱逐会让并发请求把旧数据重新回填 TTL 窗口
+        String objectKey = object.getObjectKey();
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            publishedMetaCache.evict(objectKey);
+                        }
+                    });
+        } else {
+            publishedMetaCache.evict(objectKey);
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("objectId", objectId);
