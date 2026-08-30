@@ -43,13 +43,14 @@ public class DynamicRecordService {
     private final MetaFieldMapper metaFieldMapper;
     private final JdbcTemplate jdbcTemplate;
     private final EventPublisher eventPublisher;
+    private final PublishedMetaCache publishedMetaCache;
 
     // ===== 创建 =====
 
     public Map<String, Object> create(String objectKey, Map<String, Object> body, Long userId) {
         PublishedMeta meta = loadPublished(objectKey);
         Map<String, Object> values = new LinkedHashMap<>();
-        for (MetaField field : meta.fields) {
+        for (MetaField field : meta.fields()) {
             Object raw = body.get(field.getFieldKey());
             if (raw == null) {
                 if (field.getRequired() != null && field.getRequired() == 1) {
@@ -71,7 +72,7 @@ public class DynamicRecordService {
         params.add(TenantContext.getTenantId());
         params.add(userId);
         var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
-        String sql = "INSERT INTO " + meta.object.getTableName() + " (" + columns + ") VALUES (" + placeholders + ")";
+        String sql = "INSERT INTO " + meta.object().getTableName() + " (" + columns + ") VALUES (" + placeholders + ")";
         jdbcTemplate.update(con -> {
             var ps = con.prepareStatement(sql, new String[]{"id"});
             for (int i = 0; i < params.size(); i++) {
@@ -121,7 +122,7 @@ public class DynamicRecordService {
         String orderBy = buildOrderBy(meta, sort);
 
         Long total = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM " + meta.object.getTableName()
+                "SELECT COUNT(*) FROM " + meta.object().getTableName()
                         + " WHERE tenant_id = ? AND deleted = 0" + where.sql(),
                 Long.class, tenantParams(where).toArray());
 
@@ -129,7 +130,7 @@ public class DynamicRecordService {
         params.add(pageSize);
         params.add((page - 1) * pageSize);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT " + selectColumns(meta) + " FROM " + meta.object.getTableName()
+                "SELECT " + selectColumns(meta) + " FROM " + meta.object().getTableName()
                         + " WHERE tenant_id = ? AND deleted = 0" + where.sql()
                         + " ORDER BY " + orderBy + " LIMIT ? OFFSET ?",
                 params.toArray());
@@ -142,7 +143,7 @@ public class DynamicRecordService {
         PublishedMeta meta = loadPublished(objectKey);
         rejectUnknownFields(meta, body);
         Map<String, Object> values = new LinkedHashMap<>();
-        for (MetaField field : meta.fields) {
+        for (MetaField field : meta.fields()) {
             Object raw = body.get(field.getFieldKey());
             if (raw != null) {
                 values.put(field.getFieldKey(), coerce(field, raw));
@@ -157,7 +158,7 @@ public class DynamicRecordService {
         params.add(userId);
         params.add(TenantContext.getTenantId());
         params.add(id);
-        int affected = jdbcTemplate.update("UPDATE " + meta.object.getTableName() + " SET " + setClause
+        int affected = jdbcTemplate.update("UPDATE " + meta.object().getTableName() + " SET " + setClause
                 + " WHERE tenant_id = ? AND id = ? AND deleted = 0", params.toArray());
         if (affected == 0) {
             throw new BizException(ErrorCode.META_RECORD_NOT_FOUND);
@@ -169,7 +170,7 @@ public class DynamicRecordService {
     public void delete(String objectKey, Long id, Long userId) {
         PublishedMeta meta = loadPublished(objectKey);
         int affected = jdbcTemplate.update(
-                "UPDATE " + meta.object.getTableName()
+                "UPDATE " + meta.object().getTableName()
                         + " SET deleted = 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP"
                         + " WHERE id = ? AND tenant_id = ? AND deleted = 0",
                 userId, id, TenantContext.getTenantId());
@@ -181,6 +182,11 @@ public class DynamicRecordService {
     // ===== 元数据装载 =====
 
     private PublishedMeta loadPublished(String objectKey) {
+        // 读多写极少：TTL 缓存承接每请求两次元数据查询（发布时 afterCommit 驱逐，见 PublishedMetaCache）
+        PublishedMeta cached = publishedMetaCache.get(objectKey);
+        if (cached != null) {
+            return cached;
+        }
         MetaObject object = metaObjectMapper.selectOne(
                 new LambdaQueryWrapper<MetaObject>().eq(MetaObject::getObjectKey, objectKey));
         if (object == null) {
@@ -192,10 +198,9 @@ public class DynamicRecordService {
         List<MetaField> fields = metaFieldMapper.selectList(
                 new LambdaQueryWrapper<MetaField>().eq(MetaField::getObjectId, object.getId())
                         .orderByAsc(MetaField::getSortOrder));
-        return new PublishedMeta(object, fields);
-    }
-
-    private record PublishedMeta(MetaObject object, List<MetaField> fields) {
+        PublishedMeta meta = new PublishedMeta(object, fields);
+        publishedMetaCache.put(objectKey, meta);
+        return meta;
     }
 
     private void rejectUnknownFields(PublishedMeta meta, Map<String, Object> body) {
@@ -208,7 +213,7 @@ public class DynamicRecordService {
 
     private java.util.Optional<Map<String, Object>> queryOne(PublishedMeta meta, String condition, Object... params) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT " + selectColumns(meta) + " FROM " + meta.object.getTableName()
+                "SELECT " + selectColumns(meta) + " FROM " + meta.object().getTableName()
                         + " WHERE " + condition, params);
         return rows.isEmpty() ? java.util.Optional.empty()
                 : java.util.Optional.of(convertRow(rows.get(0)));

@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,6 +36,9 @@ class DynamicRecordIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private com.openforge.metadata.service.PublishedMetaCache publishedMetaCache;
 
     @MockBean
     private PermissionQueryClient permissionQueryClient;
@@ -179,6 +183,25 @@ class DynamicRecordIntegrationTest {
                 .andExpect(jsonPath("$.code").value(4012));
         mockMvc.perform(delete("/api/v1/objects/lifecycle/records/{id}", firstId).header("X-User-Id", 1))
                 .andExpect(jsonPath("$.code").value(4012));
+    }
+
+    @Test
+    @DisplayName("元数据 TTL 缓存接线：动态读后快照入缓存；发布事务 afterCommit 驱逐后可重新加载")
+    void publishedMetaCacheWiring() throws Exception {
+        mockPerms(1L, "meta:manage", "cache_probe:view");
+        publish(objectIdOf(createObject("cache_probe", null)));
+
+        // 首次动态读：loadPublished 未命中 → 落缓存
+        mockMvc.perform(get("/api/v1/objects/cache_probe/records").header("X-User-Id", 1))
+                .andExpect(jsonPath("$.code").value(0));
+        assertThat(publishedMetaCache.get("cache_probe")).isNotNull();
+
+        // 直接驱逐（发布 afterCommit 同路径）后再次可加载且重新入缓存
+        publishedMetaCache.evict("cache_probe");
+        assertThat(publishedMetaCache.get("cache_probe")).isNull();
+        mockMvc.perform(get("/api/v1/objects/cache_probe/records").header("X-User-Id", 1))
+                .andExpect(jsonPath("$.code").value(0));
+        assertThat(publishedMetaCache.get("cache_probe")).isNotNull();
     }
 
     @Test
