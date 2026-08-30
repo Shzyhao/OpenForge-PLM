@@ -15,7 +15,7 @@ class EventPublisherTest {
     @DisplayName("默认关闭：publish 返回 false（调用方回退同步 HTTP），且不创建任何 MQ 客户端连接")
     void disabledModeReturnsFalse() {
         EventPublisher publisher = new EventPublisher(
-                new ObjectMapper(), false, "localhost:9876", 3000, "test-svc");
+                new ObjectMapper(), new org.springframework.jdbc.core.JdbcTemplate(), false, "localhost:9876", 3000, "test-svc");
         assertThat(publisher.publish("openforge-meta", "schema.migrated", Map.of("k", "v"))).isFalse();
         // 关闭态重复调用安全（无 producer 创建、无异常）
         assertThat(publisher.publish("openforge-meta", "schema.migrated", Map.of())).isFalse();
@@ -25,7 +25,7 @@ class EventPublisherTest {
     @DisplayName("启用但 broker 不可达：发送失败返回 false + 熔断 60s（连续 3 次后快速失败，不拖垮发布路径）")
     void enabledWithUnreachableBrokerFallsBackWithCircuitBreaker() {
         EventPublisher publisher = new EventPublisher(
-                new ObjectMapper(), true, "localhost:1", 300, "test-svc");
+                new ObjectMapper(), new org.springframework.jdbc.core.JdbcTemplate(), true, "localhost:1", 300, "test-svc");
         // 前两次：真连（超时快速失败）
         assertThat(publisher.publish("openforge-object", "object.record.created", Map.of("id", 1))).isFalse();
         assertThat(publisher.publish("openforge-object", "object.record.created", Map.of("id", 2))).isFalse();
