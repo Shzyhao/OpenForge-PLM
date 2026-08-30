@@ -109,14 +109,16 @@ public class MetaPublishService {
         String schemaRef = object.getObjectKey();
         String tableName = object.getTableName();
         int schemaVersion = snapshot.getVersion();
+        // P2 outbox：publish 在事务内调用——outbox 行随业务原子落库，afterCommit 发送失败由 relay 补发
+        boolean viaMq = eventPublisher.publish("openforge-meta", "schema.migrated", Map.of(
+                "objectKey", schemaRef,
+                "displayName", object.getDisplayName(),
+                "tableName", tableName,
+                "version", schemaVersion,
+                "description", schemaDescription));
         publishAfterCommit(() -> {
-            boolean sent = eventPublisher.publish("openforge-meta", "schema.migrated", Map.of(
-                    "objectKey", schemaRef,
-                    "displayName", object.getDisplayName(),
-                    "tableName", tableName,
-                    "version", schemaVersion,
-                    "description", schemaDescription));
-            if (!sent) {
+            if (!viaMq) {
+                // MQ 关闭：回退既有同步 HTTP（与 v1.3.0 行为一致）
                 pipelineClients.syncSchemaItem(schemaTitle, schemaDescription, schemaRef);
             }
             pipelineClients.registerAiTable(tableName, schemaDescription);
