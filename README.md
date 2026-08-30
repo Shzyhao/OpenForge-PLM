@@ -17,12 +17,14 @@
 > v1.6.0（体验与可靠性）：前端深度主题化——品牌 token 体系、暗色模式、品牌化分栏登录页、工作台仪表盘；事件总线 outbox 可靠性补齐——事务内原子落库 + relay 补发，丢失窗口消除。
 >
 > v1.7.0（向量存储演进）：pgvector 可插拔切换——VectorStore 租户感知接口、SQL 级租户过滤 + 行级拦截器双重隔离、HNSW 余弦检索，compose PG 镜像换 pgvector/pgvector:pg16。
+>
+> v1.8.0（可视化流程设计器）：自研 SVG 画布零依赖——节点拖拽/连线/属性面板/分层自动布局，可视化与 JSON 双向同步部署、既有定义只读预览；条件分支语义与引擎 rules[].to 路由严格对齐（bpmn-js 评估后否决）。
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.7.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.8.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-7%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -99,8 +101,9 @@
 | 配置中心 v1.5.0 | Nacos config 九服务接入(远程覆盖本地) / optional import 断连安全 / 默认关闭 + NACOS=1 一键启用 | ✅ |
 | 体验与可靠性 v1.6.0 | UI 深度主题化(品牌 token/暗色模式/品牌化登录页/工作台仪表盘/分组菜单) / 事件 outbox 原子落库 + relay 补发(丢失窗口消除) / Grafana 看板模板 | ✅ |
 | 向量存储 v1.7.0 | pgvector 切换(VectorStore 租户感知接口 / SQL 级租户过滤 + 行级拦截器双重隔离 / HNSW 余弦检索 / 程序化建表) / compose pgvector 镜像 / Testcontainers 租户隔离回路 | ✅ |
+| 可视化设计器 v1.8.0 | 流程可视化设计器(自研 SVG 画布零依赖：拖拽/连线/属性面板/自动布局/JSON 双向同步/只读预览/客户端校验镜像引擎) / 节点坐标随定义 JSON 持久化 | ✅ |
 
-**后续路线**：bpmn-js 可视化流程设计器、Milvus 向量库、Nacos 回路测试 Harness、ERP/MES 连接器、行业模板包。
+**后续路线**：Milvus 向量库、Nacos 回路测试 Harness、ERP/MES 连接器、行业模板包。
 
 ## 🚀 快速开始
 
