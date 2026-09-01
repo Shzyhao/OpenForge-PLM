@@ -30,10 +30,11 @@
 
 ### 2.1 开发机（Windows，16GB 画像）
 
-1. **WSL2 限流**：`scripts/.wslconfig.template` → `%UserProfile%\.wslconfig`（memory=4GB + autoMemoryReclaim），`wsl --shutdown` 后生效——单项省 ~4GB；
-2. **JVM 参数瘦身**（dev-up.sh）：`-XX:+UseSerialGC`（小堆下原生开销比 G1 少 50~150MB/服务）、`-Xss512k`（默认 1MB × 每服务数十线程）、元空间上限 256m→200m；
-3. **构建期限流**：`MAVEN_OPTS=-Xmx512m` + `SKIP_BUILD=1` 复用现有 jar（jar 被运行中进程锁定需先停服务，见工程约定）；
-4. **线程/连接显式化**：Tomcat `threads.max: 20`（默认 200）+ Hikari `maximum-pool-size: 5`（默认 10）——除网关（WebFlux/Netty，无 Tomcat/数据源）。
+1. **WSL2 限流**：`scripts/.wslconfig.template` → `%UserProfile%\.wslconfig`（默认仅 PG 场景 memory=2GB；启用 extras/rocketmq/nacos 时 4GB）+ autoMemoryReclaim，`wsl --shutdown` 后生效；
+2. **JVM 参数瘦身**（dev-up.sh）：`-XX:+UseSerialGC`（小堆下原生开销比 G1 少 50~150MB/服务）、`-Xss512k`（默认 1MB × 每服务数十线程）、`-XX:MaxDirectMemorySize=64m`、元空间上限 256m→200m——**v1.9.x 实装**（#62 曾误只在 MAVEN_OPTS 生效，服务 JVM 一直跑默认 G1，详见 §8）；
+3. **构建期限流 + 智能跳过**：`MAVEN_OPTS=-Xmx512m`；dev-up 默认按源码新旧自动跳过构建（原每次全量 `clean package`，构建峰值曾是闪退直接诱因）；`SKIP_BUILD=1` 强制复用；
+4. **线程/连接显式化**：Tomcat `threads.max: 20`（默认 200）+ Hikari `maximum-pool-size: 5`（默认 10），已环境变量化（`TOMCAT_MAX_THREADS`/`HIKARI_MAX_POOL` 等，默认值不变）——dev-up 传 10/2（9×2=18 PG 连接，单人开发足够）；除网关（WebFlux/Netty，无 Tomcat/数据源）；
+5. **启动集瘦身**：dev-up `PROFILE=core|lite|full` 预设（机器吃紧时的第一入口；A4 模块注册：不启动的服务不注册不路由）。
 
 ### 2.2 Linux / CI / 容器生产
 
@@ -118,7 +119,7 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 ### 合并门（PR 描述勾选）
 
 - [ ] `mvn verify` 全绿（15 模块）+ 相关测试；Testcontainers 未被注释/跳过
-- [ ] 目标环境画像核对：Windows 16GB 开发机（`.wslconfig` 限 4GB）/ Linux 容器（cgroup + MaxRAMPercentage=75）
+- [ ] 目标环境画像核对：Windows 16GB 开发机（`.wslconfig` 默认 2GB / extras 场景 4GB）/ Linux 容器（cgroup + MaxRAMPercentage=75）
 - [ ] 若引入新基线（新服务/新依赖/新定时任务），本文档 §2/§3 已同步
 
 ## 7. 治理
@@ -130,3 +131,60 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
   → 转为清单条目 → PR 模板同步。
 - 已知记录待办：动态元数据 TTL 缓存、日志表保留期清理、向量库租户过滤（随 M5）、
   Redis/MinIO 已改 compose extras/nacos/rocketmq profile（#65），零代码使用不再随默认启动。
+
+---
+
+## 8. 本地开发瘦身（v1.9.x，触发：16GB 开发机带不动全套启动）
+
+### 8.1 功能模块与资源画像
+
+| 模块 | 职责 | fat jar | 关键依赖栈 | dev 必需性 |
+|------|------|---------|-----------|-----------|
+| openforge-auth | 认证/RBAC/租户/模块注册表/登录审计/日志保留清理 | 116MB | 全栈 + jjwt | **必需**（一切入口） |
+| openforge-gateway | 动态路由/鉴权前置/TraceId | 55MB | WebFlux/Netty（无 DB） | **必需**（前端唯一入口） |
+| openforge-metadata | 动态对象运行时：建模→发布→DDL/权限/AI 登记→CRUD | 112MB | 全栈 + flyway | core（二开主链路） |
+| openforge-doc | 文档检入检出/事件发射 | 112MB | 全栈 | core（ECR 依赖） |
+| openforge-workflow | 流程引擎/任务中心/可视化设计器后端 | 112MB | 全栈 + SpEL | core（审批链路） |
+| openforge-material | 物料/BOM/状态机 | 112MB | 全栈 | full（物料场景） |
+| openforge-change | ECR 变更闭环 | 112MB | 全栈 | full |
+| openforge-knowledge | 知识库/向量检索（pgvector 可插拔）/自动沉淀 | 112MB | 全栈 + pgvector | full（AI 场景） |
+| openforge-project | 项目任务/跨域统计 | 112MB | 全栈 | full |
+| ai/（Python） | LLM 网关：解析管道/NL2SQL/助手 | — | fastapi | **可选**（仅 AI 功能） |
+| frontend/ | React 18 + antd + echarts | — | Vite dev server | 必需（node ~0.5GB） |
+| Docker | PostgreSQL（pgvector）唯一真依赖 | — | Redis/MinIO extras 零代码使用 | 必需（WSL2 内） |
+
+结构事实：8 个业务服务各为 ~112MB fat jar——Spring Boot/rocketmq-client/netty/nacos-client/micrometer 全套**重复装载 8 份**；启动时各自独立 Spring 上下文 + flyway。这是「9 个 JVM 带不动」的结构根源，也是后续合并/共享化的收益空间。
+
+### 8.2 本次落地（零行为变更，dev-only）
+
+| # | 项 | 内容 | 预期收益 |
+|---|----|------|---------|
+| 1 | 服务 JVM 调优**实装** | dev-up JVM_OPTS 补 `-XX:+UseSerialGC -Xss512k -XX:MaxDirectMemorySize=64m`、元空间 256→200m | 每服务省 50~150MB（G1 线程/卡表/预留），9 服务合计 **~0.7-1.3GB** |
+| 2 | 构建智能跳过 | 源码/pom 比 jar 旧 → 自动跳过 mvn（原每次全量 clean package，两个 hs_err 崩溃就是 Maven 自己） | 无改动启动省 **1~2 分钟 + ~1GB 峰值** |
+| 3 | PROFILE 启动预设 | `PROFILE=core`（auth/gateway/metadata/doc/workflow，5 服务）/ `lite`（2）/ `full`（9，默认） | core 较 full 少 4 个 JVM ≈ **-1.5GB**，主链路全覆盖 |
+| 4 | 池/线程 dev 收紧 | 8 服务 yml 环境变量化（默认不变），dev-up 传 Tomcat 10/2、Hikari 2/1 | PG 连接 45→18（WSL 内存同步降压），线程栈减半 |
+| 5 | WSL2 上限 4→2GB | 默认 dev 仅 PG 一个容器，2GB 足够（模板已注明 extras 场景回 4GB） | **-2GB** 预留 |
+| 6 | PG 就绪等待 | dev-up 起 PG 后 `pg_isready` 轮询再启动服务 | 消除服务首轮 60s 健康等待窗浪费 |
+
+**历史教训（§2.1 修正）**：#62 的 commit message 与本文档曾声称服务 JVM 已加 SerialGC/-Xss512k，实际 diff 只改了 MAVEN_OPTS——服务 JVM 一直跑默认 G1（16 线程机每 JVM 的 G1 GC 线程组 + remembered sets 是小堆下的纯税）。文档断言「已落地」必须以 diff 为准，本次逐项核对后实装。
+
+### 8.3 已评估、暂缓的方案
+
+| 方案 | 预期收益 | 暂缓原因 |
+|------|---------|---------|
+| AppCDS（JDK21 + Boot 3.3） | 启动 -30~40%，每 JVM 元空间 -30~50MB | Boot fat jar 的 LaunchedClassLoader 装载类不入档，需先 `-Djarmode=tools` 解包（9×~300MB 磁盘）+ 训练跑（需 PG 在跑）；本机 Docker 不稳期间无法验证，降级为后续项 |
+| spring.main.lazy-initialization | 启动提速、按需 bean | **不可用**：模块注册（ModuleRegistrar 启动注册）、@Scheduled（outbox relay/日志清理/路由刷新）、事件监听均依赖启动期初始化——lazy 会让服务不注册、不路由 |
+| 单进程 mono 模式（9 合 1 JVM） | 后端 ~3GB → ~1GB（最大单项） | 跨服务内部 HTTP（metadata→auth /internal、发布流水线、knowledge 沉淀）指向 localhost:808x，需端口内转发或客户端改造，侵入架构，需独立设计刀 |
+| H2 文件库 dev 模式（零 Docker） | 免 WSL2 整层（-2GB） | flyway 迁移虽 H2 兼容（测试已证），但丢失真实 PG/pgvector 语义；作为极端瘦身备选记录 |
+
+### 8.4 瘦身后内存预算（16GB 机，full 9 服务 + 前端）
+
+| 消耗方 | 瘦身前 | 瘦身后 |
+|--------|--------|--------|
+| Windows 本体 + 常驻 | ~5GB | ~5GB |
+| WSL2（Docker+PG） | 4GB 预留 | 2GB 预留 |
+| 9 服务 JVM（SerialGC+Xss512k+直存封顶） | ~4.5-5.5GB | ~3.2-4GB |
+| Vite dev + node | ~0.5GB | ~0.5GB |
+| 构建（无改动启动已跳过） | 每次启动 +1~1.5GB 峰值 | 0（有改动才建） |
+| **合计（稳态）** | **14-16GB+（必崩）** | **~11-12GB（余量 3-4GB）** |
+| PROFILE=core 稳态 | — | **~9-10GB（余量 5GB+）** |

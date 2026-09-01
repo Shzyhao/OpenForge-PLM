@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 停止全部 OpenForge 开发服务
 set -e
-for svc in gateway auth material doc workflow change knowledge project; do
+for svc in gateway auth material doc workflow change knowledge project metadata; do
   # 按 jar 名匹配进程
   pid=$(ps aux 2>/dev/null | grep "openforge-$svc-0.1.0-SNAPSHOT.jar" | grep -v grep | awk '{print $1}' | head -1)
   if [ -n "$pid" ]; then
