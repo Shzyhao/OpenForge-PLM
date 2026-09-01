@@ -155,16 +155,19 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 
 结构事实：8 个业务服务各为 ~112MB fat jar——Spring Boot/rocketmq-client/netty/nacos-client/micrometer 全套**重复装载 8 份**；启动时各自独立 Spring 上下文 + flyway。这是「9 个 JVM 带不动」的结构根源，也是后续合并/共享化的收益空间。
 
-### 8.2 本次落地（零行为变更，dev-only）
+### 8.2 已落地（零行为变更，dev-only；#1-6 = #86，#7-9 = #87）
 
-| # | 项 | 内容 | 预期收益 |
+| # | 项 | 内容 | 收益 |
 |---|----|------|---------|
-| 1 | 服务 JVM 调优**实装** | dev-up JVM_OPTS 补 `-XX:+UseSerialGC -Xss512k -XX:MaxDirectMemorySize=64m`、元空间 256→200m | 每服务省 50~150MB（G1 线程/卡表/预留），9 服务合计 **~0.7-1.3GB** |
-| 2 | 构建智能跳过 | 源码/pom 比 jar 旧 → 自动跳过 mvn（原每次全量 clean package，两个 hs_err 崩溃就是 Maven 自己） | 无改动启动省 **1~2 分钟 + ~1GB 峰值** |
-| 3 | PROFILE 启动预设 | `PROFILE=core`（auth/gateway/metadata/doc/workflow，5 服务）/ `lite`（2）/ `full`（9，默认） | core 较 full 少 4 个 JVM ≈ **-1.5GB**，主链路全覆盖 |
-| 4 | 池/线程 dev 收紧 | 8 服务 yml 环境变量化（默认不变），dev-up 传 Tomcat 10/2、Hikari 2/1 | PG 连接 45→18（WSL 内存同步降压），线程栈减半 |
-| 5 | WSL2 上限 4→2GB | 默认 dev 仅 PG 一个容器，2GB 足够（模板已注明 extras 场景回 4GB） | **-2GB** 预留 |
-| 6 | PG 就绪等待 | dev-up 起 PG 后 `pg_isready` 轮询再启动服务 | 消除服务首轮 60s 健康等待窗浪费 |
+| 1 | 服务 JVM 调优**实装**（#86） | dev-up JVM_OPTS 补 `-XX:+UseSerialGC -Xss512k -XX:MaxDirectMemorySize=64m`、元空间 256→200m | 每服务省 50~150MB（G1 线程/卡表/预留），9 服务合计 **~0.7-1.3GB** |
+| 2 | 构建智能跳过（#86） | 源码/pom 比 jar 旧 → 自动跳过 mvn（原每次全量 clean package，两个 hs_err 崩溃就是 Maven 自己） | 无改动启动省 **1~2 分钟 + ~1GB 峰值** |
+| 3 | PROFILE 启动预设（#86） | `PROFILE=core`（auth/gateway/metadata/doc/workflow，5 服务）/ `lite`（2）/ `full`（9，默认） | core 较 full 少 4 个 JVM ≈ **-1.5GB**，主链路全覆盖 |
+| 4 | 池/线程 dev 收紧（#86） | 8 服务 yml 环境变量化（默认不变），dev-up 传 Tomcat 10/2、Hikari 2/1 | PG 连接 45→18（WSL 内存同步降压），线程栈减半 |
+| 5 | WSL2 上限 4→2GB（#86） | 默认 dev 仅 PG 一个容器，2GB 足够（模板已注明 extras 场景回 4GB） | **-2GB** 预留 |
+| 6 | PG 就绪等待（#86） | dev-up 起 PG 后 `pg_isready` 轮询再启动服务 | 消除服务首轮 60s 健康等待窗浪费 |
+| 7 | Nacos import 空载跳过（#87） | NACOS≠1 时 `NACOS_CONFIG_IMPORT=""`——`optional:nacos:` 即使 enabled=false 也激活 NacosConfigDataLoader（CI 实证每服务一次无效加载） | 每服务省 ~1s+ 并消除误导 WARN；**gateway 实测启动日志 0 条 Nacos 行** |
+| 8 | AppCDS 类共享（#87，CDS=0 可关） | Boot 3.3 标准路径：`-Djarmode=tools` 解包到系统类路径（fat jar 的 LaunchedClassLoader 类不入档）→ `onRefresh` 训练（PG 已就绪）→ `SharedArchiveFile` 启动；jar 比解包目录新即自动重训；任何一步失败静默降级普通启动 | **gateway 实测：启动 4711→3022ms（-36%）、3173 类共享加载**；业务服务上下文更大收益更高。代价：target/cds ~70MB/服务磁盘（mvn clean 可清）+ 首次训练 ~17s/服务（一次性） |
+| 9 | 分批并行启动（#87，START_PARALLEL 默认 2） | auth 恒先行（注册中心依赖）、gateway 恒收尾（路由表拉取最稳）、业务服务 2 个一批等健康 | 瘦身后余量足够（瞬态 +~300MB），**启动总时长约 -40%** |
 
 **历史教训（§2.1 修正）**：#62 的 commit message 与本文档曾声称服务 JVM 已加 SerialGC/-Xss512k，实际 diff 只改了 MAVEN_OPTS——服务 JVM 一直跑默认 G1（16 线程机每 JVM 的 G1 GC 线程组 + remembered sets 是小堆下的纯税）。文档断言「已落地」必须以 diff 为准，本次逐项核对后实装。
 
@@ -172,10 +175,10 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 
 | 方案 | 预期收益 | 暂缓原因 |
 |------|---------|---------|
-| AppCDS（JDK21 + Boot 3.3） | 启动 -30~40%，每 JVM 元空间 -30~50MB | Boot fat jar 的 LaunchedClassLoader 装载类不入档，需先 `-Djarmode=tools` 解包（9×~300MB 磁盘）+ 训练跑（需 PG 在跑）；本机 Docker 不稳期间无法验证，降级为后续项 |
 | spring.main.lazy-initialization | 启动提速、按需 bean | **不可用**：模块注册（ModuleRegistrar 启动注册）、@Scheduled（outbox relay/日志清理/路由刷新）、事件监听均依赖启动期初始化——lazy 会让服务不注册、不路由 |
 | 单进程 mono 模式（9 合 1 JVM） | 后端 ~3GB → ~1GB（最大单项） | 跨服务内部 HTTP（metadata→auth /internal、发布流水线、knowledge 沉淀）指向 localhost:808x，需端口内转发或客户端改造，侵入架构，需独立设计刀 |
-| H2 文件库 dev 模式（零 Docker） | 免 WSL2 整层（-2GB） | flyway 迁移虽 H2 兼容（测试已证），但丢失真实 PG/pgvector 语义；作为极端瘦身备选记录 |
+| H2 文件库 dev 模式（零 Docker） | 免 WSL2 整层（-2GB） | flyway 迁移虽 H2 兼容（测试已证），但 H2 文件库多进程共享需 AUTO_SERVER（Windows 不稳）+ 动态 DDL 生成器输出 PG 方言 + 丢失 pgvector 语义；作为极端瘦身备选记录 |
+| 业务服务 CDS 运行时实测 | 校准 §8.4 预算 | gateway（无 DB）已实测 -36%；业务服务训练需 PG 在跑，待 Docker 恢复后 dev-up 冒烟补数 |
 
 ### 8.4 瘦身后内存预算（16GB 机，full 9 服务 + 前端）
 
@@ -183,8 +186,14 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 |--------|--------|--------|
 | Windows 本体 + 常驻 | ~5GB | ~5GB |
 | WSL2（Docker+PG） | 4GB 预留 | 2GB 预留 |
-| 9 服务 JVM（SerialGC+Xss512k+直存封顶） | ~4.5-5.5GB | ~3.2-4GB |
+| 9 服务 JVM（SerialGC+Xss512k+直存封顶+CDS） | ~4.5-5.5GB | ~3.2-4GB（gateway 实测 174MB） |
 | Vite dev + node | ~0.5GB | ~0.5GB |
 | 构建（无改动启动已跳过） | 每次启动 +1~1.5GB 峰值 | 0（有改动才建） |
 | **合计（稳态）** | **14-16GB+（必崩）** | **~11-12GB（余量 3-4GB）** |
 | PROFILE=core 稳态 | — | **~9-10GB（余量 5GB+）** |
+
+启动时长（gateway 实测样本）：串行 9 服务基线 ~3.5-4 分钟 → 无改动跳过构建 + CDS（-36%/服务）+ 2 并发分批 ≈ **~1.5-2 分钟**；首次运行附加一次性训练 ~2.5-3 分钟。
+
+### 8.5 模块启动成本构成（代码级取证，#87）
+
+每个业务服务（~112MB fat jar）启动时各自装载：Tomcat + actuator/micrometer（OTLP+prometheus 双注册）+ MyBatis-Plus + flyway + springdoc/swagger-ui（启动即扫描全部 controller 建 OpenAPI 模型）+ nacos config/discovery 客户端 + rocketmq 客户端类（producer **lazy 实证**：volatile 双检锁首用才建，默认零开销）。gateway 为 WebFlux/Netty 无数据源，模块路由表从 auth HTTP 拉取（30s 轮询）。跨服务调用全部为 localhost:808x 直连 HTTP（AUTH_SERVICE_URI / openforge.module.service-uri / knowledge、ai base-url），是 mono 合并的结构障碍（§8.3）。

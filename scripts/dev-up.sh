@@ -5,6 +5,8 @@
 #       PROFILE=core ./scripts/dev-up.sh       # 预设子集（见下）——机器吃紧时优先
 #       SERVICES="auth metadata gateway" ...   # 自定义子集
 #       SKIP_BUILD=1 ...                       # 强制复用现有 jar（默认已按源码新旧自动判断）
+#       CDS=0 ...                              # 关闭 AppCDS 类共享（默认开；首次启动自动训练）
+#       START_PARALLEL=1 ...                   # 服务启动并发度（默认 2；auth 恒先行、gateway 恒收尾）
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(which java)")")")}"
@@ -32,6 +34,10 @@ if [ "${NACOS:-0}" = "1" ]; then
   docker compose -f "$ROOT/docker-compose.yml" --profile nacos up -d nacos
   export NACOS_ENABLED=true NACOS_ADDR=localhost:8848
   export NACOS_CONFIG_ENABLED=true   # B1：配置中心随 NACOS=1 一并启用（openforge-<svc>.yml 远程覆盖本地）
+else
+  # Nacos 关闭时清空 config import：optional:nacos: 即使 enabled=false 也会激活
+  # NacosConfigDataLoader（每服务 ~1s+ 无效连接尝试，CI 实证），blank = 完全跳过
+  export NACOS_CONFIG_IMPORT=""
 fi
 
 echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被锁） ==="
@@ -49,8 +55,8 @@ else
   echo "  源码未变，复用现有 jar（SKIP_BUILD=1 可强制）"
 fi
 
-echo "=== [3/4] 串行启动 Java 服务（等待健康后启动下一个） ==="
-# 依赖顺序：auth(取号/权限/模块注册中心) → 业务服务 → gateway
+echo "=== [3/4] 启动 Java 服务（auth 先行 → 业务服务 ${START_PARALLEL:-2} 并发 → gateway 收尾） ==="
+# 依赖顺序：auth(取号/权限/模块注册中心) → 业务服务 → gateway(路由表就绪后启动最稳)
 # PROFILE 预设（机器吃紧时的瘦身入口，A4 模块注册：不启动的服务不注册/不路由）：
 #   core = auth gateway metadata doc workflow  （主链路：登录/动态建模/文档/审批）
 #   lite = auth gateway                        （前端联调骨架）
@@ -65,21 +71,72 @@ case "${PROFILE:-full}" in
   lite) PRESET="auth gateway" ;;
   *)    PRESET="$SVC_ORDER" ;;
 esac
-for svc in ${SERVICES:-$PRESET}; do
+SVC_LIST=${SERVICES:-$PRESET}
+for svc in $SVC_LIST; do
   [ -z "${PORTS[$svc]}" ] && { echo "未知服务: $svc（可选: $SVC_ORDER）"; exit 1; }
 done
-for svc in ${SERVICES:-$PRESET}; do
-  nohup java $JVM_OPTS -jar "$ROOT/backend/openforge-$svc/target/openforge-$svc-0.1.0-SNAPSHOT.jar" \
-    > "/tmp/openforge-$svc.log" 2>&1 &
-  port=${PORTS[$svc]}
-  for i in $(seq 1 30); do
+
+# AppCDS（Boot 3.3 标准路径，性能画像 §8）：fat jar 的类经 LaunchedClassLoader 装载不入档，
+# 须先 -Djarmode=tools 解包到系统类路径 → onRefresh 训练跑（需 PG，本脚本时序已就绪）→
+# SharedArchiveFile 启动。任何一步失败静默降级为普通启动（失败模式=现状，无新增风险）。
+# 重建 jar 后（比解包目录新）自动重解包重训；解包产物在 target/cds/（mvn clean 会清掉）。
+run_one() {
+  local svc=$1
+  local jar_dir="$ROOT/backend/openforge-$svc/target"
+  local jar="$jar_dir/openforge-$svc-0.1.0-SNAPSHOT.jar"
+  local cds_dir="$jar_dir/cds"
+  local run_jar=$jar share=""
+  if [ "${CDS:-1}" = "1" ]; then
+    if [ ! -f "$cds_dir/.extracted" ] || [ "$jar" -nt "$cds_dir/.extracted" ]; then
+      rm -rf "$cds_dir"
+      (cd "$jar_dir" && "$JAVA_HOME/bin/java" -Djarmode=tools \
+        -jar openforge-$svc-0.1.0-SNAPSHOT.jar extract --destination cds >/dev/null 2>&1) \
+        && touch "$cds_dir/.extracted" || rm -rf "$cds_dir"
+    fi
+    if [ -f "$cds_dir/.extracted" ]; then
+      run_jar="$cds_dir/openforge-$svc-0.1.0-SNAPSHOT.jar"
+      local jsa="$cds_dir/app.jsa"
+      if [ ! -f "$jsa" ]; then
+        java $JVM_OPTS -XX:ArchiveClassesAtExit="$jsa" -Dspring.context.exit=onRefresh \
+          -jar "$run_jar" >> "/tmp/openforge-$svc.log" 2>&1 || rm -f "$jsa"
+      fi
+      [ -f "$jsa" ] && share="-XX:SharedArchiveFile=$jsa"
+    fi
+  fi
+  nohup java $JVM_OPTS $share -jar "$run_jar" > "/tmp/openforge-$svc.log" 2>&1 &
+}
+
+wait_health() {
+  local svc=$1 port=$2
+  for i in $(seq 1 45); do
     sleep 2
     if curl -s -m 2 "http://localhost:$port/actuator/health" 2>/dev/null | grep -q UP; then
-      echo "  $svc (:$port) UP"; break
+      echo "  $svc (:$port) UP"; return 0
     fi
-    [ "$i" = 30 ] && echo "  $svc (:$port) 未在 60s 内就绪，查看 /tmp/openforge-$svc.log"
   done
+  echo "  $svc (:$port) 未在 90s 内就绪，查看 /tmp/openforge-$svc.log"
+  return 0
+}
+
+# auth 恒先行（模块注册中心/权限/取号依赖）；gateway 恒收尾（路由表拉取最稳）
+FIRST=$(echo "$SVC_LIST" | tr ' ' '\n' | head -1)
+LAST=$(echo "$SVC_LIST" | tr ' ' '\n' | tail -1)
+MIDDLE=$(echo "$SVC_LIST" | tr ' ' '\n' | sed '1d;$d' | tr '\n' ' ')
+[ -n "$FIRST" ] && { run_one "$FIRST"; wait_health "$FIRST" "${PORTS[$FIRST]}"; }
+
+PAR="${START_PARALLEL:-2}"
+batch=()
+for svc in $MIDDLE; do
+  run_one "$svc"; batch+=("$svc")
+  if [ "${#batch[@]}" -ge "$PAR" ]; then
+    for b in "${batch[@]}"; do wait_health "$b" "${PORTS[$b]}"; done
+    batch=()
+  fi
 done
+for b in "${batch[@]}"; do wait_health "$b" "${PORTS[$b]}"; done
+if [ "$LAST" != "$FIRST" ]; then
+  run_one "$LAST"; wait_health "$LAST" "${PORTS[$LAST]}"
+fi
 
 echo "=== [4/4] 可选服务（手动执行） ==="
 echo "  AI:   cd ai && pip install -r requirements.txt && python -m uvicorn gateway.main:app --port 8001"
