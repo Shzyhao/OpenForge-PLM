@@ -1,7 +1,8 @@
 # OpenForge PLM 多智能体系统与 Loop Engineering 架构
 
 > Multi-Agent System (MAS) × Loop Engineering：OpenForge PLM 的开发与运行时功能验证体系
-> 版本：v1.0 ｜ 状态：设计稿 ｜ 更新日期：2026-08-23
+> 版本：v1.1 ｜ 状态：设计规格；核心已制度化落地——开发平面 Loop 全程实践（全部 PR 走 生成→验证→修正），
+> V2+ 确定性验证器 + PR 模板合并门 + 性能自检清单进 CONTRIBUTING（#63），性能画像 §6 映射 L1~L3 ｜ 更新日期：2026-09-03
 > 关联文档：《OpenForge-架构文档.md》（分层/低代码平台）、《OpenForge-开发文档.md》（功能/AI 中台/知识库）
 
 ---
@@ -123,7 +124,7 @@
 |-------|------|----------|--------------|
 | **Orchestrator(Dev)** | 需求分解、任务路由、进度管理、冲突协调；不写代码 | 任务看板、依赖图 | 任务级完成判据 |
 | **Spec-Agent** | 需求 → 技术方案 + **验收标准（测试大纲）**；调用元数据中心核对对象/接口是否存在 | 元数据中心、架构规则库 | 方案评审（人类 + Reviewer） |
-| **Coder-Agent ×N** | 按服务域克隆为多个实例：material-coder、workflow-coder、lowcode-coder、frontend-coder、ai-py-coder…；写代码/低代码元数据制品 | 代码库、脚手架、Formily/bpmn Schema 模板 | 编译 + 单测 + Lint |
+| **Coder-Agent ×N** | 按服务域克隆为多个实例：material-coder、workflow-coder、lowcode-coder、frontend-coder、ai-py-coder…；写代码/低代码元数据制品 | 代码库、脚手架、表单/流程 Schema 模板 | 编译 + 单测 + Lint |
 | **Reviewer-Agent** | 代码评审：架构依赖规则（架构文档 6.3）、安全编码规范、与既有风格一致性 | ArchUnit 报告、静态分析 | 评审清单全绿 |
 | **Verifier-Agent** | 测试生成与执行：由 Spec 的验收标准生成单测/E2E；维护测试资产 | 测试框架、测试环境 | 覆盖率门槛 + 用例通过 |
 | **SecOps-Agent** | 依赖漏洞扫描、密钥泄露检测、SQL 注入面、AI 出站脱敏检查 | Trivy、Gitleaks、自研规则 | 扫描零高危 |
@@ -339,7 +340,7 @@ Dispatcher(PDF/Office/CAD分流)
 
 | 组件 | 职责 | 技术落点 |
 |------|------|----------|
-| Agent Runtime | Agent 编排、状态机、L0 循环承载 | LangGraph（两平面同一套 runtime） |
+| Agent Runtime | Agent 编排、状态机、L0 循环承载 | LangGraph（设计选型；当前运行平面以 FastAPI 单 AI 网关承载，MAS 化随规模演进） |
 | Loop 控制器 | 预算声明/迭代计数/收敛判据/熔断升级 | Runtime 内中间件 + 独立策略服务 |
 | 工具网关 | 全部工具调用的唯一出口：鉴权、审计、限速、沙箱路由 | 自研（复用 SQL 安全网关的校验框架扩展为 Tool Safety Gateway） |
 | 上下文服务 | 元数据检索、知识 RAG、项目记忆召回 | 元数据中心 + 知识库（现有组件） |
