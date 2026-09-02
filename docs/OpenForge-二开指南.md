@@ -1,6 +1,6 @@
 # OpenForge 二次开发指南
 
-> 面向在 OpenForge 底座上构建自己系统的二开者 ｜ v1.0 ｜ 2026-08-28
+> 面向在 OpenForge 底座上构建自己系统的二开者 ｜ v1.1（按 v1.9.0 交付态校准）｜ 2026-09-03
 > 上游：《OpenForge-架构文档》《OpenForge-框架化路线》《OpenForge-F2动态对象运行时设计》《OpenForge-F2模块注册机制设计》
 
 ---
@@ -89,7 +89,8 @@ docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --pro
   （MyBatis-Plus 拦截器 + 动态表显式条件）→ 文件按 `tenant/{id}/` 前缀隔离；
 - 单租户/私有化部署：一切默认 0，行为与无租户版本一致；
 - 管理：`/api/v1/tenants`（`tenant:manage`）主档/启停/用户归属调整（重新登录生效）；
-- 尚未隔离：向量库标量过滤、AI 只读查询（见路线 C 域尾注）。
+- 向量检索租户隔离已交付（v1.7.0 #80：VectorStore 租户感知接口 + pgvector SQL 级过滤 +
+  行级拦截器双保险）；AI 只读查询的租户过滤随查询通道演进补齐。
 
 ## 6. AI 能力接入
 
@@ -101,7 +102,8 @@ docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --pro
 
 ## 7. 部署
 
-- **开发**：`./scripts/dev-up.sh`（SERVICES 可裁剪；NACOS=1 启注册中心）；
+- **开发**：`./scripts/dev-up.sh`（PROFILE=core|lite|full 预设裁剪；SERVICES 精确指定；
+  NACOS=1 启注册中心+配置中心；CDS=0 关闭类共享；无源码改动自动跳过构建——详见性能画像 §8）；
 - **生产 compose**：`cp .env.example .env` → `docker compose -f docker-compose.prod.yml up -d --build`
   （required 密钥缺省拒绝启动；服务经 MODULE_SERVICE_URI 自动路由）；
 - **K8s**：`deploy/helm/openforge`（values 清表驱动；helm lint 需在装有 helm 的环境执行）。

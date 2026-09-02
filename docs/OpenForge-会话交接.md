@@ -1,14 +1,14 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-08-30 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-09-01 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.9.0**（tag + GitHub Release；元数据 TTL 缓存 + 日志保留期清理——双技术债清偿） |
-| dev 最新 | 本地开发瘦身 #86（JVM 调优实装/构建智能跳过/PROFILE 预设，**未发版**） |
-| main vs dev | dev 领先 1 提交（#86），其余同步 |
+| dev 最新 | 本地开发瘦身二刀 #86+#87（JVM 调优实装/构建跳过/PROFILE 预设/**Nacos import 空载/AppCDS 实测 -36%/分批并行**，**未发版**） |
+| main vs dev | dev 领先 2 提交（#86+#87），其余同步 |
 | 工作区 | 干净，无在途 PR，远端分支仅 main/dev |
 | 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 |
 
@@ -39,6 +39,7 @@
 | #84 | 元数据 TTL 缓存（租户键/30s 可配/500 上界/afterCommit 驱逐）+ 日志保留期清理（180 天可配/分批 500） | v1.9.0 |
 | #85 | **v1.9.0 发布**（技术债清偿 → main + tag + Release + 回灌） | v1.9.0 |
 | #86 | 本地开发瘦身：#62 JVM 调优实装（曾只落 MAVEN_OPTS）+ 构建智能跳过 + PROFILE 预设 + yml 池变量化 + WSL 2GB | 未发版 |
+| #87 | 瘦身二刀：Nacos import 空载 + AppCDS（gateway 实测启动 -36%/3173 类共享，CDS=0 可关）+ START_PARALLEL=2 分批并行 | 未发版 |
 
 ## 关键架构决策（已实施）
 
@@ -52,8 +53,8 @@
 ## 下一步（按优先级）
 
 1. **Nacos 回路测试 Harness**（需 Docker 可用；已定位关键证据，见下）：CI 诊断实锤 publish true 但服务端未持久化（fetched=null + v1 HTTP "config data not exist"）；**主嫌疑=客户端 nacos-client 2.4.2 vs 服务端镜像 v2.3.2/v2.2.3 版本错配**。两处必修：① loop test 复用模式半残——NACOS_ADDR 提前 return 跳过配置发布与 NACOS_CONFIG_ENABLED 设置，复用路径必然失败；② `optional:nacos:` import 在 enabled=false 时并不跳过 loader，连接失败被吞成 "[Nacos Config] config is empty" WARN（真正兜底是 optional: 前缀）。排查路径：`NACOS=1 dev-up` 起 compose nacos（端口映射 8848/9848）→ SDK 探针验证 publish→get；若正常则怪癖锁定 CI host 网络模式，修法=改固定端口绑定替代 host 模式（客户端 +1000 推算 gRPC 端口需 9848 同号映射）
-2. **瘦身运行时实测 + AppCDS**（需 Docker）：#86 落地后 dev-up 冒烟（PROFILE=full/core 两档，`Get-Process java` 记 RSS 对照性能画像 §8.4 预算）；随后评估 AppCDS（Boot fat jar 需 -Djarmode=tools 解包 + 训练跑，见 §8.3）
-3. **单进程 mono 模式（9 合 1 JVM，-2GB 大项）/ H2 文件库 dev 模式**：需独立设计刀（跨服务内部 HTTP 指向 localhost:808x，需转发/客户端改造）
+2. **瘦身运行时冒烟**（需 Docker）：dev-up 全流程（首次含 CDS 训练 ~3 分钟）PROFILE=full/core 两档，`Get-Process java` 记 RSS 与启动时长对照性能画像 §8.4；业务服务 CDS 收益补录（gateway 已实测 -36%）
+3. **单进程 mono 模式（9 合 1 JVM，-2GB 大项）/ H2 文件库 dev 模式**：需独立设计刀（跨服务内部 HTTP 指向 localhost:808x，需转发/客户端改造；H2 多进程共享 AUTO_SERVER Windows 不稳 + DDL 生成器 PG 方言，见 §8.3）
 4. **连接器与行业模板包**：需外部场景输入
 
 ## 工程约定（全程遵守，遇新坑追加）
@@ -65,7 +66,7 @@
 5. **性能自检**：PR 模板合并门强制（内存上界/聚合下推/默认值显式/调度格式/环境画像），详见 docs/OpenForge-性能与容量画像.md §5
 6. Windows 注意：WSL2 `.wslconfig` **默认 2GB**（仅 PG；extras/rocketmq/nacos 场景 4GB，模板有注）；Docker Desktop 闪退（wsl.exe 0xc00000fd 栈溢出）处置=完整杀进程（Docker Desktop/com.docker.backend）后重启，必要时 `wsl --shutdown` 先行
 7. **文档断言「已落地」必须以 diff 为准**（#62 教训：commit message 称服务 JVM 已加 SerialGC/Xss512k，实际只落 MAVEN_OPTS，服务 JVM 跑了三版默认 G1——#86 才实装，见性能画像 §8.2）
-7. GitHub 间歇 502/startup_failure：空提交重触发 / close+reopen / 等待平台恢复；stacked PR 基分支被删连坐关闭 → rebase + 重建 PR
+8. GitHub 间歇 502/startup_failure：空提交重触发 / close+reopen / 等待平台恢复；stacked PR 基分支被删连坐关闭 → rebase + 重建 PR
 
 ## 已知技术债 / 遗留
 

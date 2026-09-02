@@ -27,7 +27,7 @@
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
 [![Status](https://img.shields.io/badge/status-v1.9.0-blue)]()
-[![Docs](https://img.shields.io/badge/docs-7%20documents-green)]()
+[![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
 </div>
@@ -48,7 +48,7 @@
 | 🤖 **内置 AI（非外挂）** | AI 中台统一接入多模型（GLM/Qwen/私有化 vLLM）：文档智能解析、BOM 智能清洗、变更影响分析、混合语义搜索、对话式 AI 助手 |
 | 💬 **AI 数据操作** | 自然语言 → 数据操作："帮我新增一个 45# 钢的法兰盘"。API 通道优先 + SQL 安全网关五层校验 + L1~L4 分级确认，AI 权限永远是用户权限的子集 |
 | 🧠 **自适应知识库** | 三层知识（系统元数据 / 业务知识 / 使用行为）：数据库结构变更自动同步为 AI 的"系统地图"；变更案例、项目复盘自动沉淀；反馈回流驱动检索与推荐持续进化 |
-| ⚙️ **流程定制化** | bpmn-js 可视化流程设计器 + Formily 低代码表单；会签/加签/驳回策略、超时处理、审批代理；流程包版本化 + 在途实例快照 + 灰度发布 |
+| ⚙️ **流程定制化** | 自研 SVG 画布可视化流程设计器（零依赖）+ 低代码表单/列表设计器；会签/加签/驳回策略、超时处理、审批代理；流程包版本化 + 在途实例快照 + 灰度发布 |
 | 🧱 **低代码平台** | 元数据驱动内核：七大设计器（对象/表单/列表/流程/规则/报表/集成）+ 动态对象运行时。新对象建模发布后，零代码获得 CRUD API 与可配置界面，AI 立即可查 |
 | 🤝 **多智能体 + Loop Engineering** | 开发平面（Agent 团队开发本系统）与运行平面（AI 功能 MAS 化）同构；所有智能体产出必须通过"生成→验证→修正"闭环，确定性验证优先，LLM 永不终审 |
 
@@ -82,9 +82,9 @@
 
 ## 🛠️ 技术栈
 
-**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（9 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project/metadata）+ openforge-common/security 公共库 + openforge-starter-web/data/security 起步依赖三件套 ｜ **AI** Python FastAPI + LangChain 生态 + 多模型接入（支持全私有化与离线降级） ｜ **存储** PostgreSQL / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
+**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（9 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project/metadata）+ openforge-common/security 公共库 + openforge-starter-web/data/security 起步依赖三件套 ｜ **AI** Python FastAPI + OpenAI 兼容协议多模型接入（GLM/Qwen/私有化 vLLM，支持全私有化与离线降级） ｜ **存储** PostgreSQL + pgvector / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
 
-## 🗺️ Roadmap（v1.0 + 权限专项 + 框架化 F1~F3 全部交付）
+## 🗺️ Roadmap（M1~M6 + 权限专项 + 框架化 F1~F3 + v1.4~v1.9.0 全部交付）
 
 | 里程碑 | 内容 | 状态 |
 |--------|------|------|
@@ -111,9 +111,10 @@
 ## 🚀 快速开始
 
 ```bash
-# 一键启动（依赖 + 9 个 Java 服务）
+# 一键启动（依赖 + 9 个 Java 服务；无源码改动自动跳过构建）
 ./scripts/dev-up.sh
-# NACOS=1 ./scripts/dev-up.sh   # 可选：启用 Nacos 服务注册（默认关闭）
+# PROFILE=core ./scripts/dev-up.sh     # 瘦身：仅主链路 5 服务（16GB 开发机推荐）
+# NACOS=1 ./scripts/dev-up.sh          # 可选：启用 Nacos 服务注册+配置中心（默认关闭）
 
 # AI 网关与前端（另开终端）
 cd ai && pip install -r requirements.txt && uvicorn gateway.main:app --port 8001
@@ -133,10 +134,10 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ## 🤝 参与贡献
 
-应用主体（M1~M6 + 权限专项 v1.1.0）与框架化 F1~F3 已交付，欢迎在以下方向参与：
+应用主体与框架化路线截至 v1.9.0 的各版均已交付（见上方 Roadmap），欢迎在以下方向参与：
 
-- 方向讨论：框架化路线剩余域（RocketMQ 事件总线、Nacos 配置中心、行业模板包）提出 Issue 讨论；
-- 早期共建：bpmn-js 流程设计器、Grafana 看板模板、ERP/MES 连接器、连接器与插件生态；
+- 方向讨论：后续路线（Milvus 向量库、行业模板包）提出 Issue 讨论；
+- 早期共建：ERP/MES 连接器、连接器与插件生态、安装初始化向导、i18n、文档站与在线 Demo；
 - 场景输入：分享你所在行业的 PLM 痛点与流程样本，帮助打磨低代码模板库。
 
 ## 📄 License
