@@ -7,8 +7,8 @@
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.9.0**（tag + GitHub Release；元数据 TTL 缓存 + 日志保留期清理——双技术债清偿） |
-| dev 最新 | 本地开发瘦身二刀 #86+#87（JVM 调优实装/构建跳过/PROFILE 预设/**Nacos import 空载/AppCDS 实测 -36%/分批并行**，**未发版**） |
-| main vs dev | dev 领先 2 提交（#86+#87），其余同步 |
+| dev 最新 | 瘦身二刀 #86+#87（JVM 调优实装/构建跳过/PROFILE/**Nacos 空载/AppCDS -36%/分批并行**）+ 测试 Nacos 关闭 #88 + 全文档对齐 #89（**未发版**） |
+| main vs dev | dev 领先 5 提交（#86~#89 + 交接文档），其余同步 |
 | 工作区 | 干净，无在途 PR，远端分支仅 main/dev |
 | 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 |
 
@@ -40,6 +40,8 @@
 | #85 | **v1.9.0 发布**（技术债清偿 → main + tag + Release + 回灌） | v1.9.0 |
 | #86 | 本地开发瘦身：#62 JVM 调优实装（曾只落 MAVEN_OPTS）+ 构建智能跳过 + PROFILE 预设 + yml 池变量化 + WSL 2GB | 未发版 |
 | #87 | 瘦身二刀：Nacos import 空载 + AppCDS（gateway 实测启动 -36%/3173 类共享，CDS=0 可关）+ START_PARALLEL=2 分批并行 | 未发版 |
+| #88 | 测试侧 Nacos 关闭：八服务 test yml 显式 enabled:false——消除 JVM 退出每上下文 ~10s 阻塞（CI 实证） | 未发版 |
+| #89 | 全文档对齐 v1.9.0 交付态：架构 v1.1/开发 v1.1/B2 已交付态/二开 v1.1/路线后交付表/MAS 落地标注/README 快速开始 | 未发版 |
 
 ## 关键架构决策（已实施）
 
