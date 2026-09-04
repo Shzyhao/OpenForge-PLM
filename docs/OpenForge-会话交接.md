@@ -7,10 +7,10 @@
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.9.0**（tag + GitHub Release；元数据 TTL 缓存 + 日志保留期清理——双技术债清偿） |
-| dev 最新 | 瘦身二刀 #86+#87（JVM 调优实装/构建跳过/PROFILE/**Nacos 空载/AppCDS -36%/分批并行**）+ 测试 Nacos 关闭 #88 + 全文档对齐 #89（**未发版**） |
-| main vs dev | dev 领先 7 提交（#86~#89 + 3 笔交接文档），其余同步 |
-| 工作区 | 干净，无在途 PR，远端分支仅 main/dev |
-| 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 |
+| dev 最新 | 瘦身两刀 #86/#87 + #88 测试 Nacos + #89 文档对齐 + **#90 冒烟修复**（动态路由首次真实生效/auth 自注册解锁，**未发版**） |
+| main vs dev | dev 领先 9 提交（#86~#90 + 交接文档），其余同步 |
+| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码已重置为 smoke-test-2026（本地 dev 库，首登强制改密） |
+| 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 + **9/9 业务域网关冒烟全绿（RSS 实测 1.86GB）** |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
@@ -42,6 +42,7 @@
 | #87 | 瘦身二刀：Nacos import 空载 + AppCDS（gateway 实测启动 -36%/3173 类共享，CDS=0 可关）+ START_PARALLEL=2 分批并行 | 未发版 |
 | #88 | 测试侧 Nacos 关闭：八服务 test yml 显式 enabled:false——消除 JVM 退出每上下文 ~10s 阻塞（CI 实证） | 未发版 |
 | #89 | 全文档对齐 v1.9.0 交付态：架构 v1.1/开发 v1.1/B2 已交付态/二开 v1.1/路线后交付表/MAS 落地标注/README 快速开始 | 未发版 |
+| #90 | 冒烟修复四处交付缺陷：路由缺 RefreshRoutesEvent（动态路由从未生效）/裸端口 URI/KERNEL 自注册被防劫持拒（metadata 连坐 BROKEN）/knowledge yml 重复键；RSS 实测 1.86GB 回写画像 | 未发版 |
 
 ## 关键架构决策（已实施）
 
@@ -68,6 +69,7 @@
 5. **性能自检**：PR 模板合并门强制（内存上界/聚合下推/默认值显式/调度格式/环境画像），详见 docs/OpenForge-性能与容量画像.md §5
 6. Windows 注意：WSL2 `.wslconfig` **默认 2GB**（仅 PG；extras/rocketmq/nacos 场景 4GB，模板有注）；Docker Desktop 闪退（wsl.exe 0xc00000fd 栈溢出）处置=完整杀进程（Docker Desktop/com.docker.backend）后重启，必要时 `wsl --shutdown` 先行
 7. **文档断言「已落地」必须以 diff 为准**（#62 教训：commit message 称服务 JVM 已加 SerialGC/Xss512k，实际只落 MAVEN_OPTS，服务 JVM 跑了三版默认 G1——#86 才实装，见性能画像 §8.2）
+8. **合并门前必须有真实网关链路冒烟**（#90 教训：MockMvc/Testcontainers 直连测不出网关动态路由/注册表链路缺陷——动态路由自 A4 交付以来从未真实生效，直到 #90 首次全链路冒烟才暴露；凡动网关/模块注册/路由，冒烟为合并门强制环节）
 8. GitHub 间歇 502/startup_failure：空提交重触发 / close+reopen / 等待平台恢复；stacked PR 基分支被删连坐关闭 → rebase + 重建 PR
 
 ## 已知技术债 / 遗留
