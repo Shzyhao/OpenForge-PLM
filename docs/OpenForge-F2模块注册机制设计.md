@@ -106,6 +106,9 @@ CREATE TABLE sys_module (
   `已注册模块声明的 routes` vs `实际生效路由` 比对，缺失则：
   ERROR 日志逐条列出（`route-missing: /api/v1/docs/** (module=doc)`）+
   health 上报 `DEGRADED`（details.modules.missing）——冒烟能一眼看见，不再依赖人点出来；
+  BROKEN 模块同样不再静默摘除：自检结果 `brokenModules` 携带原因
+  （`change (依赖未启用: workflow)`）进入 `GET /actuator/module-routes` 与
+  health details，网关侧 WARN `module-broken: ...`；
 - 停用模块的路由直接摘除（未注册前缀落 404，响应体携带
   `"module disabled: doc"` 语义，而非裸 404）。
 
@@ -113,6 +116,7 @@ CREATE TABLE sys_module (
 
 1. **注册时校验**：`dependencies` 引用的模块不存在或 DISABLED → 本模块标记 BROKEN，
    ERROR 日志 `module broken: change, missing dependency: workflow`；BROKEN 模块路由摘除；
+   依赖恢复自动回归 ENABLED 时 INFO 日志 `module recovered: ...`；
 2. **停用时反查**：停用模块前反查依赖方，存在 ENABLED 依赖方 → 拒绝
    （错误码 4020 MODULE_HAS_DEPENDENTS，语义对齐 ORG_HAS_CHILDREN 的既有惯例）；
    KERNEL 模块停用请求直接拒绝（4021 MODULE_KERNEL_IMMUTABLE）；

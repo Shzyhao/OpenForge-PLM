@@ -27,12 +27,14 @@ public class ModuleRoutesHealthIndicator implements ReactiveHealthIndicator {
     private Health build() {
         List<String> missing = refresher.getMissingRoutes();
         List<String> stale = refresher.getStaleModules();
-        boolean degraded = !missing.isEmpty() || !stale.isEmpty() || !refresher.isRegistryReachable()
-                || !refresher.isRefreshedOnce();
+        List<String> broken = refresher.getBrokenModules();
+        boolean degraded = !missing.isEmpty() || !stale.isEmpty() || !broken.isEmpty()
+                || !refresher.isRegistryReachable() || !refresher.isRefreshedOnce();
         Health.Builder builder = degraded ? Health.status("DEGRADED") : Health.up();
         return builder.withDetails(Map.of(
                         "routeMissing", missing,
                         "staleModules", stale,
+                        "brokenModules", broken,
                         "registryReachable", refresher.isRegistryReachable()))
                 .build();
     }
