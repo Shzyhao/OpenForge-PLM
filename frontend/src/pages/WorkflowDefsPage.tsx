@@ -80,7 +80,11 @@ export default function WorkflowDefsPage() {
       message.error(`定义解析失败：${parsed.error}`)
       return
     }
-    setPreview({ title: `${def.defKey} v${def.version} · ${def.name}`, flow: parsed.def })
+    // 旧定义无坐标 → 自动布局后再进画布（与 openEdit 同规则；否则节点全叠 (0,0) 仅 END 可见）
+    setPreview({
+      title: `${def.defKey} v${def.version} · ${def.name}`,
+      flow: parsed.def.nodes.some((n) => n.x === undefined) ? autoLayout(parsed.def) : parsed.def,
+    })
   }
 
   // Tab 切换时双向同步：设计器 ↔ JSON 文本
