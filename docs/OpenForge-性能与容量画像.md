@@ -178,7 +178,7 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 | spring.main.lazy-initialization | 启动提速、按需 bean | **不可用**：模块注册（ModuleRegistrar 启动注册）、@Scheduled（outbox relay/日志清理/路由刷新）、事件监听均依赖启动期初始化——lazy 会让服务不注册、不路由 |
 | 单进程 mono 模式（9 合 1 JVM） | 后端 ~3GB → ~1GB（最大单项） | 跨服务内部 HTTP（metadata→auth /internal、发布流水线、knowledge 沉淀）指向 localhost:808x，需端口内转发或客户端改造，侵入架构，需独立设计刀 |
 | H2 文件库 dev 模式（零 Docker） | 免 WSL2 整层（-2GB） | flyway 迁移虽 H2 兼容（测试已证），但 H2 文件库多进程共享需 AUTO_SERVER（Windows 不稳）+ 动态 DDL 生成器输出 PG 方言 + 丢失 pgvector 语义；作为极端瘦身备选记录 |
-| 业务服务 CDS 运行时实测 | 校准 §8.4 预算 | gateway（无 DB）已实测 -36%；业务服务训练需 PG 在跑，待 Docker 恢复后 dev-up 冒烟补数 |
+| 业务服务 CDS 运行时实测 | 校准 §8.4 预算 | **已实测（v1.11.0 会话）**：material 有/无 CDS 各两轮 A/B——墙钟 5.2s→5.1s，**收益仅 ~2-4%**（`-Xlog:cds` 确认 `Opened archive app.jsa` 真实生效，非静默降级）。结论：业务服务启动被 flyway/Hikari/模块注册外呼主导，类加载占比小；gateway（无 DB）-36% 反差即规律本身——**CDS 收益 ∝ 启动中类加载占比**。各服务 app.jsa ~16MB 磁盘，保留（无害）但不必再为其调优 |
 
 ### 8.4 瘦身后内存预算（16GB 机，full 9 服务 + 前端）
 
@@ -195,6 +195,11 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 **运行时实测（2026-09-04 首次真实全链路冒烟，v1.9.0 + 瘦身两刀）**：9 服务 RSS 合计 **1.86GB**
 （单服务 188~211MB——SerialGC+Xss512k 直存封顶后单服务较原 G1 画像 400MB+ 减半以上），
 预算表 3.2-4GB 偏保守，实际余量更大。auth 修复重启后 8 服务 CDS 档案启动全程生效。
+
+**复现实测（2026-09-05 v1.11.0 冒烟，#92/#93/#94 合并后 dev）**：9 服务 RSS 合计 **1.87GB**
+（含 Windows javapath 启动垫片 9×8MB≈72MB，净 JVM ~1.8GB）——基线复现成立。单服务 Spring
+boot 时长 2.0~2.8s（CDS on）。同窗 nacos 容器（v2.4.3，~0.7GB）随 NACOS=1 场景叠加时
+`.wslconfig` 需 4GB（模板已注），全栈+浏览器峰值 commit ~16-17GB 贴上限，PROFILE=core 错峰可避。
 
 启动时长（gateway 实测样本）：串行 9 服务基线 ~3.5-4 分钟 → 无改动跳过构建 + CDS（-36%/服务）+ 2 并发分批 ≈ **~1.5-2 分钟**；首次运行附加一次性训练 ~2.5-3 分钟。
 
