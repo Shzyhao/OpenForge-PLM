@@ -23,12 +23,14 @@
 > v1.9.0（性能与运维双技术债）：发布元数据 TTL 缓存——动态 CRUD 每请求 2 次元数据查询清偿（租户键/30s 可配/500 上界/发布事务 afterCommit 驱逐）；登录与审计日志保留期清理——无界增长清偿（180 天可配/每日调度/分批选删）。
 >
 > v1.10.0（瘦身与冒烟修复）：本地开发瘦身两刀——9 服务稳态内存实测 1.86GB、启动 ~4 分钟→~2 分钟（JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS/Nacos 空载跳过/分批并行）；**首次真实全链路冒烟修复四处交付缺陷**——网关动态路由自此真实生效、auth 自注册解锁（对象建模域修复）；全文档对齐 v1.9.0 交付态。
+>
+> v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块静默摘除可观测性——module-routes 端点/健康详情暴露 brokenModules 与原因（依赖未启用: xxx）、auth 守护日志 module broken/recovered 落地；Nacos 回路测试修复——publish 读可见性竞态实锤（退避重试）、复用模式补发布、容器模式固定端口、八服务测试 import 空载消除、镜像 v2.4.3、**CI 常开合并门**；流程设计器只读预览遗留定义坐标兜底（浏览器级冒烟实锤）；全栈冒烟复测 RSS 1.87GB + 网关链路 8/8 域 + 业务服务 CDS A/B 校准（收益 ~2-4%）入册。
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.10.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.11.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -108,8 +110,9 @@
 | 可视化设计器 v1.8.0 | 流程可视化设计器(自研 SVG 画布零依赖：拖拽/连线/属性面板/自动布局/JSON 双向同步/只读预览/客户端校验镜像引擎) / 节点坐标随定义 JSON 持久化 | ✅ |
 | 技术债清偿 v1.9.0 | 元数据 TTL 缓存(租户键/30s 可配/500 上界/发布 afterCommit 驱逐) / 登录审计日志保留期(180 天可配/每日调度/分批 500 选删) | ✅ |
 | 瘦身与冒烟修复 v1.10.0 | 本地开发瘦身(JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS 实测 -36%/9 服务 RSS 实测 1.86GB) / **首次真实网关冒烟修复四处交付缺陷**(动态路由 RefreshRoutesEvent/裸端口 URI/KERNEL 自注册豁免/yml 重复键) / 全文档对齐交付态 | ✅ |
+| 可观测性与 Nacos 回路 v1.11.0 | BROKEN 模块可观测性(module-routes/health 暴露 brokenModules 与原因/守护日志落地) / Nacos 回路测试修复+CI 常开(读可见性竞态退避重试/复用模式补发布/固定端口容器/import 空载消除/镜像 v2.4.3) / 设计器预览遗留定义坐标兜底 / CDS 业务服务 A/B 校准(~2-4%) | ✅ |
 
-**后续路线**：Milvus 向量库、Nacos 回路测试 Harness、ERP/MES 连接器、行业模板包。
+**后续路线**：mono 单进程模式、ERP/MES 连接器、行业模板包、Milvus/Neo4j/ES 随规模引入。
 
 ## 🚀 快速开始
 
