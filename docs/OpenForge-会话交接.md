@@ -7,8 +7,9 @@
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.9.0**（tag + GitHub Release；元数据 TTL 缓存 + 日志保留期清理——双技术债清偿） |
-| dev 最新 | 瘦身两刀 #86/#87 + #88 测试 Nacos + #89 文档对齐 + **#90 冒烟修复**（动态路由首次真实生效/auth 自注册解锁，**未发版**） |
-| main vs dev | dev 领先 9 提交（#86~#90 + 交接文档），其余同步 |
+| 最新发布版 | **v1.10.0**（tag + GitHub Release；本地开发瘦身 + 首次真实冒烟修复——动态路由自此生效） |
+| dev 最新 | 无未发版功能提交 |
+| main vs dev | 完全同步（v1.10.0 发布 PR #91 + 回灌 fast-forward；交接文档随会话更新） |
 | 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码已重置为 smoke-test-2026（本地 dev 库，首登强制改密） |
 | 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 + **9/9 业务域网关冒烟全绿（RSS 实测 1.86GB）** |
 
@@ -42,7 +43,8 @@
 | #87 | 瘦身二刀：Nacos import 空载 + AppCDS（gateway 实测启动 -36%/3173 类共享，CDS=0 可关）+ START_PARALLEL=2 分批并行 | 未发版 |
 | #88 | 测试侧 Nacos 关闭：八服务 test yml 显式 enabled:false——消除 JVM 退出每上下文 ~10s 阻塞（CI 实证） | 未发版 |
 | #89 | 全文档对齐 v1.9.0 交付态：架构 v1.1/开发 v1.1/B2 已交付态/二开 v1.1/路线后交付表/MAS 落地标注/README 快速开始 | 未发版 |
-| #90 | 冒烟修复四处交付缺陷：路由缺 RefreshRoutesEvent（动态路由从未生效）/裸端口 URI/KERNEL 自注册被防劫持拒（metadata 连坐 BROKEN）/knowledge yml 重复键；RSS 实测 1.86GB 回写画像 | 未发版 |
+| #90 | 冒烟修复四处交付缺陷：路由缺 RefreshRoutesEvent（动态路由从未生效）/裸端口 URI/KERNEL 自注册被防劫持拒（metadata 连坐 BROKEN）/knowledge yml 重复键；RSS 实测 1.86GB 回写画像 | v1.10.0 |
+| #91 | **v1.10.0 发布**（瘦身 + 冒烟修复 → main + tag + Release + 回灌） | v1.10.0 |
 
 ## 关键架构决策（已实施）
 
@@ -55,7 +57,8 @@
 
 ## 下一步（按优先级）
 
-1. **Nacos 回路测试 Harness**（需 Docker 可用；已定位关键证据，见下）：CI 诊断实锤 publish true 但服务端未持久化（fetched=null + v1 HTTP "config data not exist"）；**主嫌疑=客户端 nacos-client 2.4.2 vs 服务端镜像 v2.3.2/v2.2.3 版本错配**。两处必修：① loop test 复用模式半残——NACOS_ADDR 提前 return 跳过配置发布与 NACOS_CONFIG_ENABLED 设置，复用路径必然失败；② `optional:nacos:` import 在 enabled=false 时并不跳过 loader，连接失败被吞成 "[Nacos Config] config is empty" WARN（真正兜底是 optional: 前缀）。排查路径：`NACOS=1 dev-up` 起 compose nacos（端口映射 8848/9848）→ SDK 探针验证 publish→get；若正常则怪癖锁定 CI host 网络模式，修法=改固定端口绑定替代 host 模式（客户端 +1000 推算 gRPC 端口需 9848 同号映射）
+1. **v1.11.0 候选**：无在途功能——候选内容见「已评估暂缓」（mono/AppCDS 业务服务实测）或等新需求输入
+2. **Nacos 回路测试 Harness**（需 Docker 可用；已定位关键证据，见下）：CI 诊断实锤 publish true 但服务端未持久化（fetched=null + v1 HTTP "config data not exist"）；**主嫌疑=客户端 nacos-client 2.4.2 vs 服务端镜像 v2.3.2/v2.2.3 版本错配**。两处必修：① loop test 复用模式半残——NACOS_ADDR 提前 return 跳过配置发布与 NACOS_CONFIG_ENABLED 设置，复用路径必然失败；② `optional:nacos:` import 在 enabled=false 时并不跳过 loader，连接失败被吞成 "[Nacos Config] config is empty" WARN（真正兜底是 optional: 前缀）。排查路径：`NACOS=1 dev-up` 起 compose nacos（端口映射 8848/9848）→ SDK 探针验证 publish→get；若正常则怪癖锁定 CI host 网络模式，修法=改固定端口绑定替代 host 模式（客户端 +1000 推算 gRPC 端口需 9848 同号映射）
 2. **瘦身运行时冒烟**（需 Docker）：dev-up 全流程（首次含 CDS 训练 ~3 分钟）PROFILE=full/core 两档，`Get-Process java` 记 RSS 与启动时长对照性能画像 §8.4；业务服务 CDS 收益补录（gateway 已实测 -36%）
 3. **单进程 mono 模式（9 合 1 JVM，-2GB 大项）/ H2 文件库 dev 模式**：需独立设计刀（跨服务内部 HTTP 指向 localhost:808x，需转发/客户端改造；H2 多进程共享 AUTO_SERVER Windows 不稳 + DDL 生成器 PG 方言，见 §8.3）
 4. **连接器与行业模板包**：需外部场景输入
