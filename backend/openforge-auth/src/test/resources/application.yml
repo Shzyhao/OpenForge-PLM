@@ -1,6 +1,6 @@
 spring:
   config:
-    import: ${NACOS_CONFIG_IMPORT:optional:nacos:openforge-auth.yml}   # 保留：NacosConfigCenterLoopTest 经 NACOS_CONFIG_ENABLED=true 激活
+    import: ${NACOS_CONFIG_IMPORT:}   # 怪癖修复（B1）：enabled=false 不拦截 loader——blank import 才彻底跳过；NacosConfigCenterLoopTest 经 NACOS_CONFIG_IMPORT 显式打开
   cloud:
     nacos:
       config:

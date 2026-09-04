@@ -22,6 +22,10 @@ jobs:
           cache: maven
       - name: Build & Test
         run: mvn -B -ntp verify
+        env:
+          # B1 Nacos 回路测试常开（合并门）：v2.4.3 服务端对齐 + 固定端口容器模式修复后，
+          # 从 NACOS_LOOP_TEST 挂门等待专项排查转为随 CI 回归
+          NACOS_LOOP_TEST: "true"
 
   frontend:
     name: Frontend (Node 20)
