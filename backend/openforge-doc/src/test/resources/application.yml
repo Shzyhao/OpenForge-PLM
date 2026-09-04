@@ -1,6 +1,6 @@
 spring:
   config:
-    import: ${NACOS_CONFIG_IMPORT:optional:nacos:openforge-doc.yml}   # 保留开关式 import：回路测试经 NACOS_CONFIG_ENABLED=true 激活
+    import: ${NACOS_CONFIG_IMPORT:}   # 怪癖修复（B1）：enabled=false 不拦截 NacosConfigDataLoader（空载连接 ~1s/上下文，CI 实证）——blank import 才彻底跳过；回路测试经 NACOS_CONFIG_IMPORT 显式打开
   cloud:
     nacos:
       config:

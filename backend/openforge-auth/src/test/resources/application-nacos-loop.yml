@@ -1,0 +1,6 @@
+# NacosConfigCenterLoopTest 专用 profile：以 yml 级声明 nacos config import。
+# 不并入 application.yml（test yml 的 import 默认值已翻空以消除常规测试的
+# NacosConfigDataLoader 空载激活）；profile 仅由该测试类激活。
+spring:
+  config:
+    import: optional:nacos:openforge-auth.yml
