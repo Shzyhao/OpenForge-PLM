@@ -72,6 +72,18 @@ class ModuleRoutePlanTest {
     }
 
     @Test
+    @DisplayName("裸端口 serviceUri（本地描述符默认）→ 自动拼 http://127.0.0.1:端口")
+    void barePortServiceUriResolvesToLocal() {
+        var plan = ModuleRoutePlan.compute(List.of(
+                view("material", "BUSINESS", "ENABLED",
+                        List.of("/api/v1/parts"), "8082", NOW.minusSeconds(30))),
+                NOW);
+        assertThat(plan.definitions()).hasSize(1);
+        assertThat(plan.definitions().get(0).getUri().toString())
+                .isEqualTo("http://127.0.0.1:8082");
+    }
+
+    @Test
     @DisplayName("启用但无服务地址 → 自检 route-missing 报缺失")
     void missingServiceUriReported() {
         var plan = ModuleRoutePlan.compute(List.of(

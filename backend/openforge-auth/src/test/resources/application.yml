@@ -1,6 +1,15 @@
 spring:
   config:
-    import: ${NACOS_CONFIG_IMPORT:optional:nacos:openforge-auth.yml}   # 与主 yml 同步：nacos-config 在 classpath 时缺 import 即启动失败
+    import: ${NACOS_CONFIG_IMPORT:optional:nacos:openforge-auth.yml}   # 保留：NacosConfigCenterLoopTest 经 NACOS_CONFIG_ENABLED=true 激活
+  cloud:
+    nacos:
+      config:
+        # test yml 整体遮蔽主 yml，enabled:false 默认值随之丢失——nacos 客户端在所有测试
+        # 上下文实例化，JVM 退出时每上下文 destroy 阻塞 ~10s（CI 曾拖满 surefire 30s 强杀）
+        enabled: ${NACOS_CONFIG_ENABLED:false}
+        server-addr: ${NACOS_ADDR:localhost:8848}
+      discovery:
+        enabled: ${NACOS_ENABLED:false}
   datasource:
     url: jdbc:h2:mem:authtest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     username: sa
