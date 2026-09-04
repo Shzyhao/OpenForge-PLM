@@ -47,6 +47,34 @@ class ModuleRoutePlanTest {
                 NOW);
         assertThat(plan.definitions()).isEmpty();
         assertThat(plan.missingRoutes()).isEmpty();
+        assertThat(plan.brokenModules()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("BROKEN 不再静默摘除：进自检结果并带原因（依赖未启用: xxx）")
+    void brokenModulesReportedWithReason() {
+        var plan = ModuleRoutePlan.compute(List.of(
+                view("workflow", "BUSINESS", "DISABLED",
+                        List.of("/api/v1/workflows"), "http://localhost:8084", NOW.minusSeconds(10)),
+                new ModuleRoutePlan.ModuleView("change", "BUSINESS", "BROKEN",
+                        List.of("/api/v1/changes"), "http://localhost:8085", NOW.minusSeconds(10),
+                        List.of("workflow"))),
+                NOW);
+        assertThat(plan.definitions()).isEmpty();
+        assertThat(plan.missingRoutes()).isEmpty();
+        assertThat(plan.brokenModules()).singleElement()
+                .satisfies(b -> assertThat(b).contains("change").contains("依赖未启用: workflow"));
+    }
+
+    @Test
+    @DisplayName("BROKEN 但视图内依赖已全部启用 → 仍上报（无未启用依赖的兜底描述）")
+    void brokenWithoutUnsatisfiedDependencyStillReported() {
+        var plan = ModuleRoutePlan.compute(List.of(
+                view("change", "BUSINESS", "BROKEN",
+                        List.of("/api/v1/changes"), "http://localhost:8085", NOW.minusSeconds(10))),
+                NOW);
+        assertThat(plan.brokenModules()).singleElement()
+                .satisfies(b -> assertThat(b).contains("change").contains("依赖未满足"));
     }
 
     @Test
