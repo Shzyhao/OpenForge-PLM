@@ -1,7 +1,7 @@
 # OpenForge PLM 系统开发文档
 
 > OpenForge PLM ｜ 开源 · AI 原生 · 产品全生命周期管理系统（Product Lifecycle Management）
-> 版本：v1.0 ｜ 状态：设计稿 ｜ 更新日期：2026-08-23
+> 版本：v1.1 ｜ 状态：设计稿（技术选型/流程模型/数据库设计已按 v1.9.0 交付实现校准）｜ 更新日期：2026-09-03
 
 ---
 
@@ -57,21 +57,21 @@
 
 | 层次 | 技术 | 选型理由 |
 |------|------|----------|
-| 前端 | React 18 + TypeScript + Ant Design + Zustand | 企业级组件丰富，生态成熟 |
-| 流程/表单设计器 | bpmn-js + Formily（自研封装） | BPMN 2.0 标准 + 低代码表单 |
+| 前端 | React 18 + TypeScript + Ant Design 5 + ECharts | 企业级组件丰富，生态成熟 |
+| 流程/表单设计器 | 自研 SVG 画布流程设计器 + 表单/列表界面设计器（零依赖） | 引擎为自有 JSON 定义，避免 BPMN XML 映射层与第三方内核依赖 |
 | 后端框架 | Java 21 + Spring Boot 3.x（微服务，Spring Cloud Alibaba） | 制造业 PLM 主流栈，事务成熟 |
-| AI 编排 | Python 3.12 + LangChain/LangGraph | AI 生态最完善 |
+| AI 编排 | Python 3.12 + FastAPI（OpenAI 兼容协议接入多模型） | 轻量可控，模型可插拔 |
 | 大模型 | 支持多模型接入：GLM / Qwen / GPT 兼容 OpenAI 协议，支持私有化部署 | 灵活切换，数据不出域可选 |
-| 向量数据库 | Milvus（主）+ PostgreSQL/pgvector（轻量场景） | 开源、可水平扩展 |
-| 图数据库 | Neo4j | 知识图谱、影响分析 |
+| 向量数据库 | PostgreSQL/pgvector（当前）+ Milvus（路线，千万级） | 开源、可水平扩展 |
+| 图数据库 | Neo4j（路线） | 知识图谱、影响分析 |
 | 主数据库 | PostgreSQL 16 | JSON 支持好，扩展性强 |
-| 缓存/消息 | Redis + RocketMQ | 缓存、分布式锁、事件驱动 |
-| 对象存储 | MinIO / S3 兼容存储 | 存放 CAD 文件、附件 |
-| 搜索引擎 | Elasticsearch | 全文检索 + 向量混合检索 |
-| 文件预览 | OnlyOffice / LibreOffice headless | Office 文档在线预览编辑 |
-| CAD 解析 | CADConverter 服务（ Parasolid/OCC 内核二次封装） | 解析 BOM 结构、缩略图提取 |
-| 容器化 | Docker + Kubernetes + Helm | 弹性伸缩、灰度发布 |
-| 可观测性 | Prometheus + Grafana + Loki + SkyWalking | 指标、日志、链路追踪 |
+| 缓存/消息 | RocketMQ（事件总线，默认关闭）+ Redis（路线） | 缓存、分布式锁、事件驱动 |
+| 对象存储 | MinIO / S3 兼容存储（规划，当前本地磁盘） | 存放 CAD 文件、附件 |
+| 搜索引擎 | Elasticsearch（路线） | 全文检索 + 向量混合检索 |
+| 文件预览 | OnlyOffice / LibreOffice headless（规划） | Office 文档在线预览编辑 |
+| CAD 解析 | CADConverter 服务（ Parasolid/OCC 内核二次封装）（规划） | 解析 BOM 结构、缩略图提取 |
+| 容器化 | Docker Compose + Helm 骨架；Kubernetes（路线） | 弹性伸缩、灰度发布 |
+| 可观测性 | Prometheus + Grafana（已交付）；Loki + SkyWalking（路线） | 指标、日志、链路追踪 |
 
 ---
 
@@ -86,7 +86,7 @@
 │                          前端层（Web Browser）                        │
 │   React SPA：工作台 / 物料BOM / 文档 / 变更 / 项目 / 知识库 / 流程设计器  │
 └──────────────────────────────┬──────────────────────────────────────┘
-                               │ HTTPS / WebSocket / SSE
+                               │ HTTPS（REST API）
 ┌──────────────────────────────▼──────────────────────────────────────┐
 │                       接入层（API Gateway）                           │
 │         认证鉴权（JWT+RBAC）/ 限流 / 路由 / 灰度 / 审计日志            │
@@ -111,7 +111,7 @@
 │  │ 文档解析 │ BOM清洗 │ 影响分析│  │              └───────────────────────┘
 │  │ 语义搜索 │ AI助手  │ 智能审批│  │
 │  ├────────────────────────────┤  │
-│  │  Agent 编排（LangGraph）    │  │
+│  │  Agent 编排                 │  │
 │  └────────────────────────────┘  │
 └──────────────────────────────────┘
 ```
@@ -120,23 +120,22 @@
 
 | 服务 | 职责 | 关键依赖 |
 |------|------|----------|
-| plm-gateway | 统一入口、认证、限流、路由 | Redis |
-| plm-auth | 用户、组织、角色、RBAC/ABAC 权限 | PostgreSQL |
-| plm-material | 物料主数据、BOM 管理、替代料 | PostgreSQL, MinIO |
-| plm-doc | 文档库、版本、检入检出、审批态 | MinIO, OnlyOffice |
-| plm-change | ECR/ECO/ECN 变更全流程 | 流程引擎, AI 中台 |
-| plm-project | 项目、WBS、任务、里程碑 | 流程引擎 |
-| plm-workflow | 流程定义/实例/任务，可视化设计器后端 | PostgreSQL, RocketMQ |
-| plm-knowledge | 知识库、RAG 管道、图谱构建、**系统元数据同步（Schema 感知）** | Milvus, Neo4j, ES, PostgreSQL |
-| plm-ai（Python） | LLM 接入、Prompt 管理、Agent、工具调用、**数据操作代理（Text-to-SQL + SQL 安全网关）** | 全部业务服务、元数据服务 |
-| plm-search | 混合检索（关键词+向量） | ES, Milvus |
-| plm-notify | 站内信、邮件、Webhook | RocketMQ |
-| plm-preview | 文档在线预览、CAD 转换 | MinIO, LibreOffice |
+| openforge-gateway | 统一入口、认证、限流、路由 | 无（WebFlux/Netty） |
+| openforge-auth | 用户、组织、角色、RBAC/ABAC 权限、租户、模块注册表 | PostgreSQL |
+| openforge-material | 物料主数据、BOM 管理、替代料 | PostgreSQL |
+| openforge-doc | 文档库、版本、检入检出、审批态 | PostgreSQL（本地磁盘存储；MinIO/OnlyOffice 规划） |
+| openforge-change | ECR/ECO/ECN 变更全流程 | 流程引擎, AI 中台 |
+| openforge-project | 项目、WBS、任务、里程碑 | 流程引擎 |
+| openforge-workflow | 流程定义/实例/任务，可视化设计器后端 | PostgreSQL, RocketMQ |
+| openforge-knowledge | 知识库、RAG 管道、**系统元数据同步（Schema 感知）** | PostgreSQL + pgvector（Milvus/Neo4j/ES 规划） |
+| openforge-metadata | 动态对象运行时：建模→发布→DDL/权限点/AI 登记→动态 CRUD | PostgreSQL |
+| ai-gateway（Python） | LLM 接入、文档解析、**数据操作代理（Text-to-SQL + SQL 安全网关）** | 全部业务服务、元数据服务 |
+| search/notify/preview（规划，未建） | 混合检索、消息通知、文档在线预览/CAD 转换 | ES, RocketMQ, LibreOffice |
 
 ### 2.3 关键设计原则
 
-1. **AI 作为基础设施**：AI 能力通过中台网关以 REST/SSE 接口提供，业务服务不直接调用大模型，便于统一计费、审计、降级；
-2. **事件驱动**：跨服务通信一律走 RocketMQ 事件（如 `change.released`、`doc.checked_in`），知识库订阅这些事件自动沉淀知识；
+1. **AI 作为基础设施**：AI 能力通过中台网关以 REST 接口提供（SSE 流式为规划），业务服务不直接调用大模型，便于统一计费、审计、降级；
+2. **事件驱动**：跨域协作走 RocketMQ 事件总线（如 `change.released`、`doc.checked_in`；默认关闭时回退同步 HTTP），知识库订阅这些事件自动沉淀知识；
 3. **数据不可变审计**：物料、BOM、文档的所有变更保留全量历史（版本链 + 审计表）；
 4. **降级可用**：AI 中台故障时，所有业务主流程可关闭 AI 增强功能正常运行（熔断开关）；
 5. **多租户可选**：数据层预留 `tenant_id` 字段，支持 SaaS 化部署；
@@ -257,7 +256,7 @@ ECR（变更申请）──评审通过──▶ ECO（变更执行）──执�
 AI 能力独立成 Python 服务域，所有 LLM 调用收口到 AI 网关，实现：多模型路由、Prompt 版本管理、Token 计量、审计、限流、熔断降级。
 
 ```
-业务服务 ──REST/SSE──▶ AI 网关 ──▶ 模型适配层 ──▶ GLM / Qwen / GPT / 本地vLLM
+业务服务 ──REST──▶ AI 网关 ──▶ 模型适配层 ──▶ GLM / Qwen / GPT / 本地vLLM
                         │
                         ├── Prompt 仓库（版本化，A/B 测试）
                         ├── 语义缓存（相同问题命中缓存直接返回，省 Token）
@@ -347,7 +346,7 @@ Excel BOM 导入是最高频的数据入口，AI 清洗管道：
 
 ### 4.6 AI 助手（对话式 Agent）
 
-侧边栏常驻 AI 助手，基于 LangGraph Agent 架构，可调用工具：
+侧边栏常驻 AI 助手，可调用工具：
 
 | 工具 | 能力 |
 |------|------|
@@ -657,7 +656,7 @@ AI 生成 SQL 执行失败或被用户修正时，失败原因（表名错、关
 
 业务人员（非开发人员）通过可视化界面完成：
 
-- 绘制审批/业务流程（BPMN 子集 + PLM 扩展节点）；
+- 绘制审批/业务流程（结构化 JSON 定义：节点+边，自研 SVG 画布）；
 - 自定义表单（拖拽式低代码表单）；
 - 配置流转规则（条件分支、会签、加签、超时处理）；
 - 版本管理流程定义，新旧版本平滑切换。
@@ -666,10 +665,10 @@ AI 生成 SQL 执行失败或被用户修正时，失败原因（表名错、关
 
 ```
 ┌──────────────── 前端设计器 ────────────────┐
-│ 流程设计器(bpmn-js定制) + 表单设计器(Formily) │
+│ 流程设计器(自研SVG画布) + 表单/列表界面设计器 │
 │ + 规则配置面板(条件/超时/通知)                │
 └──────────────────┬─────────────────────────┘
-                   │ 保存流程包(流程XML+表单Schema+规则JSON)
+                   │ 保存流程包(定义JSON+表单Schema+规则JSON)
 ┌──────────────────▼─────────────────────────┐
 │ 流程引擎服务 (自研，参考 Flowable 精简内核)     │
 │ ├─ 定义仓库：流程包版本化存储                  │
@@ -686,6 +685,8 @@ AI 生成 SQL 执行失败或被用户修正时，失败原因（表名错、关
 ```
 
 ### 6.3 流程模型（节点类型）
+
+> 当前已交付子集：开始/审批（会签·或签·驳回回退）/条件（`rules[].to` 表达式路由）/结束四类节点（`frontend/src/flow/flowModel.ts`）；下表服务/AI/并行/包容/子流程/等待节点为规划扩展。
 
 | 节点类型 | 说明 |
 |----------|------|
@@ -705,13 +706,11 @@ AI 生成 SQL 执行失败或被用户修正时，失败原因（表名错、关
 - 驳回到上一节点 / 驳回到发起人 / 驳回到指定节点；
 - 驳回后重新提交：从驳回点继续（保留已审记录）/ 重新走全流程（可配置）。
 
-### 6.4 表单设计器
+### 6.4 表单/列表设计器
 
-- 基于 Formily 的拖拽设计器：布局容器（栅格/卡片/表格）+ 30+ 基础组件（输入、选择、日期、人员选择器、物料选择器、附件、子表单）；
-- 字段绑定数据源（物料分类、部门树、字典）；
-- 校验规则可视化配置（必填、正则、联动显隐、跨字段校验）；
-- 表单 Schema（JSON）与流程定义解耦，可复用（同一表单挂到多个流程）；
-- 业务对象字段注入：表单可引用上下文对象（如 ECR 的受影响物料列表，只读渲染）。
+- 界面设计器（零依赖，#49 交付）：对已发布对象的界面做布局定制——字段顺序/显隐/标签/列宽，产出布局制品随对象元数据存储；
+- 动态数据页按元数据自动渲染表格与表单（动态对象运行时，见二开指南路径一）；
+- 拖拽式自由表单设计器（栅格/卡片/子表单、数据源绑定、联动校验配置）为规划扩展。
 
 ### 6.5 流程定义生命周期
 
@@ -873,46 +872,51 @@ CREATE TABLE change_notice (                       -- ECN
 ### 7.4 流程引擎
 
 ```sql
-CREATE TABLE workflow_def (                        -- 流程定义（版本化流程包）
-    id           BIGINT PRIMARY KEY,
-    def_key      VARCHAR(64) NOT NULL,             -- 业务标识如 part-release
+CREATE TABLE workflow_def (                        -- 流程定义（版本化）
+    id           BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    def_key      VARCHAR(64)  NOT NULL,            -- 业务标识如 part-release
     name         VARCHAR(128) NOT NULL,
-    version      INT NOT NULL,
-    status       VARCHAR(20) NOT NULL,             -- DRAFT/PUBLISHED/RETIRED
-    bpmn_xml     TEXT NOT NULL,
-    form_schema  JSONB,                            -- 关联表单Schema
-    rule_config  JSONB,                            -- 超时/通知/驳回策略
-    gray_config  JSONB,                            -- 灰度发布配置
-    UNIQUE (def_key, version)
+    version      INT NOT NULL DEFAULT 1,
+    status       VARCHAR(20)  NOT NULL DEFAULT 'PUBLISHED',  -- DRAFT/PUBLISHED/RETIRED
+    definition   TEXT NOT NULL,                    -- 流程定义 JSON（节点+边）
+    tenant_id    BIGINT NOT NULL DEFAULT 0,
+    created_by   BIGINT,
+    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_workflow_def UNIQUE (def_key, version)
 );
 
 CREATE TABLE workflow_instance (
-    id           BIGINT PRIMARY KEY,
-    def_id       BIGINT NOT NULL REFERENCES workflow_def(id),
-    def_snapshot JSONB NOT NULL,                   -- 定义快照（保证在途实例稳定）
-    biz_type     VARCHAR(30) NOT NULL,             -- ECR/PART_RELEASE/DOC...
-    biz_id       BIGINT NOT NULL,
-    biz_form     JSONB,                            -- 表单数据
-    variables    JSONB,                            -- 流程变量
-    state        VARCHAR(20) NOT NULL,             -- RUNNING/SUSPENDED/COMPLETED/...
-    current_nodes JSONB,
-    started_by   BIGINT, started_at TIMESTAMPTZ, ended_at TIMESTAMPTZ
+    id            BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    def_key       VARCHAR(64) NOT NULL,
+    def_version   INT NOT NULL,
+    def_snapshot  TEXT NOT NULL,                   -- 启动时定义快照（在途实例不受新版本影响）
+    biz_type      VARCHAR(30) NOT NULL,            -- PART_RELEASE/ECR/...
+    biz_id        BIGINT NOT NULL,
+    variables     TEXT,                            -- 流程变量 JSON
+    state         VARCHAR(20) NOT NULL DEFAULT 'RUNNING',  -- RUNNING/COMPLETED/REJECTED
+    current_node  VARCHAR(64),                     -- 等待中的审批节点 id（RUNNING 时非空）
+    initiator_id  BIGINT,
+    started_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at      TIMESTAMP
 );
 CREATE INDEX idx_wfi_biz ON workflow_instance (biz_type, biz_id);
+CREATE INDEX idx_wfi_state ON workflow_instance (state);
 
 CREATE TABLE workflow_task (
-    id           BIGINT PRIMARY KEY,
-    instance_id  BIGINT NOT NULL,
-    node_id      VARCHAR(64) NOT NULL,
-    node_name    VARCHAR(128),
-    task_type    VARCHAR(20),                      -- APPROVE/SIGN(counter-sign)/AI/SERVICE
-    assignee_id  BIGINT, candidate_role VARCHAR(64),
-    action       VARCHAR(20),                      -- APPROVE/REJECT/RETURN/DELEGATE/ADDSIGN
-    comment      TEXT, attachments JSONB,
-    ai_suggestion JSONB,                           -- AI审批建议快照
-    due_at       TIMESTAMPTZ, acted_at TIMESTAMPTZ,
-    agent_of     BIGINT                            -- 代理处理时记录原审批人
+    id             BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    instance_id    BIGINT NOT NULL,
+    node_id        VARCHAR(64) NOT NULL,
+    node_name      VARCHAR(128),
+    assignee_id    BIGINT,                         -- 直接指派（USER 类型）
+    candidate_role VARCHAR(64),                    -- 角色认领（ROLE 类型）
+    action         VARCHAR(20),                    -- APPROVE/REJECT（未完成为 NULL）
+    comment        TEXT,
+    acted_at       TIMESTAMP,
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_wft_instance ON workflow_task (instance_id);
+CREATE INDEX idx_wft_open_by_user ON workflow_task (assignee_id, action);
+CREATE INDEX idx_wft_open_by_role ON workflow_task (candidate_role, action);
 ```
 
 ### 7.5 知识库
@@ -1053,7 +1057,7 @@ CREATE INDEX idx_ai_sql_exec_user ON ai_sql_execution (user_id, created_at DESC)
 ### 8.1 通用约定
 
 - 风格：REST，资源名复数 kebab-case；版本置于路径 `/api/v1/...`；
-- 认证：`Authorization: Bearer <JWT>`；WebSocket/SSE 走相同鉴权；
+- 认证：`Authorization: Bearer <JWT>`（网关校验后注入 `X-User-Id / X-User-Tenant / X-Trace-Id` 信任头）；
 - 统一响应体：
 
 ```json
@@ -1062,7 +1066,7 @@ CREATE INDEX idx_ai_sql_exec_user ON ai_sql_execution (user_id, created_at DESC)
 
 - 分页：`?page=1&page_size=20`，响应含 `total`；
 - 幂等：写操作支持 `Idempotency-Key` 头；
-- 长任务：统一返回 `job_id`，通过 `GET /api/v1/ai/jobs/{id}` 或 SSE 订阅进度；
+- 长任务：统一返回 `job_id`，通过 `GET /api/v1/ai/jobs/{id}` 查询进度；
 - 错误码：`0` 成功；`1xxx` 参数；`2xxx` 认证权限；`3xxx` 业务规则；`4xxx` 资源状态；`5xxx` 系统。
 
 ### 8.2 关键接口示例
@@ -1102,7 +1106,7 @@ GET    /api/v1/knowledge/graph?center=part:1001&depth=2   图谱查询
 
 # AI
 POST   /api/v1/ai/jobs/doc-parse         {doc_file_id, schema_key}
-POST   /api/v1/ai/chat                    对话(SSE流式返回)
+POST   /api/v1/ai/chat                    对话(同步返回)
 GET    /api/v1/ai/jobs/{id}               任务状态与结果
 
 # AI 数据操作（4.7）
@@ -1126,11 +1130,11 @@ GET    /api/v1/search?q=耐高温密封&types=part,doc,knowledge   混合搜索
 
 ### 9.1 技术与工程
 
-- React 18 + TypeScript + Vite；状态：Zustand（客户端）+ TanStack Query（服务端）；
+- React 18 + TypeScript + Vite；状态：React 内置 State + Context（权限/主题全局态）；
 - UI：Ant Design 5，主题 Token 定制支持白标；
-- 复杂组件：bpmn-js（流程设计器）、Formily（表单设计器/渲染器）、自研 BOM 树表格（虚拟滚动支撑 10 万行）、WebGL 查看器（CAD 轻量化）；
+- 复杂组件：自研 SVG 画布流程设计器（零依赖）、表单/列表界面设计器、自研 BOM 树表格；虚拟滚动与 WebGL 查看器（CAD 轻量化）为规划；
 - 图表：ECharts（甘特图、看板、报表）；
-- 实时：WebSocket（待办/协作提示）+ SSE（AI 流式输出）。
+- 实时：WebSocket/SSE 为规划（当前 AI 对话为同步 REST）。
 
 ### 9.2 页面结构
 
@@ -1151,7 +1155,7 @@ GET    /api/v1/search?q=耐高温密封&types=part,doc,knowledge   混合搜索
 
 - **AI 助手上下文感知**：在 BOM 页打开助手时自动注入当前物料上下文，可直接问"这个件有哪些替代料"；
 - **AI 建议组件规范化**：统一的 `<AISuggestion>` 组件（置信度标识、来源引用、采纳/忽略按钮），全站一致体验；
-- **低代码设计器**：流程设计器属性面板双向绑定 bpmn-js 元素；表单设计器实时预览（移动端/桌面切换）；
+- **低代码设计器**：流程设计器属性面板双向绑定节点与条件规则（与定义 JSON 同步）；界面设计器定制字段序/可见/标签/列宽；
 - **性能**：路由级代码分割；BOM 大树虚拟滚动 + 懒加载展开；搜索防抖 + 服务端聚合。
 
 ---
@@ -1215,7 +1219,7 @@ Ingress(Nginx) → gateway(2副本+) → 各业务服务(2副本+, HPA按CPU)
 
 ### 12.2 CI/CD
 
-- GitLab CI：单测 → 构建镜像 → Trivy 扫描 → DEV 自动部署 → TEST 自动化回归 → STAGING 手动确认 → PROD 滚动/灰度（Argo Rollouts）；
+- CI：GitHub Actions 三语言流水线（Java `mvn verify` / 前端 `npm run build` / AI `pytest`，`.github/workflows/ci.yml`）；镜像扫描与 DEV→PROD 自动化部署（Argo Rollouts 灰度）为部署环境目标态；
 - 数据库变更：Flyway 版本化迁移，禁止手工改库；
 - 前端：CDN 静态资源 + HTML 不缓存策略。
 

@@ -1,6 +1,6 @@
 # B2 设计：事件总线（RocketMQ）
 
-> 框架化路线 B2 实施蓝图 ｜ 状态：设计定稿待实施 ｜ 更新：2026-08-29
+> 框架化路线 B2 实施蓝图 ｜ 状态：**已全部交付**（B2-1~B2-3 v1.4.0 #66/#70/#71；P2 outbox 可靠性 v1.6.0 #78）｜ 更新：2026-09-03
 > 上游：《OpenForge-架构文档》6.2（事件清单）/6.3（依赖规则）、《OpenForge-F2动态对象运行时设计》§5（现有同步 HTTP 链路）
 
 ---
@@ -121,7 +121,7 @@ compose：rocketmq namesrv/broker 注释态转 `profiles: ["rocketmq"]`，
 
 ## 7. 演进（不在本期）
 
-- outbox 可靠性补齐（P2，若 P1 丢失窗口在真实使用中出现痛点提前）；
+- ~~outbox 可靠性补齐（P2）~~ → **已交付** v1.6.0 #78：事务内原子落库 + afterCommit 发送 + 60s relay 补发 + retry≥32 死信；
 - notify 服务（站内信/Webhook）与 search 索引消费组；
-- 事件 Schema 注册与版本兼容治理（eventVersion 升级策略）；
+- 事件 Schema 注册与版本兼容治理（eventVersion 升级策略）——outbox P3 技术债；
 - material 事件域（part.released/bom.published → connector 推 ERP）。
