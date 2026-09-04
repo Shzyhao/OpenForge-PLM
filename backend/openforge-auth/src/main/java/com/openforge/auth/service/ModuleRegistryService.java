@@ -176,6 +176,11 @@ public class ModuleRegistryService {
             if (!ROUTE.matcher(route).matches()) {
                 throw new BizException(ErrorCode.INVALID_ARGUMENT, "路由前缀非法: " + route);
             }
+            // KERNEL 自身声明内核前缀合法（auth 自注册依赖此路径）；豁免仅限 KERNEL 类型，
+            // 防劫持目标仍是 BUSINESS/AI/EXTENSION 冒充内核 API 面
+            if ("KERNEL".equals(moduleType)) {
+                continue;
+            }
             for (String kernel : KERNEL_PREFIXES) {
                 if (route.equals(kernel) || route.startsWith(kernel + "/")) {
                     throw new BizException(ErrorCode.INVALID_ARGUMENT,
