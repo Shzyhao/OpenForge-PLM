@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.cloud.gateway.event.RefreshRoutesEvent;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionWriter;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -33,6 +35,7 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
             };
 
     private final RouteDefinitionWriter routeDefinitionWriter;
+    private final ApplicationEventPublisher eventPublisher;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final List<String> appliedRouteIds = new CopyOnWriteArrayList<>();
@@ -43,10 +46,12 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
 
     public ModuleRouteRefresher(
             RouteDefinitionWriter routeDefinitionWriter,
+            ApplicationEventPublisher eventPublisher,
             ObjectMapper objectMapper,
             @Value("${openforge.module.auth-base-url:http://localhost:8081}") String authBaseUrl,
             @Value("${openforge.module.internal-token:openforge-internal-dev-token}") String internalToken) {
         this.routeDefinitionWriter = routeDefinitionWriter;
+        this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
         this.restClient = RestClient.builder()
                 .baseUrl(authBaseUrl)
@@ -98,6 +103,12 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
         staleModules.clear();
         staleModules.addAll(plan.staleModules());
         refreshedOnce = true;
+
+        // RouteDefinitionWriter.save 仅写定义存储；必须发布 RefreshRoutesEvent 触发
+        // CachingRouteLocator 重建路由表，动态路由才会真正生效
+        if (!plan.definitions().isEmpty() || !appliedRouteIds.isEmpty()) {
+            eventPublisher.publishEvent(new RefreshRoutesEvent(this));
+        }
 
         // 启动自检（工程备忘 1 机制化）：缺失逐条 ERROR，冒烟一眼可见
         for (String missing : missingRoutes) {
