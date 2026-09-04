@@ -8,7 +8,7 @@
 |------|-----|
 | 最新发布版 | **v1.9.0**（tag + GitHub Release；元数据 TTL 缓存 + 日志保留期清理——双技术债清偿） |
 | dev 最新 | 瘦身二刀 #86+#87（JVM 调优实装/构建跳过/PROFILE/**Nacos 空载/AppCDS -36%/分批并行**）+ 测试 Nacos 关闭 #88 + 全文档对齐 #89（**未发版**） |
-| main vs dev | dev 领先 5 提交（#86~#89 + 交接文档），其余同步 |
+| main vs dev | dev 领先 7 提交（#86~#89 + 3 笔交接文档），其余同步 |
 | 工作区 | 干净，无在途 PR，远端分支仅 main/dev |
 | 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 |
 
