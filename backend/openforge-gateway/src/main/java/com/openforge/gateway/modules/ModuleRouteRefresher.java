@@ -41,6 +41,7 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
     private final List<String> appliedRouteIds = new CopyOnWriteArrayList<>();
     private final List<String> missingRoutes = new CopyOnWriteArrayList<>();
     private final List<String> staleModules = new CopyOnWriteArrayList<>();
+    private final List<String> brokenModules = new CopyOnWriteArrayList<>();
     private volatile boolean registryReachable = true;
     private volatile boolean refreshedOnce = false;
 
@@ -102,6 +103,8 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
         missingRoutes.addAll(plan.missingRoutes());
         staleModules.clear();
         staleModules.addAll(plan.staleModules());
+        brokenModules.clear();
+        brokenModules.addAll(plan.brokenModules());
         refreshedOnce = true;
 
         // RouteDefinitionWriter.save 仅写定义存储；必须发布 RefreshRoutesEvent 触发
@@ -116,6 +119,9 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
         }
         for (String stale : staleModules) {
             log.warn("module-stale: {} — 心跳超时，路由已摘除（服务失联或未启动）", stale);
+        }
+        for (String broken : brokenModules) {
+            log.warn("module-broken: {} — 依赖守护置位，路由未生效", broken);
         }
         log.info("模块动态路由已刷新: {} 条路由（来自 {} 个模块）", appliedRouteIds.size(),
                 modules.stream().filter(m -> "ENABLED".equals(m.status())).count());
@@ -136,16 +142,7 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
             if (!(row instanceof Map<?, ?> m)) {
                 continue;
             }
-            List<String> routes = new ArrayList<>();
-            Object routesJson = m.get("routes");
-            if (routesJson instanceof String json && !json.isBlank()) {
-                try {
-                    routes = objectMapper.readValue(json,
-                            objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
-                } catch (Exception ignored) {
-                    // 路由 JSON 损坏按空处理，由自检报缺失
-                }
-            }
+            List<String> routes = readStringList(m.get("routes"));
             LocalDateTime heartbeat = null;
             Object heartbeatText = m.get("heartbeatAt");
             if (heartbeatText instanceof String s && !s.isBlank()) {
@@ -160,9 +157,23 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
                     String.valueOf(m.get("status")),
                     routes,
                     m.get("serviceUri") == null ? null : String.valueOf(m.get("serviceUri")),
-                    heartbeat));
+                    heartbeat,
+                    readStringList(m.get("dependencies"))));
         }
         return views;
+    }
+
+    /** 注册中心行的 JSON 字符串列（routes/dependencies）→ List；损坏按空处理，由自检报缺失。 */
+    private List<String> readStringList(Object json) {
+        if (!(json instanceof String text) || text.isBlank()) {
+            return new ArrayList<>();
+        }
+        try {
+            return objectMapper.readValue(text,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
+        } catch (Exception ignored) {
+            return new ArrayList<>();
+        }
     }
 
     public List<String> getMissingRoutes() {
@@ -171,6 +182,10 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
 
     public List<String> getStaleModules() {
         return List.copyOf(staleModules);
+    }
+
+    public List<String> getBrokenModules() {
+        return List.copyOf(brokenModules);
     }
 
     public boolean isRegistryReachable() {

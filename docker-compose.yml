@@ -62,7 +62,7 @@ services:
 
   nacos:               # F1 尾：服务注册发现（A4 模块注册表的演进实现，默认不启用）
     profiles: ["nacos"]  # docker compose --profile nacos up -d
-    image: nacos/nacos-server:v2.3.2
+    image: nacos/nacos-server:v2.4.3   # v2.3.2/v2.2.3 镜像 libtinfo.so.5 损坏（当前 Docker 无法启动）故对齐 v2.4.3；历史 "publish true 但 get null" 怪癖另有根因（publish 后读可见性竞态，见 NacosConfigCenterLoopTest 类注）
     container_name: openforge-nacos
     environment:
       MODE: standalone

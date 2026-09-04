@@ -13,17 +13,24 @@ import java.util.Set;
 /**
  * 动态路由计划（A4 设计 3.3，纯函数便于单测）：
  * 输入注册中心模块清单 → 输出应生效的 RouteDefinition + 自检结果
- * （缺失前缀/心跳过期模块）。停用即摘除：仅 ENABLED 模块参与。
+ * （缺失前缀/心跳过期/BROKEN 模块）。停用即摘除：仅 ENABLED 模块参与。
  */
 public final class ModuleRoutePlan {
 
     /** 注册中心视图（auth GET /internal/modules 的行投影）。 */
     public record ModuleView(String moduleKey, String moduleType, String status,
-                             List<String> routes, String serviceUri, LocalDateTime heartbeatAt) {
+                             List<String> routes, String serviceUri, LocalDateTime heartbeatAt,
+                             List<String> dependencies) {
+
+        /** 兼容构造：无依赖声明的视图（BROKEN 原因计算仅依赖声明模块需要）。 */
+        public ModuleView(String moduleKey, String moduleType, String status,
+                          List<String> routes, String serviceUri, LocalDateTime heartbeatAt) {
+            this(moduleKey, moduleType, status, routes, serviceUri, heartbeatAt, List.of());
+        }
     }
 
     public record Plan(List<RouteDefinition> definitions, List<String> missingRoutes,
-                       List<String> staleModules) {
+                       List<String> staleModules, List<String> brokenModules) {
     }
 
     /** 心跳超时 = 3 × 60s 注册周期（A4 设计 3.2；EXTENSION 无进程不参与心跳）。 */
@@ -36,10 +43,27 @@ public final class ModuleRoutePlan {
         List<RouteDefinition> definitions = new ArrayList<>();
         List<String> missing = new ArrayList<>();
         List<String> stale = new ArrayList<>();
+        List<String> broken = new ArrayList<>();
+        Set<String> enabledKeys = new HashSet<>();
+        for (ModuleView module : modules) {
+            if ("ENABLED".equals(module.status())) {
+                enabledKeys.add(module.moduleKey());
+            }
+        }
 
         for (ModuleView module : modules) {
             if (!"ENABLED".equals(module.status())) {
-                continue;
+                if ("BROKEN".equals(module.status())) {
+                    // BROKEN 不再静默摘除：带着原因进自检结果（依赖守护置位的根因在此可见）
+                    List<String> unsatisfied = module.dependencies() == null ? List.of()
+                            : module.dependencies().stream()
+                                    .filter(dep -> !enabledKeys.contains(dep))
+                                    .toList();
+                    broken.add(unsatisfied.isEmpty()
+                            ? module.moduleKey() + " (依赖未满足，注册中心视图无未启用依赖)"
+                            : module.moduleKey() + " (依赖未启用: " + String.join(", ", unsatisfied) + ")");
+                }
+                continue;   // DISABLED 为管理端决策，保持静默摘除
             }
             boolean extension = "EXTENSION".equals(module.moduleType());
             if (!extension && (module.heartbeatAt() == null
@@ -64,7 +88,7 @@ public final class ModuleRoutePlan {
                     new PredicateDefinition("Path=" + String.join(",", normalized(module.routes())))));
             definitions.add(definition);
         }
-        return new Plan(definitions, missing, stale);
+        return new Plan(definitions, missing, stale, broken);
     }
 
     private static List<String> normalized(List<String> routes) {
