@@ -85,7 +85,8 @@ run_one() {
   local jar_dir="$ROOT/backend/openforge-$svc/target"
   local jar="$jar_dir/openforge-$svc-0.1.0-SNAPSHOT.jar"
   local cds_dir="$jar_dir/cds"
-  local run_jar=$jar share=""
+  local run_jar=$jar
+  local share=()   # 数组携带 CDS 参数：路径可能含空格（如 Windows 项目目录），标量会被分词拆裂
   if [ "${CDS:-1}" = "1" ]; then
     if [ ! -f "$cds_dir/.extracted" ] || [ "$jar" -nt "$cds_dir/.extracted" ]; then
       rm -rf "$cds_dir"
@@ -100,10 +101,10 @@ run_one() {
         java $JVM_OPTS -XX:ArchiveClassesAtExit="$jsa" -Dspring.context.exit=onRefresh \
           -jar "$run_jar" >> "/tmp/openforge-$svc.log" 2>&1 || rm -f "$jsa"
       fi
-      [ -f "$jsa" ] && share="-XX:SharedArchiveFile=$jsa"
+      [ -f "$jsa" ] && share=(-XX:SharedArchiveFile="$jsa")
     fi
   fi
-  nohup java $JVM_OPTS $share -jar "$run_jar" > "/tmp/openforge-$svc.log" 2>&1 &
+  nohup java $JVM_OPTS "${share[@]}" -jar "$run_jar" > "/tmp/openforge-$svc.log" 2>&1 &
 }
 
 wait_health() {

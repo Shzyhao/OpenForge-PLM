@@ -53,9 +53,13 @@ public final class ModuleRoutePlan {
                 module.routes().forEach(r -> missing.add(r + " (module=" + module.moduleKey() + ", 无服务地址)"));
                 continue;
             }
+            // 描述符可声明完整 URL（容器/编排注入）或裸端口（本地开发默认）——
+            // 裸端口不是合法绝对 URI，须拼本地地址，否则路由构建失败整表失效
+            String uri = module.serviceUri().contains("://")
+                    ? module.serviceUri() : "http://127.0.0.1:" + module.serviceUri();
             RouteDefinition definition = new RouteDefinition();
             definition.setId("dynamic-" + module.moduleKey());
-            definition.setUri(java.net.URI.create(module.serviceUri()));
+            definition.setUri(java.net.URI.create(uri));
             definition.setPredicates(List.of(
                     new PredicateDefinition("Path=" + String.join(",", normalized(module.routes())))));
             definitions.add(definition);
