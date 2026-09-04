@@ -8,6 +8,7 @@ import com.openforge.auth.mapper.ModuleMapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import java.util.regex.Pattern;
  * 模块注册中心（A4 设计 3.2/4）：sys_module 表的自注册 upsert、心跳、启停与查询。
  * 安全校验：moduleKey/路由白名单；路由不得劫持 KERNEL 前缀；同一路由前缀不得双主人。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ModuleRegistryService {
@@ -133,7 +135,18 @@ public class ModuleRegistryService {
         }
         for (SysModule m : all) {
             if (!m.getStatus().equals(statusByKey.get(m.getModuleKey()))) {
-                m.setStatus(statusByKey.get(m.getModuleKey()));
+                String target = statusByKey.get(m.getModuleKey());
+                // F2 设计 3.4 承诺的守护日志：BROKEN 摘除必须留痕，依赖恢复留信息级轨迹
+                if ("BROKEN".equals(target)) {
+                    List<String> unsatisfied = fromJsonList(m.getDependencies()).stream()
+                            .filter(dep -> !"ENABLED".equals(statusByKey.get(dep)))
+                            .toList();
+                    log.error("module broken: {} — missing dependency: {}", m.getModuleKey(),
+                            String.join(", ", unsatisfied));
+                } else if ("ENABLED".equals(target)) {
+                    log.info("module recovered: {} — 依赖恢复，自动回归 ENABLED", m.getModuleKey());
+                }
+                m.setStatus(target);
                 moduleMapper.updateById(m);
             }
         }

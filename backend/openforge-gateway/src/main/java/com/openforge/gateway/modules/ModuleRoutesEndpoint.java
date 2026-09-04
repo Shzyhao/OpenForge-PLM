@@ -22,6 +22,7 @@ public class ModuleRoutesEndpoint {
         return Map.of(
                 "routeMissing", refresher.getMissingRoutes(),
                 "staleModules", refresher.getStaleModules(),
+                "brokenModules", refresher.getBrokenModules(),
                 "registryReachable", refresher.isRegistryReachable());
     }
 
@@ -30,6 +31,7 @@ public class ModuleRoutesEndpoint {
         return Map.of(
                 "routeMissing", List.copyOf(refresher.getMissingRoutes()),
                 "staleModules", refresher.getStaleModules(),
+                "brokenModules", refresher.getBrokenModules(),
                 "registryReachable", refresher.isRegistryReachable());
     }
 }

@@ -122,6 +122,6 @@ docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --pro
 | 401 `缺少网关信任头` | 直连了服务端口——改走网关（或测试加 X-User-Id） |
 | 403 `无操作权限` | 权限点未授角色；SUPER 免检可先验证链路 |
 | 4022 `依赖模块未启用` | `/system/modules` 启用被依赖模块（或先停依赖方再操作） |
-| 网关 404 新前缀 | 模块未注册/被停用；`GET /actuator/module-routes` 看自检详情，health DEGRADED 列缺失 |
+| 网关 404 新前缀 | 模块未注册/被停用；`GET /actuator/module-routes` 看自检详情（缺失/失联/`brokenModules` 带原因），health DEGRADED 列明细 |
 | 动态对象发布失败 3012 | REFERENCE 指向的对象未发布——先发布被引对象 |
 | H2 测试报列不存在 | 新表忘登记 `TenantTables.GLOBAL_TABLES`（无租户列表） |
