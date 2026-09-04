@@ -1,17 +1,16 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-09-01 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-09-05 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.9.0**（tag + GitHub Release；元数据 TTL 缓存 + 日志保留期清理——双技术债清偿） |
-| 最新发布版 | **v1.10.0**（tag + GitHub Release；本地开发瘦身 + 首次真实冒烟修复——动态路由自此生效） |
-| dev 最新 | 无未发版功能提交 |
-| main vs dev | 完全同步（v1.10.0 发布 PR #91 + 回灌 fast-forward；交接文档随会话更新） |
-| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码已重置为 smoke-test-2026（本地 dev 库，首登强制改密） |
-| 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 + **9/9 业务域网关冒烟全绿（RSS 实测 1.86GB）** |
+| 最新发布版 | **v1.11.0**（tag + GitHub Release；BROKEN 可观测性 + Nacos 回路修复 CI 常开 + 设计器预览坐标兜底） |
+| dev 最新 | 与 main 同步（发布 PR #96 merge commit e7b4253 + 回灌 fast-forward），无未发版提交 |
+| main vs dev | 完全同步 |
+| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库） |
+| 全量测试 | 15 模块 verify 绿（含 Nacos 回路 CI 真跑）+ AI pytest + 前端构建 + **网关链路冒烟 8/8 域 + AI 网关离线四接口 + 浏览器级登录/工作台/设计器（RSS 1.87GB）** |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
