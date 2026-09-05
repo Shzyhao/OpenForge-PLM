@@ -11,7 +11,9 @@ FROM eclipse-temurin:21-jre
 ARG MODULE=openforge-auth
 ARG PORT=8081
 ENV PORT=${PORT}
-COPY --from=build /build/${MODULE}/target/${MODULE}-*.jar /app.jar
+# boot 插件 exec classifier（v1.12.0）：主 artifact 为普通 jar、可执行 fat jar 带 -exec 后缀，
+# 通配符必须锚定 exec 否则多源 COPY 到单文件目标构建失败
+COPY --from=build /build/${MODULE}/target/${MODULE}-*-exec.jar /app.jar
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8"
 EXPOSE ${PORT}
 HEALTHCHECK --interval=15s --timeout=5s --retries=10 \

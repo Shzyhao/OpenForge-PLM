@@ -7,8 +7,11 @@ server:
   port: ${MONO_PORT:8090}
   tomcat:
     threads:
-      max: ${TOMCAT_MAX_THREADS:20}        # 单 JVM 承载 8 服务流量，恢复 Boot 默认量级
-      min-spare: ${TOMCAT_MIN_SPARE:5}
+      # 40 而非 20：权限拦截器 HTTP 回环（security 自动配置，60s 缓存失效瞬间）占用本进程
+      # 线程——并发线程全阻塞等回环响应时互等死锁（评审实锤窗口），提量摊薄触发概率；
+      # 根治需刀 2 直调（已判停，重启条件见 mono 设计 §3.2）
+      max: ${TOMCAT_MAX_THREADS:40}
+      min-spare: ${TOMCAT_MIN_SPARE:10}
   servlet:
     multipart:
       max-file-size: 100MB                 # doc 文件上传（原 doc 专属配置上移）
@@ -46,6 +49,10 @@ mybatis-plus:
 
 openforge:
   # 模块描述符按模块加载（module/<svc>.yml ×8），实例编排见 MonoModuleRegistrarsConfig
+  internal:
+    # 接收方（InternalController）与调用方双源同 env——评审实锤键位漂移（两键全仓无 yml 定义，
+    # INTERNAL_TOKEN 轮换曾致回环/注册全 401）
+    token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
   security:
     # mono 内部调用统一回环本进程（AUTH_SERVICE_URI 在独立部署语义下仍可注入覆盖）
     auth-base-url: ${AUTH_SERVICE_URI:http://localhost:${server.port}}
