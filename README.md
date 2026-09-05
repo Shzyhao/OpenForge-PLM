@@ -26,13 +26,15 @@
 >
 > v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块静默摘除可观测性——module-routes 端点/健康详情暴露 brokenModules 与原因（依赖未启用: xxx）、auth 守护日志 module broken/recovered 落地；Nacos 回路测试修复——publish 读可见性竞态实锤（退避重试）、复用模式补发布、容器模式固定端口、八服务测试 import 空载消除、镜像 v2.4.3、**CI 常开合并门**；流程设计器只读预览遗留定义坐标兜底（浏览器级冒烟实锤）；全栈冒烟复测 RSS 1.87GB + 网关链路 8/8 域 + 业务服务 CDS A/B 校准（收益 ~2-4%）入册。
 >
+> v1.12.1（patch）：安全日志分页结构回归修复——登录日志/操作审计接口直返 MyBatis-Plus Page（records/size）致前端列表空白而总数正常（全页面浏览器级巡检实锤，约定 #9）；修统一 PageResponse{list,total,page,pageSize} + 回归测试；README/二开指南补 PROFILE=mono 用法。
+>
 > v1.12.0（mono 单进程模式）：**PROFILE=mono 一键 2 进程跑全栈**——auth+7 业务服务聚合为单 servlet 上下文（:8090），gateway 独立；**实测 RSS 405MB（9 进程 1872MB → -78%）**、网关链路冒烟 8/8 域等价（module-routes/DEGRADED/心跳摘除/信任头模型原样）；资源目录化（db/migration/<svc>/ + module/<svc>.yml）解 8 组同名根资源遮蔽、多 Flyway 实例（历史表与独立部署一致）、模块注册 8 实例多心跳；刀 2 进程内直调经评估判停（回环均有缓存/低频，收益≈零）。
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.12.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.12.1-blue)]()
 [![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -122,6 +124,7 @@
 ```bash
 # 一键启动（依赖 + 9 个 Java 服务；无源码改动自动跳过构建）
 ./scripts/dev-up.sh
+# PROFILE=mono ./scripts/dev-up.sh     # 最省：mono+gateway 两进程（实测 RSS 405MB，v1.12.0）
 # PROFILE=core ./scripts/dev-up.sh     # 瘦身：仅主链路 5 服务（16GB 开发机推荐）
 # NACOS=1 ./scripts/dev-up.sh          # 可选：启用 Nacos 服务注册+配置中心（默认关闭）
 

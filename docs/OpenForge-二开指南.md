@@ -102,7 +102,8 @@ docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --pro
 
 ## 7. 部署
 
-- **开发**：`./scripts/dev-up.sh`（PROFILE=core|lite|full 预设裁剪；SERVICES 精确指定；
+- **开发**：`./scripts/dev-up.sh`（PROFILE=mono|core|lite|full 预设裁剪——mono 为
+  auth+7 业务服务单进程 + gateway 两进程最省档（v1.12.0，实测 RSS 405MB）；SERVICES 精确指定；
   NACOS=1 启注册中心+配置中心；CDS=0 关闭类共享；无源码改动自动跳过构建——详见性能画像 §8）；
 - **生产 compose**：`cp .env.example .env` → `docker compose -f docker-compose.prod.yml up -d --build`
   （required 密钥缺省拒绝启动；服务经 MODULE_SERVICE_URI 自动路由）；
