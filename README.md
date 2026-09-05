@@ -132,6 +132,9 @@
 cd ai && pip install -r requirements.txt && uvicorn gateway.main:app --port 8001
 cd frontend && npm install && npm run dev   # http://localhost:5173
 
+# 网关链路冒烟（工程约定 #8 合并门；登录→注册表自检→8 业务域穿透）
+./scripts/smoke.sh
+
 # 停止
 ./scripts/dev-down.sh
 ```
