@@ -97,7 +97,7 @@
 | Nacos 回路测试 Harness | **已清偿** #93——publish 读可见性竞态实锤（退避重试），CI NACOS_LOOP_TEST 常开合并门（容器模式固定端口） |
 | optional:nacos import 副作用 | **已清偿** #93——8 服务 test yml import 默认翻空（blank 才彻底跳过 loader），运行时由 dev-up NACOS_CONFIG_IMPORT="" 承担 |
 | Grafana 看板告警规则 | 看板模板已内置，告警规则/通知渠道随部署环境补 |
-| outbox P3 | 事件 Schema 注册与版本兼容治理 |
+| outbox P3（Schema 治理） | **评估判停**（v1.12.1 会话）——1 消费者规模成本>>收益；重启条件见 B2 设计 §7（消费者≥3/破坏性变更/事件≥10） |
 | 动态元数据 TTL 缓存 | **已清偿** #84——PublishedMetaCache（租户键/TTL 30s/500 上界/afterCommit 驱逐） |
 | 日志表保留期清理 | **已清偿** #84——LogRetentionJob（180 天可配/每日 03:30/分批 500 选删） |
 | bpmn-js 流程设计器 | **已交付** #82——自研 SVG 画布实现（非 bpmn-js 库，决策见架构决策 6） |
