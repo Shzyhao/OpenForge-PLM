@@ -357,5 +357,12 @@ class PartBomIntegrationTest {
         assertThat(entry.getSubstitutes()).hasSize(1);
         assertThat(entry.getSubstitutes().get(0).getPartNumber()).isEqualTo(c.getPartNumber());
         assertThat(entry.getOldSubstitutes()).hasSize(2);
+
+        // 完全相同的两版本（v1 与其未改动升版副本 v3）：compare 不崩、三清单皆空（真实链路曾 500 的路径）
+        Bom v3 = bomService.revise(v1.getId(), 1L);
+        BomDiffResponse identical = bomService.compare(v1.getId(), v3.getId());
+        assertThat(identical.added()).isEmpty();
+        assertThat(identical.removed()).isEmpty();
+        assertThat(identical.changed()).isEmpty();
     }
 }

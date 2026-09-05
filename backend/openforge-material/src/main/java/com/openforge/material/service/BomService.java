@@ -396,7 +396,9 @@ public class BomService {
             d.setSubstitutes(newSubs);
             d.setOldSubstitutes(oldSubs);
         }
-        d.setType(d.getTypes().get(0));
+        if (!d.getTypes().isEmpty()) {
+            d.setType(d.getTypes().get(0));
+        }
         return d;
     }
 
