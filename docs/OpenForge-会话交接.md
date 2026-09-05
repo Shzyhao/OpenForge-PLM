@@ -9,7 +9,7 @@
 | 最新发布版 | **v1.12.1**（tag + GitHub Release；patch——安全日志分页结构回归修复，全页面巡检实锤） |
 | dev 最新 | 与 main 同步（发布 PR #102 merge commit 86462f0 + 回灌 fast-forward），无未发版提交 |
 | main vs dev | 完全同步 |
-| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库） |
+| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库）；**合并门冒烟一键化：`./scripts/smoke.sh`（#103，dev-up 后即跑）** |
 | 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑 + SecurityLogControllerTest 结构回归）+ **全页面浏览器级巡检 15 界面（#101）** + mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%） |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
@@ -52,6 +52,7 @@
 | #98 | **mono 刀 1 骨架实施**：资源目录化（db/migration/<svc>/ + module/<svc>.yml，解 8 组同名根资源遮蔽）+ 多 Flyway 实例 + ModuleRegistrar 参数化（8 实例多心跳）+ NumberClient×4 显式命名 + 双拦截器去重 + exec classifier ×9 + PROFILE=mono；**实测 RSS 405MB（-78%）+ 网关链路 8/8 域等价**（见 mono 设计 §4.1） | v1.12.0 |
 | — | 刀 2（进程内直调）**评估完成：不实施**——5 组回环均有 TTL 缓存或低频、本机 <1ms，刀 1 实测无相关瓶颈；直调化需侵入 4 服务客户端或脆弱子类覆写，风险不成比例（mono 设计 §3.2 判定入册） | — |
 | #101 | **全页面浏览器级巡检**（约定 #9 扩展：15 界面逐页真实打开）实锤安全日志分页结构回归——MP Page 直返（records/size）致前端 list undefined（"暂无数据"而总数正常）；修统一 PageResponse + 回归测试；README 快速开始补 PROFILE=mono | 未发版 |
+| #103 | 网关链路冒烟脚本化——scripts/smoke.sh 13 项断言一键复跑（约定 #8 工具化，full/mono 通用，负向自检防假绿） | 未发版 |
 
 ## 关键架构决策（已实施）
 
