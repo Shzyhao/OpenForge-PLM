@@ -1,6 +1,7 @@
 package com.openforge.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openforge.auth.entity.SysModule;
@@ -134,8 +135,8 @@ public class ModuleRegistryService {
             }
         }
         for (SysModule m : all) {
-            if (!m.getStatus().equals(statusByKey.get(m.getModuleKey()))) {
-                String target = statusByKey.get(m.getModuleKey());
+            String target = statusByKey.get(m.getModuleKey());
+            if (!m.getStatus().equals(target)) {
                 // F2 设计 3.4 承诺的守护日志：BROKEN 摘除必须留痕，依赖恢复留信息级轨迹
                 if ("BROKEN".equals(target)) {
                     List<String> unsatisfied = fromJsonList(m.getDependencies()).stream()
@@ -146,8 +147,11 @@ public class ModuleRegistryService {
                 } else if ("ENABLED".equals(target)) {
                     log.info("module recovered: {} — 依赖恢复，自动回归 ENABLED", m.getModuleKey());
                 }
-                m.setStatus(target);
-                moduleMapper.updateById(m);
+                // 定点 UPDATE 只改 status：整行回写会用求值前的陈旧快照覆盖并发心跳刚写的
+                // heartbeat_at/serviceUri（评审实锤，最多一个周期误摘路由）
+                moduleMapper.update(null, new LambdaUpdateWrapper<SysModule>()
+                        .eq(SysModule::getId, m.getId())
+                        .set(SysModule::getStatus, target));
             }
         }
     }
