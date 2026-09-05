@@ -6,11 +6,11 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.12.0**（tag + GitHub Release；mono 单进程模式——PROFILE=mono 两进程全栈，RSS -78%） |
-| dev 最新 | 与 main 同步（发布 PR #100 merge commit bc6aa6d + 回灌 fast-forward），无未发版提交 |
+| 最新发布版 | **v1.12.1**（tag + GitHub Release；patch——安全日志分页结构回归修复，全页面巡检实锤） |
+| dev 最新 | 与 main 同步（发布 PR #102 merge commit 86462f0 + 回灌 fast-forward），无未发版提交 |
 | main vs dev | 完全同步 |
-| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库） |
-| 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑）+ AI pytest + 前端构建 + **mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%）** |
+| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库）；**合并门冒烟一键化：`./scripts/smoke.sh`（#103）；代码评审六项修复后置（#105）** |
+| 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑 + SecurityLogControllerTest 结构回归）+ **全页面浏览器级巡检 15 界面（#101）** + mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%） |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
@@ -52,6 +52,8 @@
 | #98 | **mono 刀 1 骨架实施**：资源目录化（db/migration/<svc>/ + module/<svc>.yml，解 8 组同名根资源遮蔽）+ 多 Flyway 实例 + ModuleRegistrar 参数化（8 实例多心跳）+ NumberClient×4 显式命名 + 双拦截器去重 + exec classifier ×9 + PROFILE=mono；**实测 RSS 405MB（-78%）+ 网关链路 8/8 域等价**（见 mono 设计 §4.1） | v1.12.0 |
 | — | 刀 2（进程内直调）**评估完成：不实施**——5 组回环均有 TTL 缓存或低频、本机 <1ms，刀 1 实测无相关瓶颈；直调化需侵入 4 服务客户端或脆弱子类覆写，风险不成比例（mono 设计 §3.2 判定入册） | — |
 | #101 | **全页面浏览器级巡检**（约定 #9 扩展：15 界面逐页真实打开）实锤安全日志分页结构回归——MP Page 直返（records/size）致前端 list undefined（"暂无数据"而总数正常）；修统一 PageResponse + 回归测试；README 快速开始补 PROFILE=mono | 未发版 |
+| #103 | 网关链路冒烟脚本化——scripts/smoke.sh 13 项断言一键复跑（约定 #8 工具化，full/mono 通用，负向自检防假绿） | 未发版 |
+| #105 | **系统代码评审**（子代理全量 diff + 抽查交叉，12 发现）修复六项：生产 Dockerfile 通配符断裂（P1，自 v1.12.0）/ INTERNAL_TOKEN 双键漂移（轮换即全 401）/ mono 回环死锁窗口（Tomcat 40）/ Nacos 测试残留清理 / 守护求值定点 UPDATE / 自检列表原子替换；记录不修：路由 TOCTOU、producer 域粒度、smoke.sh bash3.2、测试固定端口 | 未发版 |
 
 ## 关键架构决策（已实施）
 
@@ -85,7 +87,7 @@
 5. **性能自检**：PR 模板合并门强制（内存上界/聚合下推/默认值显式/调度格式/环境画像），详见 docs/OpenForge-性能与容量画像.md §5
 6. Windows 注意：WSL2 `.wslconfig` **默认 2GB**（仅 PG；extras/rocketmq/nacos 场景 4GB，模板有注）；Docker Desktop 闪退（wsl.exe 0xc00000fd 栈溢出）处置=完整杀进程（Docker Desktop/com.docker.backend）后重启，必要时 `wsl --shutdown` 先行
 7. **文档断言「已落地」必须以 diff 为准**（#62 教训：commit message 称服务 JVM 已加 SerialGC/Xss512k，实际只落 MAVEN_OPTS，服务 JVM 跑了三版默认 G1——#86 才实装，见性能画像 §8.2）
-8. **合并门前必须有真实网关链路冒烟**（#90 教训：MockMvc/Testcontainers 直连测不出网关动态路由/注册表链路缺陷——动态路由自 A4 交付以来从未真实生效，直到 #90 首次全链路冒烟才暴露；凡动网关/模块注册/路由，冒烟为合并门强制环节）
+8. **合并门前必须有真实网关链路冒烟**（#90 教训：MockMvc/Testcontainers 直连测不出网关动态路由/注册表链路缺陷——动态路由自 A4 交付以来从未真实生效，直到 #90 首次全链路冒烟才暴露；凡动网关/模块注册/路由，冒烟为合并门强制环节；**一键执行：`./scripts/smoke.sh`**——登录→注册表自检→8 业务域穿透 13 项断言，dev-up 后即可跑，full/mono 通用，含负向自检）
 8. GitHub 间歇 502/startup_failure：空提交重触发 / close+reopen / 等待平台恢复；stacked PR 基分支被删连坐关闭 → rebase + 重建 PR
 9. **前端交付合并门 = 浏览器级真实打开**（#94 教训：设计器只读预览自 #82 交付以来从未被真实打开——构建绿 + locator 断言测不出"节点全叠原点"这类视觉缺陷；自动化时 React 合成事件对 locator/CUA click 无响应，用 `evaluate` 程序化 `.click()`）；#101 扩展：**新页面交付走全页面巡检**（15 界面逐页，检查错误提示/表格渲染/空态一致性）——实锤了分页结构这类"构建绿但用户可见坏"的接口契约缺陷
 
@@ -96,7 +98,7 @@
 | Nacos 回路测试 Harness | **已清偿** #93——publish 读可见性竞态实锤（退避重试），CI NACOS_LOOP_TEST 常开合并门（容器模式固定端口） |
 | optional:nacos import 副作用 | **已清偿** #93——8 服务 test yml import 默认翻空（blank 才彻底跳过 loader），运行时由 dev-up NACOS_CONFIG_IMPORT="" 承担 |
 | Grafana 看板告警规则 | 看板模板已内置，告警规则/通知渠道随部署环境补 |
-| outbox P3 | 事件 Schema 注册与版本兼容治理 |
+| outbox P3（Schema 治理） | **评估判停**（v1.12.1 会话）——1 消费者规模成本>>收益；重启条件见 B2 设计 §7（消费者≥3/破坏性变更/事件≥10） |
 | 动态元数据 TTL 缓存 | **已清偿** #84——PublishedMetaCache（租户键/TTL 30s/500 上界/afterCommit 驱逐） |
 | 日志表保留期清理 | **已清偿** #84——LogRetentionJob（180 天可配/每日 03:30/分批 500 选删） |
 | bpmn-js 流程设计器 | **已交付** #82——自研 SVG 画布实现（非 bpmn-js 库，决策见架构决策 6） |

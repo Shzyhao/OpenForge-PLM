@@ -81,6 +81,10 @@ def pom_xml(name: str) -> str:
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 与既有 9 模块同规：主 artifact 普通 jar，可执行 fat jar 为 -exec.jar（dev-up 按 -exec.jar 启动） -->
+                    <classifier>exec</classifier>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
@@ -337,6 +341,7 @@ def selftest() -> None:
             assert (module_dir / rel).exists(), f"缺少 {rel}"
         pom = (module_dir / "pom.xml").read_text(encoding="utf-8")
         assert "openforge-starter-security" in pom and "openforge-starter-data" in pom
+        assert "<classifier>exec</classifier>" in pom, "boot 插件须 exec classifier（dev-up 按 -exec.jar 启动）"
         module = (module_dir / "src/main/resources/module/smoke_demo.yml").read_text(encoding="utf-8")
         assert "moduleKey: smoke_demo" in module and "/api/v1/smoke_demo" in module
         root_pom = (backend_root / "pom.xml").read_text(encoding="utf-8")

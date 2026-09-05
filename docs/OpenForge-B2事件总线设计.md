@@ -124,4 +124,8 @@ compose：rocketmq namesrv/broker 注释态转 `profiles: ["rocketmq"]`，
 - ~~outbox 可靠性补齐（P2）~~ → **已交付** v1.6.0 #78：事务内原子落库 + afterCommit 发送 + 60s relay 补发 + retry≥32 死信；
 - notify 服务（站内信/Webhook）与 search 索引消费组；
 - 事件 Schema 注册与版本兼容治理（eventVersion 升级策略）——outbox P3 技术债；
+  **评估判停（v1.12.1 会话）**：当前 5 事件类型/1 消费者（knowledge）/单团队，payload 加字段天然向后兼容，
+  Registry+兼容性 CI 成本 >> 收益。**重启触发条件（满足任一）**：消费者 ≥3 或跨团队消费 /
+  首次 payload 破坏性变更需求 / 事件类型 ≥10。届时先轻量（信封 eventVersion + 消费端按版本分支），
+  规模化再上 Registry；
 - material 事件域（part.released/bom.published → connector 推 ERP）。

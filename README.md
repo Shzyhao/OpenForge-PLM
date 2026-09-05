@@ -26,6 +26,8 @@
 >
 > v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块静默摘除可观测性——module-routes 端点/健康详情暴露 brokenModules 与原因（依赖未启用: xxx）、auth 守护日志 module broken/recovered 落地；Nacos 回路测试修复——publish 读可见性竞态实锤（退避重试）、复用模式补发布、容器模式固定端口、八服务测试 import 空载消除、镜像 v2.4.3、**CI 常开合并门**；流程设计器只读预览遗留定义坐标兜底（浏览器级冒烟实锤）；全栈冒烟复测 RSS 1.87GB + 网关链路 8/8 域 + 业务服务 CDS A/B 校准（收益 ~2-4%）入册。
 >
+> v1.12.2（patch）：**系统代码评审**（子代理全量 diff 审查，12 发现）修复六项——生产镜像构建断裂（Dockerfile 通配符自 v1.12.0 起，P1）、INTERNAL_TOKEN 双键漂移（轮换即全 401）、mono 回环死锁窗口（Tomcat 40）、Nacos 测试残留清理、守护求值定点 UPDATE、自检列表原子替换；网关链路冒烟工具化 \`./scripts/smoke.sh\` 13 项断言（约定 #8 合并门一键化）；outbox P3 Schema 治理评估判停（触发条件入册）；PR 模板同步两道门。
+>
 > v1.12.1（patch）：安全日志分页结构回归修复——登录日志/操作审计接口直返 MyBatis-Plus Page（records/size）致前端列表空白而总数正常（全页面浏览器级巡检实锤，约定 #9）；修统一 PageResponse{list,total,page,pageSize} + 回归测试；README/二开指南补 PROFILE=mono 用法。
 >
 > v1.12.0（mono 单进程模式）：**PROFILE=mono 一键 2 进程跑全栈**——auth+7 业务服务聚合为单 servlet 上下文（:8090），gateway 独立；**实测 RSS 405MB（9 进程 1872MB → -78%）**、网关链路冒烟 8/8 域等价（module-routes/DEGRADED/心跳摘除/信任头模型原样）；资源目录化（db/migration/<svc>/ + module/<svc>.yml）解 8 组同名根资源遮蔽、多 Flyway 实例（历史表与独立部署一致）、模块注册 8 实例多心跳；刀 2 进程内直调经评估判停（回环均有缓存/低频，收益≈零）。
@@ -34,7 +36,7 @@
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.12.1-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.12.2-blue)]()
 [![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -116,6 +118,7 @@
 | 瘦身与冒烟修复 v1.10.0 | 本地开发瘦身(JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS 实测 -36%/9 服务 RSS 实测 1.86GB) / **首次真实网关冒烟修复四处交付缺陷**(动态路由 RefreshRoutesEvent/裸端口 URI/KERNEL 自注册豁免/yml 重复键) / 全文档对齐交付态 | ✅ |
 | 可观测性与 Nacos 回路 v1.11.0 | BROKEN 模块可观测性(module-routes/health 暴露 brokenModules 与原因/守护日志落地) / Nacos 回路测试修复+CI 常开(读可见性竞态退避重试/复用模式补发布/固定端口容器/import 空载消除/镜像 v2.4.3) / 设计器预览遗留定义坐标兜底 / CDS 业务服务 A/B 校准(~2-4%) | ✅ |
 | mono 单进程模式 v1.12.0 | PROFILE=mono 两进程全栈(auth+7 业务服务聚合 :8090/gateway 独立) / **实测 RSS 405MB(-78%)** / 网关链路 8/8 域等价 / 资源目录化+多 Flyway+模块注册 8 实例 / 刀 2 直调评估判停 | ✅ |
+| 评审与工具 v1.12.2 | **系统代码评审 12 发现修复六项**(生产构建断裂/token 键漂移/死锁窗口/Nacos 残留/定点 UPDATE/中间态原子替换) / 冒烟一键化 smoke.sh 13 断言(负向自检防假绿) / outbox P3 判停 / PR 模板两道门 | ✅ |
 
 **后续路线**：ERP/MES 连接器、行业模板包、Milvus/Neo4j/ES 随规模引入。
 
@@ -132,6 +135,9 @@
 cd ai && pip install -r requirements.txt && uvicorn gateway.main:app --port 8001
 cd frontend && npm install && npm run dev   # http://localhost:5173
 
+# 网关链路冒烟（工程约定 #8 合并门；登录→注册表自检→8 业务域穿透）
+./scripts/smoke.sh
+
 # 停止
 ./scripts/dev-down.sh
 ```
@@ -146,7 +152,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ## 🤝 参与贡献
 
-应用主体与框架化路线截至 v1.9.0 的各版均已交付（见上方 Roadmap），欢迎在以下方向参与：
+应用主体、框架化路线与本地体验优化（瘦身/mono 单进程）截至 v1.12.1 的各版均已交付（见上方 Roadmap），欢迎在以下方向参与：
 
 - 方向讨论：后续路线（Milvus 向量库、行业模板包）提出 Issue 讨论；
 - 早期共建：ERP/MES 连接器、连接器与插件生态、安装初始化向导、i18n、文档站与在线 Demo；
