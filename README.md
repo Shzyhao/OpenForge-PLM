@@ -122,6 +122,7 @@
 ```bash
 # 一键启动（依赖 + 9 个 Java 服务；无源码改动自动跳过构建）
 ./scripts/dev-up.sh
+# PROFILE=mono ./scripts/dev-up.sh     # 最省：mono+gateway 两进程（实测 RSS 405MB，v1.12.0）
 # PROFILE=core ./scripts/dev-up.sh     # 瘦身：仅主链路 5 服务（16GB 开发机推荐）
 # NACOS=1 ./scripts/dev-up.sh          # 可选：启用 Nacos 服务注册+配置中心（默认关闭）
 
