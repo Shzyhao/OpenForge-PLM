@@ -6,8 +6,8 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.12.1**（tag + GitHub Release；patch——安全日志分页结构回归修复，全页面巡检实锤） |
-| dev 最新 | 与 main 同步（发布 PR #102 merge commit 86462f0 + 回灌 fast-forward），无未发版提交 |
+| 最新发布版 | **v1.12.2**（tag + GitHub Release；patch——代码评审六项修复（含生产构建断裂 P1）+ 冒烟工具化 + P3 判停） |
+| dev 最新 | 与 main 同步（发布 PR #106 merge commit 7432700 + 回灌 fast-forward），无未发版提交 |
 | main vs dev | 完全同步 |
 | 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库）；**合并门冒烟一键化：`./scripts/smoke.sh`（#103）；代码评审六项修复后置（#105）** |
 | 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑 + SecurityLogControllerTest 结构回归）+ **全页面浏览器级巡检 15 界面（#101）** + mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%） |
