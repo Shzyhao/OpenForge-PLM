@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /** 编号引擎客户端（与 material 的 NumberClient 同构，M3 抽公共模块）。 */
-@Component
+@Component("projectNumberClient")
 public class NumberClient {
 
     private static final ParameterizedTypeReference<ApiResponse<String>> TYPE =

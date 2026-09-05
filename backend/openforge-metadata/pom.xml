@@ -83,6 +83,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- exec classifier：主 artifact 保持普通 jar（openforge-mono 依赖其类与资源）；可执行 fat jar 为 -exec.jar -->
+                    <classifier>exec</classifier>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>

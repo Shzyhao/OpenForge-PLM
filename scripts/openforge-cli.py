@@ -7,7 +7,7 @@
 
 new-service 生成一个即插即用的业务服务骨架：
   starter-security + starter-data（统一响应/权限/审计/多租户/模块注册）+
-  openforge-module.yml（部署即注册，网关自动路由）+ Flyway 迁移样例 + 集成测试。
+  module/<name>.yml 模块描述符（部署即注册，网关自动路由）+ Flyway 迁移样例 + 集成测试。
 生成后：cd backend && mvn -pl openforge-<name> -am verify → ./scripts/dev-up.sh。
 """
 import argparse
@@ -162,7 +162,7 @@ spring:
     password: ${{PG_PASSWORD:openforge}}
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration/{name}
     baseline-on-migrate: true
     baseline-version: 0
     table: flyway_{name}_history   # 多服务共享库，独立迁移历史
@@ -178,6 +178,7 @@ openforge:
     auth-base-url: ${{AUTH_SERVICE_URI:http://localhost:8081}}
     internal-token: ${{INTERNAL_TOKEN:openforge-internal-dev-token}}
   module:
+    descriptor: classpath:module/{name}.yml
     service-uri: ${{openforge.module.service-uri:http://localhost:{port}}}
 
 management:
@@ -266,7 +267,8 @@ def generate(name: str, port: int, display_name: str, backend_root: Path) -> Pat
     pkg.mkdir(parents=True)
     (pkg / "controller").mkdir()
     res = module_dir / "src" / "main" / "resources"
-    (res / "db" / "migration").mkdir(parents=True)
+    (res / "db" / "migration" / name).mkdir(parents=True)
+    (res / "module").mkdir(parents=True)
     test_pkg = module_dir / "src" / "test" / "java" / "com" / "openforge" / name
     test_pkg.mkdir(parents=True)
     (module_dir / "src" / "test" / "resources").mkdir(parents=True)
@@ -276,8 +278,8 @@ def generate(name: str, port: int, display_name: str, backend_root: Path) -> Pat
     (pkg / f"{klass}Application.java").write_text(application_java(name), encoding="utf-8")
     (pkg / "controller" / f"{klass}Controller.java").write_text(demo_controller_java(name), encoding="utf-8")
     (res / "application.yml").write_text(application_yml(name, port), encoding="utf-8")
-    (res / "openforge-module.yml").write_text(module_yml(name, display_name, port), encoding="utf-8")
-    (res / "db" / "migration" / f"V1__init_{name}.sql").write_text(migration_sql(name), encoding="utf-8")
+    (res / "module" / f"{name}.yml").write_text(module_yml(name, display_name, port), encoding="utf-8")
+    (res / "db" / "migration" / name / f"V1__init_{name}.sql").write_text(migration_sql(name), encoding="utf-8")
     (module_dir / "src" / "test" / "resources" / "application.yml").write_text(test_application_yml(name), encoding="utf-8")
     (test_pkg / f"{klass}ApplicationTests.java").write_text(test_java(name), encoding="utf-8")
     return module_dir
@@ -326,8 +328,8 @@ def selftest() -> None:
             "src/main/java/com/openforge/smoke_demo/SmokeDemoApplication.java",
             "src/main/java/com/openforge/smoke_demo/controller/SmokeDemoController.java",
             "src/main/resources/application.yml",
-            "src/main/resources/openforge-module.yml",
-            "src/main/resources/db/migration/V1__init_smoke_demo.sql",
+            "src/main/resources/module/smoke_demo.yml",
+            "src/main/resources/db/migration/smoke_demo/V1__init_smoke_demo.sql",
             "src/test/java/com/openforge/smoke_demo/SmokeDemoApplicationTests.java",
             "src/test/resources/application.yml",
         ]
@@ -335,9 +337,7 @@ def selftest() -> None:
             assert (module_dir / rel).exists(), f"缺少 {rel}"
         pom = (module_dir / "pom.xml").read_text(encoding="utf-8")
         assert "openforge-starter-security" in pom and "openforge-starter-data" in pom
-        module = (module_dir / "openforge-module.yml").read_text(encoding="utf-8") \
-            if (module_dir / "openforge-module.yml").exists() \
-            else (module_dir / "src/main/resources/openforge-module.yml").read_text(encoding="utf-8")
+        module = (module_dir / "src/main/resources/module/smoke_demo.yml").read_text(encoding="utf-8")
         assert "moduleKey: smoke_demo" in module and "/api/v1/smoke_demo" in module
         root_pom = (backend_root / "pom.xml").read_text(encoding="utf-8")
         assert "<module>openforge-smoke_demo</module>" in root_pom

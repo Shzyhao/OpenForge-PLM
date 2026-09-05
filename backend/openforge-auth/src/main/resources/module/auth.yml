@@ -14,5 +14,5 @@ routes:
   - /api/v1/modules
 dependencies: []
 flyway:
-  historyTable: flyway_auth_history
+  historyTable: flyway_schema_history   # 与 yml 默认表一致（mono 多 Flyway 按此收敛；勿改回，见 mono 设计 §2.1）
 serviceUri: 8081

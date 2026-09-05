@@ -12,41 +12,70 @@ import org.springframework.web.client.RestClient;
 import org.yaml.snakeyaml.Yaml;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
- * 模块注册器（A4 设计 3.2）：启动时扫描 classpath 的 openforge-module.yml 并上报 auth
- * 注册中心（幂等 upsert + 心跳）。无描述符的模块（如 common/security 纯库）自动空转。
+ * 模块注册器（A4 设计 3.2）：启动时扫描描述符并上报 auth 注册中心（幂等 upsert + 心跳）。
+ * 无描述符的模块（如 common/security 纯库）自动空转。
  * 注册与心跳均为尽力而为：auth 不可用时告警不阻断业务服务启动，心跳周期重试。
+ *
+ * 描述符路径经 openforge.module.descriptor 配置（mono 多实例各指一符，缺省回落根路径）。
+ * mono 聚合模式用 Supplier 构造：baseUrl/serviceUri 延迟到首次注册时解析
+ * （随机端口/运行时端口就绪后才有值），RestClient 相应懒建。
  */
 @Slf4j
 @Component
 public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEvent> {
 
     private final ModuleDescriptor descriptor;
-    private final RestClient restClient;
     private final String internalToken;
+    private final Supplier<String> authBaseUrl;
+    private final Supplier<String> serviceUriOverride;
+    private volatile RestClient restClient;
     private volatile boolean registered = false;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public ModuleRegistrar(
             @Value("${openforge.security.auth-base-url:http://localhost:8081}") String authBaseUrl,
             @Value("${openforge.security.internal-token:openforge-internal-dev-token}") String internalToken,
             @Value("${MODULE_SERVICE_URI:}") String moduleServiceUriEnv,
-            @Value("${openforge.module.service-uri:}") String serviceUriOverride) {
-        this.internalToken = internalToken;
-        this.restClient = RestClient.builder().baseUrl(authBaseUrl).build();
-        ModuleDescriptor loaded = loadDescriptor();
-        // 容器/编排注入优先级：MODULE_SERVICE_URI 环境变量 > openforge.module.service-uri 属性 > 描述符声明
-        String override = moduleServiceUriEnv != null && !moduleServiceUriEnv.isBlank()
-                ? moduleServiceUriEnv : serviceUriOverride;
-        if (loaded != null && override != null && !override.isBlank()) {
-            loaded.setServiceUri(override);
-        }
-        this.descriptor = loaded;
+            @Value("${openforge.module.service-uri:}") String serviceUriOverride,
+            @Value("${openforge.module.descriptor:}") String descriptorLocation) {
+        this(authBaseUrl, internalToken, descriptorLocation,
+                () -> {
+                    // 容器/编排注入优先级：MODULE_SERVICE_URI 环境变量 > openforge.module.service-uri 属性
+                    return moduleServiceUriEnv != null && !moduleServiceUriEnv.isBlank()
+                            ? moduleServiceUriEnv : serviceUriOverride;
+                });
     }
 
-    private static ModuleDescriptor loadDescriptor() {
+    /** mono 聚合模式构造：baseUrl/serviceUri 均在注册时动态解析（如 local.server.port 就绪后）。 */
+    public ModuleRegistrar(String authBaseUrl, String internalToken, String descriptorLocation,
+                           Supplier<String> dynamicServiceUri) {
+        this.internalToken = internalToken;
+        this.authBaseUrl = () -> authBaseUrl;
+        this.serviceUriOverride = dynamicServiceUri;
+        this.descriptor = loadDescriptor(descriptorLocation == null || descriptorLocation.isBlank()
+                ? ModuleDescriptor.RESOURCE
+                : descriptorLocation.replaceFirst("^classpath:", ""));
+    }
+
+    private RestClient client() {
+        RestClient c = restClient;
+        if (c == null) {
+            synchronized (this) {
+                if (restClient == null) {
+                    restClient = RestClient.builder().baseUrl(authBaseUrl.get()).build();
+                }
+                c = restClient;
+            }
+        }
+        return c;
+    }
+
+    private static ModuleDescriptor loadDescriptor(String location) {
         try {
-            ClassPathResource resource = new ClassPathResource(ModuleDescriptor.RESOURCE);
+            ClassPathResource resource = new ClassPathResource(location);
             if (!resource.exists()) {
                 return null;
             }
@@ -55,7 +84,7 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
                 return ModuleDescriptor.parse(yaml);
             }
         } catch (Exception e) {
-            throw new IllegalStateException("openforge-module.yml 解析失败", e);
+            throw new IllegalStateException("模块描述符解析失败: " + location, e);
         }
     }
 
@@ -78,6 +107,10 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
 
     private void register(String trigger) {
         try {
+            // mono 聚合模式 serviceUri 恒为动态解析值（本进程端口）；独立部署用描述符/覆盖值
+            String serviceUri = serviceUriOverride != null && serviceUriOverride.get() != null
+                    && !serviceUriOverride.get().isBlank()
+                    ? serviceUriOverride.get() : descriptor.getServiceUri();
             java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
             body.put("moduleKey", descriptor.getModuleKey());
             body.put("moduleType", descriptor.getModuleType());
@@ -88,8 +121,8 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
             body.put("dependencies", descriptor.getDependencies());
             body.put("flywayTable", descriptor.getFlywayTable() == null ? "" : descriptor.getFlywayTable());
             body.put("healthPath", descriptor.getHealth() == null ? "" : descriptor.getHealth());
-            body.put("serviceUri", descriptor.getServiceUri() == null ? "" : descriptor.getServiceUri());
-            restClient.post()
+            body.put("serviceUri", serviceUri == null ? "" : serviceUri);
+            client().post()
                     .uri("/api/v1/internal/modules")
                     .header("X-Internal-Token", internalToken)
                     .contentType(MediaType.APPLICATION_JSON)
