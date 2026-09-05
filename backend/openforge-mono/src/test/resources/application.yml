@@ -1,0 +1,46 @@
+spring:
+  config:
+    import: ${NACOS_CONFIG_IMPORT:}   # 与 8 服务测试同规：enabled=false 不拦截 loader，blank import 才彻底跳过
+  cloud:
+    nacos:
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:false}   # 与 8 服务 test yml 同款显式块（test yml 覆盖链对齐）
+        import-check:
+          enabled: false   # blank import + checker 兜底（"missing nacos: entry" 检查豁免）
+      discovery:
+        enabled: ${NACOS_ENABLED:false}
+  datasource:
+    url: jdbc:h2:mem:monotest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password: ""
+  flyway:
+    enabled: false   # test yml 整体遮蔽主 yml——多实例 Flyway 编排（MonoFlywayConfig）显式接管
+
+# test yml 遮蔽主 yml（同根资源只加载一个），本文件必须自包含关键键值
+openforge:
+  security:
+    open-registration: true   # 与各服务测试同规；默认关闭语义由专项测试验证
+    auth-base-url: http://localhost:18090   # 回环本进程（多 Registrar 注册断言依赖注册成功）
+    internal-token: openforge-internal-dev-token
+  jwt:
+    secret: test-secret-key-for-unit-tests-32-bytes-min!!
+    ttl-minutes: 120
+  workflow:
+    base-url: http://localhost:18090
+  integration:
+    knowledge-base-url: http://localhost:18090
+    ai-base-url: http://localhost:18090
+  doc:
+    storage-dir: ./target/doc-files-test
+  llm:
+    base-url: ""
+    api-key: ""
+    embedding-model: embedding-3
+  mono:
+    flyway:
+      target:
+        knowledge: "1"   # V2 (pgvector) 仅 PG，H2 跳过（等价 knowledge 独立测试的 spring.flyway.target=1）
+
+openforge-mono-test:
+  # 冒烟断言用：期望的注册模块清单（见 MonoSmokeTest）
+  expected-modules: auth,material,doc,workflow,change,knowledge,project,metadata
