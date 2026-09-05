@@ -6,11 +6,11 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.11.0**（tag + GitHub Release；BROKEN 可观测性 + Nacos 回路修复 CI 常开 + 设计器预览坐标兜底） |
-| dev 最新 | 与 main 同步（发布 PR #96 merge commit e7b4253 + 回灌 fast-forward），无未发版提交 |
+| 最新发布版 | **v1.12.0**（tag + GitHub Release；mono 单进程模式——PROFILE=mono 两进程全栈，RSS -78%） |
+| dev 最新 | 与 main 同步（发布 PR #100 merge commit bc6aa6d + 回灌 fast-forward），无未发版提交 |
 | main vs dev | 完全同步 |
 | 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库） |
-| 全量测试 | 15 模块 verify 绿（含 Nacos 回路 CI 真跑）+ AI pytest + 前端构建 + **网关链路冒烟 8/8 域 + AI 网关离线四接口 + 浏览器级登录/工作台/设计器（RSS 1.87GB）** |
+| 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑）+ AI pytest + 前端构建 + **mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%）** |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
