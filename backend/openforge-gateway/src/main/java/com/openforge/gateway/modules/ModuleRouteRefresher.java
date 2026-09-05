@@ -39,9 +39,11 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final List<String> appliedRouteIds = new CopyOnWriteArrayList<>();
-    private final List<String> missingRoutes = new CopyOnWriteArrayList<>();
-    private final List<String> staleModules = new CopyOnWriteArrayList<>();
-    private final List<String> brokenModules = new CopyOnWriteArrayList<>();
+    // 自检结果整体替换（volatile 不可变引用）：health/端点读线程不会看到 clear+addAll 中间态
+    // 而出现 DEGRADED→UP 抖动（评审实锤）；写侧仅 refresh()（synchronized）
+    private volatile List<String> missingRoutes = List.of();
+    private volatile List<String> staleModules = List.of();
+    private volatile List<String> brokenModules = List.of();
     private volatile boolean registryReachable = true;
     private volatile boolean refreshedOnce = false;
 
@@ -99,12 +101,9 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
             }
         }
 
-        missingRoutes.clear();
-        missingRoutes.addAll(plan.missingRoutes());
-        staleModules.clear();
-        staleModules.addAll(plan.staleModules());
-        brokenModules.clear();
-        brokenModules.addAll(plan.brokenModules());
+        missingRoutes = List.copyOf(plan.missingRoutes());
+        staleModules = List.copyOf(plan.staleModules());
+        brokenModules = List.copyOf(plan.brokenModules());
         refreshedOnce = true;
 
         // RouteDefinitionWriter.save 仅写定义存储；必须发布 RefreshRoutesEvent 触发
@@ -177,15 +176,15 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
     }
 
     public List<String> getMissingRoutes() {
-        return List.copyOf(missingRoutes);
+        return missingRoutes;
     }
 
     public List<String> getStaleModules() {
-        return List.copyOf(staleModules);
+        return staleModules;
     }
 
     public List<String> getBrokenModules() {
-        return List.copyOf(brokenModules);
+        return brokenModules;
     }
 
     public boolean isRegistryReachable() {

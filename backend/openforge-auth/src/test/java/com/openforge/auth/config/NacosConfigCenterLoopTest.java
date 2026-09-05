@@ -56,6 +56,8 @@ class NacosConfigCenterLoopTest {
     private static final String DATA_ID = "openforge-auth.yml";
     private static final String GROUP = "DEFAULT_GROUP";
     private static GenericContainer<?> nacos;
+    private static com.alibaba.nacos.api.config.ConfigService configService;
+    private static boolean addrSetByTest;   // NACOS_ADDR 由本测试设置时才在 @AfterAll 清理（复用 -D 传入时不污染）
 
     @Autowired
     private Environment env;
@@ -66,7 +68,8 @@ class NacosConfigCenterLoopTest {
         if (addr == null || addr.isBlank()) {
             addr = System.getenv("NACOS_ADDR");
         }
-        if (addr == null || addr.isBlank()) {
+        addrSetByTest = addr == null || addr.isBlank();
+        if (addrSetByTest) {
             boolean dockerAvailable;
             try {
                 dockerAvailable = org.testcontainers.DockerClientFactory.instance().isDockerAvailable();
@@ -110,8 +113,7 @@ class NacosConfigCenterLoopTest {
     private static void publishAndVerifyConfig(String addr) throws Exception {
         Properties props = new Properties();
         props.setProperty("serverAddr", addr);
-        com.alibaba.nacos.api.config.ConfigService configService =
-                com.alibaba.nacos.api.NacosFactory.createConfigService(props);
+        configService = com.alibaba.nacos.api.NacosFactory.createConfigService(props);
         String content = "openforge:\n  config:\n    probe: from-nacos\n"
                 + "server:\n  tomcat:\n    threads:\n      max: 7\n";
         assertThat(configService.publishConfig(DATA_ID, GROUP, content)).isTrue();
@@ -175,7 +177,18 @@ class NacosConfigCenterLoopTest {
     @AfterAll
     static void stopNacos() {
         System.clearProperty("NACOS_CONFIG_ENABLED");
-        System.clearProperty("NACOS_ADDR");
+        if (addrSetByTest) {
+            System.clearProperty("NACOS_ADDR");   // 复用模式（-D/env 传入）不清理用户属性
+        }
+        // 复用模式写的是开发机长驻 Nacos——不清除会让 openforge-auth.yml（含 tomcat threads 7）
+        // 永久残留，下次 NACOS=1 启动静默限流，且重跑读到陈旧数据令竞态重试失真（评审实锤）
+        if (configService != null) {
+            try {
+                configService.removeConfig(DATA_ID, GROUP);
+            } catch (Exception ignored) {
+                // 尽力而为：容器模式随容器销毁自然清理
+            }
+        }
         if (nacos != null) {
             nacos.stop();
         }
