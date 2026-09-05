@@ -25,12 +25,14 @@
 > v1.10.0（瘦身与冒烟修复）：本地开发瘦身两刀——9 服务稳态内存实测 1.86GB、启动 ~4 分钟→~2 分钟（JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS/Nacos 空载跳过/分批并行）；**首次真实全链路冒烟修复四处交付缺陷**——网关动态路由自此真实生效、auth 自注册解锁（对象建模域修复）；全文档对齐 v1.9.0 交付态。
 >
 > v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块静默摘除可观测性——module-routes 端点/健康详情暴露 brokenModules 与原因（依赖未启用: xxx）、auth 守护日志 module broken/recovered 落地；Nacos 回路测试修复——publish 读可见性竞态实锤（退避重试）、复用模式补发布、容器模式固定端口、八服务测试 import 空载消除、镜像 v2.4.3、**CI 常开合并门**；流程设计器只读预览遗留定义坐标兜底（浏览器级冒烟实锤）；全栈冒烟复测 RSS 1.87GB + 网关链路 8/8 域 + 业务服务 CDS A/B 校准（收益 ~2-4%）入册。
+>
+> v1.12.0（mono 单进程模式）：**PROFILE=mono 一键 2 进程跑全栈**——auth+7 业务服务聚合为单 servlet 上下文（:8090），gateway 独立；**实测 RSS 405MB（9 进程 1872MB → -78%）**、网关链路冒烟 8/8 域等价（module-routes/DEGRADED/心跳摘除/信任头模型原样）；资源目录化（db/migration/<svc>/ + module/<svc>.yml）解 8 组同名根资源遮蔽、多 Flyway 实例（历史表与独立部署一致）、模块注册 8 实例多心跳；刀 2 进程内直调经评估判停（回环均有缓存/低频，收益≈零）。
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.11.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.12.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -111,8 +113,9 @@
 | 技术债清偿 v1.9.0 | 元数据 TTL 缓存(租户键/30s 可配/500 上界/发布 afterCommit 驱逐) / 登录审计日志保留期(180 天可配/每日调度/分批 500 选删) | ✅ |
 | 瘦身与冒烟修复 v1.10.0 | 本地开发瘦身(JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS 实测 -36%/9 服务 RSS 实测 1.86GB) / **首次真实网关冒烟修复四处交付缺陷**(动态路由 RefreshRoutesEvent/裸端口 URI/KERNEL 自注册豁免/yml 重复键) / 全文档对齐交付态 | ✅ |
 | 可观测性与 Nacos 回路 v1.11.0 | BROKEN 模块可观测性(module-routes/health 暴露 brokenModules 与原因/守护日志落地) / Nacos 回路测试修复+CI 常开(读可见性竞态退避重试/复用模式补发布/固定端口容器/import 空载消除/镜像 v2.4.3) / 设计器预览遗留定义坐标兜底 / CDS 业务服务 A/B 校准(~2-4%) | ✅ |
+| mono 单进程模式 v1.12.0 | PROFILE=mono 两进程全栈(auth+7 业务服务聚合 :8090/gateway 独立) / **实测 RSS 405MB(-78%)** / 网关链路 8/8 域等价 / 资源目录化+多 Flyway+模块注册 8 实例 / 刀 2 直调评估判停 | ✅ |
 
-**后续路线**：mono 单进程模式、ERP/MES 连接器、行业模板包、Milvus/Neo4j/ES 随规模引入。
+**后续路线**：ERP/MES 连接器、行业模板包、Milvus/Neo4j/ES 随规模引入。
 
 ## 🚀 快速开始
 
