@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.openforge</groupId>
+        <artifactId>openforge-backend</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>openforge-mono</artifactId>
+    <name>OpenForge Mono</name>
+    <description>mono 单进程模式（刀 1 骨架）：auth + 7 业务服务聚合为一个 servlet 上下文，
+        gateway 仍独立 JVM（WebFlux/WebMVC 自动配置互斥，见 docs/OpenForge-mono单进程设计.md）</description>
+
+    <dependencies>
+        <!-- 8 个服务模块（boot 插件 exec classifier，主 artifact 为普通 jar 可作依赖） -->
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-auth</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-material</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-doc</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-workflow</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-change</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-knowledge</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-project</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-metadata</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 8 服务的 H2 均为各自 test scope 不传递；mono 冒烟测试（H2 多 Flyway）需自带 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 与 9 个服务同规：可执行 fat jar 为 -exec.jar，主 artifact 供聚合/依赖 -->
+                    <classifier>exec</classifier>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

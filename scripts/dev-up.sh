@@ -44,7 +44,7 @@ echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被�
 # SKIP_BUILD=1 强制跳过；默认按源码新旧自动判断——无改动时省 1~2 分钟与构建内存峰值
 # （多模块构建峰值曾是闪退直接诱因之一：MAVEN_OPTS 限 512m）
 export MAVEN_OPTS="${MAVEN_OPTS:--Xmx512m -XX:+UseSerialGC}"
-MARKER_JAR="$ROOT/backend/openforge-gateway/target/openforge-gateway-0.1.0-SNAPSHOT.jar"
+MARKER_JAR="$ROOT/backend/openforge-gateway/target/openforge-gateway-0.1.0-SNAPSHOT-exec.jar"
 STALE_SRC="$(find "$ROOT/backend" \( -name '*.java' -o -name 'pom.xml' \) -newer "$MARKER_JAR" -print -quit 2>/dev/null)"
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
   echo "  SKIP_BUILD=1：复用现有 target jar"
@@ -60,18 +60,25 @@ echo "=== [3/4] 启动 Java 服务（auth 先行 → 业务服务 ${START_PARALL
 # PROFILE 预设（机器吃紧时的瘦身入口，A4 模块注册：不启动的服务不注册/不路由）：
 #   core = auth gateway metadata doc workflow  （主链路：登录/动态建模/文档/审批）
 #   lite = auth gateway                        （前端联调骨架）
+#   mono = mono gateway                        （mono-8 单进程 + 网关，见 docs/OpenForge-mono单进程设计.md）
 #   full = 全部 9 服务（默认）；SERVICES 显式指定时优先于 PROFILE
 declare -A PORTS=(
   [auth]=8081 [material]=8082 [doc]=8083 [workflow]=8084
   [change]=8085 [knowledge]=8086 [project]=8087 [metadata]=8088 [gateway]=8080
+  [mono]=8090
 )
 SVC_ORDER="auth material doc workflow change knowledge project metadata gateway"
 case "${PROFILE:-full}" in
   core) PRESET="auth metadata doc workflow gateway" ;;
   lite) PRESET="auth gateway" ;;
+  mono) PRESET="mono gateway" ;;
   *)    PRESET="$SVC_ORDER" ;;
 esac
 SVC_LIST=${SERVICES:-$PRESET}
+# mono 模式：gateway 路由/注册中心拉取指向 mono(:8090)；其余 8 服务不启动
+if [ "${PROFILE:-full}" = "mono" ]; then
+  export AUTH_SERVICE_URI="${AUTH_SERVICE_URI:-http://localhost:8090}"
+fi
 for svc in $SVC_LIST; do
   [ -z "${PORTS[$svc]}" ] && { echo "未知服务: $svc（可选: $SVC_ORDER）"; exit 1; }
 done
@@ -83,7 +90,7 @@ done
 run_one() {
   local svc=$1
   local jar_dir="$ROOT/backend/openforge-$svc/target"
-  local jar="$jar_dir/openforge-$svc-0.1.0-SNAPSHOT.jar"
+  local jar="$jar_dir/openforge-$svc-0.1.0-SNAPSHOT-exec.jar"
   local cds_dir="$jar_dir/cds"
   local run_jar=$jar
   local share=()   # 数组携带 CDS 参数：路径可能含空格（如 Windows 项目目录），标量会被分词拆裂
@@ -91,11 +98,11 @@ run_one() {
     if [ ! -f "$cds_dir/.extracted" ] || [ "$jar" -nt "$cds_dir/.extracted" ]; then
       rm -rf "$cds_dir"
       (cd "$jar_dir" && "$JAVA_HOME/bin/java" -Djarmode=tools \
-        -jar openforge-$svc-0.1.0-SNAPSHOT.jar extract --destination cds >/dev/null 2>&1) \
+        -jar openforge-$svc-0.1.0-SNAPSHOT-exec.jar extract --destination cds >/dev/null 2>&1) \
         && touch "$cds_dir/.extracted" || rm -rf "$cds_dir"
     fi
     if [ -f "$cds_dir/.extracted" ]; then
-      run_jar="$cds_dir/openforge-$svc-0.1.0-SNAPSHOT.jar"
+      run_jar="$cds_dir/openforge-$svc-0.1.0-SNAPSHOT-exec.jar"
       local jsa="$cds_dir/app.jsa"
       if [ ! -f "$jsa" ]; then
         java $JVM_OPTS -XX:ArchiveClassesAtExit="$jsa" -Dspring.context.exit=onRefresh \
@@ -141,6 +148,13 @@ fi
 
 echo "=== [4/4] 可选服务（手动执行） ==="
 echo "  AI:   cd ai && pip install -r requirements.txt && python -m uvicorn gateway.main:app --port 8001"
+if [ "${PROFILE:-full}" = "mono" ]; then
+  echo "        （mono 模式 AI 网关需指向 mono: OPENFORGE_AUTH_BASE_URL=http://localhost:8090）"
+fi
 echo "  前端: cd frontend && npm install && npm run dev   (http://localhost:5173)"
 echo ""
-echo "完成。管理员账号 admin 的初始密码打印在 auth 启动日志（/tmp/openforge-auth.log），首登强制改密；自助注册默认关闭。"
+if [ "${PROFILE:-full}" = "mono" ]; then
+  echo "完成。管理员账号 admin 的初始密码打印在 mono 启动日志（/tmp/openforge-mono.log），首登强制改密；自助注册默认关闭。"
+else
+  echo "完成。管理员账号 admin 的初始密码打印在 auth 启动日志（/tmp/openforge-auth.log），首登强制改密；自助注册默认关闭。"
+fi
