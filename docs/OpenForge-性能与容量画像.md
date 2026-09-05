@@ -192,6 +192,7 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 | 构建（无改动启动已跳过） | 每次启动 +1~1.5GB 峰值 | 0（有改动才建） |
 | **合计（稳态）** | **14-16GB+（必崩）** | **~11-12GB（余量 3-4GB）** |
 | PROFILE=core 稳态 | — | **~9-10GB（余量 5GB+）** |
+| PROFILE=mono 稳态（v1.12.0） | — | **mono 224MB + gateway 181MB + WSL 2GB + 常驻 ~5GB ≈ 7.5GB（余量 8GB+）** |
 
 **运行时实测（2026-09-04 首次真实全链路冒烟，v1.9.0 + 瘦身两刀）**：9 服务 RSS 合计 **1.86GB**
 （单服务 188~211MB——SerialGC+Xss512k 直存封顶后单服务较原 G1 画像 400MB+ 减半以上），
