@@ -11,7 +11,7 @@ import org.springframework.web.client.RestClient;
 /**
  * 编号引擎客户端：调 auth 内部接口取号（直连，不经网关）。
  */
-@Component
+@Component("materialNumberClient")
 public class NumberClient {
 
     private static final ParameterizedTypeReference<ApiResponse<String>> TYPE =

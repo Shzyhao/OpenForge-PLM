@@ -28,7 +28,7 @@ spring:
       minimum-idle: ${HIKARI_MIN_IDLE:2}
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration/metadata
     baseline-on-migrate: true
     baseline-version: 0
     table: flyway_metadata_history   # 多服务共享库，独立迁移历史
@@ -40,6 +40,8 @@ mybatis-plus:
     banner: false
 
 openforge:
+  module:
+    descriptor: classpath:module/metadata.yml
   security:
     auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
     internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}

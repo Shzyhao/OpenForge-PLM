@@ -1,17 +1,16 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-09-01 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-09-05 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.9.0**（tag + GitHub Release；元数据 TTL 缓存 + 日志保留期清理——双技术债清偿） |
-| 最新发布版 | **v1.10.0**（tag + GitHub Release；本地开发瘦身 + 首次真实冒烟修复——动态路由自此生效） |
-| dev 最新 | 无未发版功能提交 |
-| main vs dev | 完全同步（v1.10.0 发布 PR #91 + 回灌 fast-forward；交接文档随会话更新） |
-| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码已重置为 smoke-test-2026（本地 dev 库，首登强制改密） |
-| 全量测试 | 15 模块 verify 绿 + AI pytest 28 + 前端构建绿 + CLI selftest 绿 + **9/9 业务域网关冒烟全绿（RSS 实测 1.86GB）** |
+| 最新发布版 | **v1.11.0**（tag + GitHub Release；BROKEN 可观测性 + Nacos 回路修复 CI 常开 + 设计器预览坐标兜底） |
+| dev 最新 | 与 main 同步（发布 PR #96 merge commit e7b4253 + 回灌 fast-forward），无未发版提交 |
+| main vs dev | 完全同步 |
+| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库） |
+| 全量测试 | 15 模块 verify 绿（含 Nacos 回路 CI 真跑）+ AI pytest + 前端构建 + **网关链路冒烟 8/8 域 + AI 网关离线四接口 + 浏览器级登录/工作台/设计器（RSS 1.87GB）** |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
@@ -48,6 +47,10 @@
 | #92 | BROKEN 模块静默摘除可观测性——module-routes 端点/health details 暴露 brokenModules 与原因（依赖未启用: xxx）+ auth 守护日志 module broken/recovered 落地（F2 设计 3.4 首次以 diff 为准） | v1.11.0 |
 | #93 | Nacos 回路测试修复——**publish 读可见性竞态实锤**（零间隔 A/B 一次 NULL 一次 OK，与版本错配/网络方案无关）+ getConfig 退避重试 + 复用模式补发布 + 固定端口容器（替代 host 网络）+ test yml import 默认翻空（8 服务 loader 空载消除）+ 镜像 v2.4.3（v2.3.2/v2.2.3 libtinfo 损坏无法启动）+ **ci.yml NACOS_LOOP_TEST 常开** | v1.11.0 |
 | #94 | 流程设计器只读预览遗留定义坐标兜底——浏览器级冒烟实锤：#82 前部署的定义无 x/y，查看路径未走自动布局，节点全叠 (0,0) 仅 END 可见 | v1.11.0 |
+| #95 | v1.11.0 冒烟证据入册：网关链路 8/8 域 + AI 网关离线四接口 + CDS 业务服务 A/B 校准（收益 ~2-4%）+ 约定 #9（前端交付合并门=浏览器级真实打开） | v1.11.0 |
+| #97 | mono 单进程模式设计刀——mono-8 + 独立 gateway 两刀方案（gateway 因 WebFlux/WebMVC 自动配置互斥不并入；13 处跨服务调用矩阵 + bean/资源冲突面全量取证） | 未发版 |
+| #98 | **mono 刀 1 骨架实施**：资源目录化（db/migration/<svc>/ + module/<svc>.yml，解 8 组同名根资源遮蔽）+ 多 Flyway 实例 + ModuleRegistrar 参数化（8 实例多心跳）+ NumberClient×4 显式命名 + 双拦截器去重 + exec classifier ×9 + PROFILE=mono；**实测 RSS 405MB（-78%）+ 网关链路 8/8 域等价**（见 mono 设计 §4.1） | v1.12.0 |
+| — | 刀 2（进程内直调）**评估完成：不实施**——5 组回环均有 TTL 缓存或低频、本机 <1ms，刀 1 实测无相关瓶颈；直调化需侵入 4 服务客户端或脆弱子类覆写，风险不成比例（mono 设计 §3.2 判定入册） | — |
 
 ## 关键架构决策（已实施）
 
@@ -61,7 +64,7 @@
 ## 下一步（按优先级）
 
 1. **v1.12.0 候选**：无在途功能。Nacos Harness（#93 已常开 CI）、BROKEN 可观测性（#92）、设计器浏览器验证（#94 + 现场验证）三项 v1.11.0 候选已全部交付；剩余大项见下
-2. **单进程 mono 模式（9 合 1 JVM，-2GB 大项）/ H2 文件库 dev 模式**：需独立设计刀（跨服务内部 HTTP 指向 localhost:808x，需转发/客户端改造；H2 多进程共享 AUTO_SERVER Windows 不稳 + DDL 生成器 PG 方言，见 §8.3）
+2. **单进程 mono 模式**：**刀 1（骨架）已实施并全栈实测（PROFILE=mono）**——mono 224MB + gateway 181MB = **405MB RSS（-78%）**、网关链路冒烟 8/8 域等价，方案与数据见 docs/OpenForge-mono单进程设计.md；**刀 2 评估完成不实施**（回环均有缓存/低频，直调化收益≈零、侵入风险不成比例，见 PR 表与 mono 设计 §3.2）；H2 文件库 dev 模式维持 §8.3 备选不动
 3. **连接器与行业模板包**：需外部场景输入
 4. **Milvus/Neo4j/ES**：架构文档路线项，随规模引入
 
