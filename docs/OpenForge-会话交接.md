@@ -85,7 +85,7 @@
 5. **性能自检**：PR 模板合并门强制（内存上界/聚合下推/默认值显式/调度格式/环境画像），详见 docs/OpenForge-性能与容量画像.md §5
 6. Windows 注意：WSL2 `.wslconfig` **默认 2GB**（仅 PG；extras/rocketmq/nacos 场景 4GB，模板有注）；Docker Desktop 闪退（wsl.exe 0xc00000fd 栈溢出）处置=完整杀进程（Docker Desktop/com.docker.backend）后重启，必要时 `wsl --shutdown` 先行
 7. **文档断言「已落地」必须以 diff 为准**（#62 教训：commit message 称服务 JVM 已加 SerialGC/Xss512k，实际只落 MAVEN_OPTS，服务 JVM 跑了三版默认 G1——#86 才实装，见性能画像 §8.2）
-8. **合并门前必须有真实网关链路冒烟**（#90 教训：MockMvc/Testcontainers 直连测不出网关动态路由/注册表链路缺陷——动态路由自 A4 交付以来从未真实生效，直到 #90 首次全链路冒烟才暴露；凡动网关/模块注册/路由，冒烟为合并门强制环节）
+8. **合并门前必须有真实网关链路冒烟**（#90 教训：MockMvc/Testcontainers 直连测不出网关动态路由/注册表链路缺陷——动态路由自 A4 交付以来从未真实生效，直到 #90 首次全链路冒烟才暴露；凡动网关/模块注册/路由，冒烟为合并门强制环节；**一键执行：`./scripts/smoke.sh`**——登录→注册表自检→8 业务域穿透 13 项断言，dev-up 后即可跑，full/mono 通用，含负向自检）
 8. GitHub 间歇 502/startup_failure：空提交重触发 / close+reopen / 等待平台恢复；stacked PR 基分支被删连坐关闭 → rebase + 重建 PR
 9. **前端交付合并门 = 浏览器级真实打开**（#94 教训：设计器只读预览自 #82 交付以来从未被真实打开——构建绿 + locator 断言测不出"节点全叠原点"这类视觉缺陷；自动化时 React 合成事件对 locator/CUA click 无响应，用 `evaluate` 程序化 `.click()`）；#101 扩展：**新页面交付走全页面巡检**（15 界面逐页，检查错误提示/表格渲染/空态一致性）——实锤了分页结构这类"构建绿但用户可见坏"的接口契约缺陷
 
