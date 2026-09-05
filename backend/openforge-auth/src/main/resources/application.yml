@@ -39,6 +39,10 @@ mybatis-plus:
 openforge:
   module:
     descriptor: classpath:module/auth.yml
+  internal:
+    # 接收方键位与调用方（openforge.security.internal-token）双源同 env——
+    # 评审实锤：两键全仓无 yml 定义，INTERNAL_TOKEN 轮换曾致回环/注册全 401
+    token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
   security:
     # 自助注册默认关闭：用户由管理员手动创建（权限完善方案 D8）
     open-registration: ${OPEN_REGISTRATION:false}
