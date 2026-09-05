@@ -176,7 +176,7 @@ powershell "Get-Process java | Select-Object Id,@{n='RSS_MB';e={[int]($_.Working
 | 方案 | 预期收益 | 暂缓原因 |
 |------|---------|---------|
 | spring.main.lazy-initialization | 启动提速、按需 bean | **不可用**：模块注册（ModuleRegistrar 启动注册）、@Scheduled（outbox relay/日志清理/路由刷新）、事件监听均依赖启动期初始化——lazy 会让服务不注册、不路由 |
-| 单进程 mono 模式（9 合 1 JVM） | 后端 ~3GB → ~1GB（最大单项） | 跨服务内部 HTTP（metadata→auth /internal、发布流水线、knowledge 沉淀）指向 localhost:808x，需端口内转发或客户端改造，侵入架构，需独立设计刀 |
+| 单进程 mono 模式（9 合 1 JVM） | 后端 ~3GB → ~1GB（最大单项） | 跨服务内部 HTTP（metadata→auth /internal、发布流水线、knowledge 沉淀）指向 localhost:808x，需端口内转发或客户端改造，侵入架构——**设计刀已完成**（docs/OpenForge-mono单进程设计.md：mono-8 + 独立 gateway 两刀方案，gateway 因 WebFlux/WebMVC 自动配置互斥不并入），待评审实施 |
 | H2 文件库 dev 模式（零 Docker） | 免 WSL2 整层（-2GB） | flyway 迁移虽 H2 兼容（测试已证），但 H2 文件库多进程共享需 AUTO_SERVER（Windows 不稳）+ 动态 DDL 生成器输出 PG 方言 + 丢失 pgvector 语义；作为极端瘦身备选记录 |
 | 业务服务 CDS 运行时实测 | 校准 §8.4 预算 | **已实测（v1.11.0 会话）**：material 有/无 CDS 各两轮 A/B——墙钟 5.2s→5.1s，**收益仅 ~2-4%**（`-Xlog:cds` 确认 `Opened archive app.jsa` 真实生效，非静默降级）。结论：业务服务启动被 flyway/Hikari/模块注册外呼主导，类加载占比小；gateway（无 DB）-36% 反差即规律本身——**CDS 收益 ∝ 启动中类加载占比**。各服务 app.jsa ~16MB 磁盘，保留（无害）但不必再为其调优 |
 
