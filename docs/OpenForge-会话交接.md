@@ -6,11 +6,11 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.12.0**（tag + GitHub Release；mono 单进程模式——PROFILE=mono 两进程全栈，RSS -78%） |
-| dev 最新 | 与 main 同步（发布 PR #100 merge commit bc6aa6d + 回灌 fast-forward），无未发版提交 |
+| 最新发布版 | **v1.12.1**（tag + GitHub Release；patch——安全日志分页结构回归修复，全页面巡检实锤） |
+| dev 最新 | 与 main 同步（发布 PR #102 merge commit 86462f0 + 回灌 fast-forward），无未发版提交 |
 | main vs dev | 完全同步 |
 | 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库） |
-| 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑）+ AI pytest + 前端构建 + **mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%）** |
+| 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑 + SecurityLogControllerTest 结构回归）+ **全页面浏览器级巡检 15 界面（#101）** + mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%） |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
