@@ -1,4 +1,4 @@
-import { get, post } from './client'
+import { del, get, post, put } from './client'
 
 export interface Part {
   id: number
@@ -76,4 +76,101 @@ export const PART_STATE_LABELS: Record<string, { label: string; color: string }>
   RELEASED: { label: '已发布', color: 'success' },
   FROZEN: { label: '已冻结', color: 'warning' },
   PHASED_OUT: { label: '已废止', color: 'error' },
+}
+
+// ===== BOM（替代件与主数据变更专项 刀1） =====
+
+export interface BomHeader {
+  id: number
+  bomNumber: string
+  parentPartId: number
+  bomType: string
+  version: string
+  lifecycleState: string
+}
+
+export interface BomSubstituteView {
+  id: number
+  substitutePartId: number
+  partNumber: string
+  name: string
+  priority: number
+  qtyCoefficient: number
+}
+
+export interface BomLineView {
+  id: number
+  position: number
+  childPartId: number
+  childPartNumber: string
+  childPartName: string
+  quantity: number
+  refDes: string | null
+  usageType: string
+  substitutes: BomSubstituteView[]
+}
+
+export function fetchBom(id: number): Promise<BomHeader> {
+  return get<BomHeader>(`/api/v1/boms/${id}`)
+}
+
+export function fetchBomLines(id: number): Promise<BomLineView[]> {
+  return get<BomLineView[]>(`/api/v1/boms/${id}/lines`)
+}
+
+export function addBomLine(bomId: number, body: {
+  childPartId: number
+  quantity: number
+  refDes?: string
+  usageType?: string
+}): Promise<unknown> {
+  return post(`/api/v1/boms/${bomId}/lines`, body)
+}
+
+export function removeBomLine(bomId: number, lineId: number): Promise<void> {
+  return del(`/api/v1/boms/${bomId}/lines/${lineId}`)
+}
+
+export function addBomSubstitute(bomId: number, lineId: number, body: {
+  substitutePartId: number
+  priority?: number
+  qtyCoefficient?: number
+}): Promise<unknown> {
+  return post(`/api/v1/boms/${bomId}/lines/${lineId}/substitutes`, body)
+}
+
+export function updateBomSubstitute(bomId: number, lineId: number, subId: number, body: {
+  priority?: number
+  qtyCoefficient?: number
+}): Promise<unknown> {
+  return put(`/api/v1/boms/${bomId}/lines/${lineId}/substitutes/${subId}`, body)
+}
+
+export function removeBomSubstitute(bomId: number, lineId: number, subId: number): Promise<void> {
+  return del(`/api/v1/boms/${bomId}/lines/${lineId}/substitutes/${subId}`)
+}
+
+export function reviseBom(id: number): Promise<BomHeader> {
+  return post<BomHeader>(`/api/v1/boms/${id}/revise`)
+}
+
+export const BOM_STATE_LABELS: Record<string, { label: string; color: string }> = {
+  DRAFT: { label: '草稿', color: 'default' },
+  REVIEWING: { label: '评审中', color: 'processing' },
+  RELEASED: { label: '已发布', color: 'success' },
+}
+
+export const BOM_USAGE_TYPE_LABELS: Record<string, string> = {
+  NORMAL: '正常',
+  ALTERNATE: '替代',
+  OPTIONAL: '选配',
+}
+
+export interface BomExpandNode {
+  partId: number
+  partNumber: string
+  name: string
+  quantity: number
+  substitutes: { partId: number; partNumber: string; name: string; priority: number; qtyCoefficient: number }[]
+  children: BomExpandNode[]
 }
