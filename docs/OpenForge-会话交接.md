@@ -51,6 +51,7 @@
 | #97 | mono 单进程模式设计刀——mono-8 + 独立 gateway 两刀方案（gateway 因 WebFlux/WebMVC 自动配置互斥不并入；13 处跨服务调用矩阵 + bean/资源冲突面全量取证） | 未发版 |
 | #98 | **mono 刀 1 骨架实施**：资源目录化（db/migration/<svc>/ + module/<svc>.yml，解 8 组同名根资源遮蔽）+ 多 Flyway 实例 + ModuleRegistrar 参数化（8 实例多心跳）+ NumberClient×4 显式命名 + 双拦截器去重 + exec classifier ×9 + PROFILE=mono；**实测 RSS 405MB（-78%）+ 网关链路 8/8 域等价**（见 mono 设计 §4.1） | v1.12.0 |
 | — | 刀 2（进程内直调）**评估完成：不实施**——5 组回环均有 TTL 缓存或低频、本机 <1ms，刀 1 实测无相关瓶颈；直调化需侵入 4 服务客户端或脆弱子类覆写，风险不成比例（mono 设计 §3.2 判定入册） | — |
+| #101 | **全页面浏览器级巡检**（约定 #9 扩展：15 界面逐页真实打开）实锤安全日志分页结构回归——MP Page 直返（records/size）致前端 list undefined（"暂无数据"而总数正常）；修统一 PageResponse + 回归测试；README 快速开始补 PROFILE=mono | 未发版 |
 
 ## 关键架构决策（已实施）
 
@@ -86,7 +87,7 @@
 7. **文档断言「已落地」必须以 diff 为准**（#62 教训：commit message 称服务 JVM 已加 SerialGC/Xss512k，实际只落 MAVEN_OPTS，服务 JVM 跑了三版默认 G1——#86 才实装，见性能画像 §8.2）
 8. **合并门前必须有真实网关链路冒烟**（#90 教训：MockMvc/Testcontainers 直连测不出网关动态路由/注册表链路缺陷——动态路由自 A4 交付以来从未真实生效，直到 #90 首次全链路冒烟才暴露；凡动网关/模块注册/路由，冒烟为合并门强制环节）
 8. GitHub 间歇 502/startup_failure：空提交重触发 / close+reopen / 等待平台恢复；stacked PR 基分支被删连坐关闭 → rebase + 重建 PR
-9. **前端交付合并门 = 浏览器级真实打开**（#94 教训：设计器只读预览自 #82 交付以来从未被真实打开——构建绿 + locator 断言测不出"节点全叠原点"这类视觉缺陷；自动化时 React 合成事件对 locator/CUA click 无响应，用 `evaluate` 程序化 `.click()`）
+9. **前端交付合并门 = 浏览器级真实打开**（#94 教训：设计器只读预览自 #82 交付以来从未被真实打开——构建绿 + locator 断言测不出"节点全叠原点"这类视觉缺陷；自动化时 React 合成事件对 locator/CUA click 无响应，用 `evaluate` 程序化 `.click()`）；#101 扩展：**新页面交付走全页面巡检**（15 界面逐页，检查错误提示/表格渲染/空态一致性）——实锤了分页结构这类"构建绿但用户可见坏"的接口契约缺陷
 
 ## 已知技术债 / 遗留
 
