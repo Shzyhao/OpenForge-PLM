@@ -80,6 +80,8 @@ openforge:
     cache-ttl-seconds: ${META_CACHE_TTL_SECONDS:30}
   workflow:
     base-url: ${WORKFLOW_SERVICE_URI:http://localhost:${server.port}}
+  material:
+    base-url: ${MATERIAL_SERVICE_URI:http://localhost:${server.port}}   # 刀2 变更执行通道（mono 回环）
   integration:
     knowledge-base-url: ${KNOWLEDGE_SERVICE_URI:http://localhost:${server.port}}
     ai-base-url: ${OPENFORGE_AI_BASE_URL:http://localhost:8001}   # Python AI 网关恒进程外（设计 §1 非目标）

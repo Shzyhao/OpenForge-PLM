@@ -7,12 +7,14 @@ import type { TableColumnsType } from 'antd'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   BOM_STATE_LABELS, BOM_USAGE_TYPE_LABELS, BomHeader, BomLineView, BomSubstituteView,
+  VALIDITY_LABELS,
   addBomLine, addBomSubstitute, fetchBom, fetchBomLines, fetchParts, removeBomLine,
   removeBomSubstitute, reviseBom, updateBomSubstitute,
 } from '../api/material'
 import { BomExpandNode } from '../api/material'
 import { get } from '../api/client'
 import { usePerm } from '../perm/PermContext'
+import { useNavigate } from 'react-router-dom'
 
 const USAGE_TAG_COLORS: Record<string, string> = { NORMAL: 'default', ALTERNATE: 'orange', OPTIONAL: 'blue' }
 
@@ -46,6 +48,11 @@ interface AntTreeNode {
 
 function toTree(node: BomExpandNode, path: string): AntTreeNode {
   const key = `${path}/${node.partNumber}×${node.quantity}`
+  const validityTag = node.validityStatus && node.validityStatus !== 'VALID'
+    ? <Tag color={VALIDITY_LABELS[node.validityStatus]?.color ?? 'default'} style={{ marginLeft: 8 }}>
+        {VALIDITY_LABELS[node.validityStatus]?.label ?? node.validityStatus}
+      </Tag>
+    : null
   const subChildren: AntTreeNode[] = (node.substitutes ?? []).map((s, i) => ({
     key: `${key}#sub${i}`,
     title: (
@@ -61,6 +68,7 @@ function toTree(node: BomExpandNode, path: string): AntTreeNode {
       <span>
         {node.partNumber} — {node.name}
         <Typography.Text type="secondary"> ×{node.quantity}</Typography.Text>
+        {validityTag}
       </span>
     ),
     key,
@@ -72,6 +80,7 @@ function toTree(node: BomExpandNode, path: string): AntTreeNode {
 export default function BomPage() {
   const { hasPerm } = usePerm()
   const canManage = hasPerm('bom:manage')
+  const navigate = useNavigate()
 
   const [bomId, setBomId] = useState<number | null>(null)
   const [bom, setBom] = useState<BomHeader | null>(null)
@@ -220,6 +229,19 @@ export default function BomPage() {
     { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 90 },
     { title: '位号', dataIndex: 'refDes', key: 'refDes', width: 140, render: v => v ?? '-' },
     {
+      title: '有效期', key: 'validity', width: 190,
+      render: (_, line) => (
+        <Space size={6}>
+          <span style={{ fontSize: 12 }}>
+            {line.effectiveFrom ?? '—'} ~ {line.effectiveTo ?? '—'}
+          </span>
+          <Tag color={VALIDITY_LABELS[line.validityStatus]?.color ?? 'default'}>
+            {VALIDITY_LABELS[line.validityStatus]?.label ?? line.validityStatus}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
       title: '用量类型', dataIndex: 'usageType', key: 'usageType', width: 90,
       render: v => <Tag color={USAGE_TAG_COLORS[v] ?? 'default'}>{BOM_USAGE_TYPE_LABELS[v] ?? v}</Tag>,
     },
@@ -293,6 +315,12 @@ export default function BomPage() {
                         <Button type="primary" htmlType="submit" size="small" icon={<PlusOutlined />}>添加替代件</Button>
                       </Form.Item>
                     </Form>
+                  )}
+                  {canManage && !editable && (
+                    <Button size="small" type="primary" ghost style={{ marginTop: 12 }}
+                      onClick={() => navigate(`/change?action=substitute&bomId=${bom?.id}&lineId=${line.id}`)}>
+                      发起替代变更
+                    </Button>
                   )}
                 </div>
               ),
