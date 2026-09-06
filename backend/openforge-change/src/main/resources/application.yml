@@ -47,6 +47,8 @@ openforge:
     internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
   workflow:
     base-url: ${WORKFLOW_SERVICE_URI:http://localhost:8084}
+  material:
+    base-url: ${MATERIAL_SERVICE_URI:http://localhost:8082}   # 刀2 变更执行通道（内部接口直连）
 
 management:
   metrics:
