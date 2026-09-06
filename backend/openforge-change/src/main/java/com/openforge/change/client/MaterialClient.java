@@ -90,7 +90,7 @@ public class MaterialClient {
 
     public List<Map<String, Object>> whereUsed(Long partId) {
         moduleAvailability.ensureAvailable("material");
-        ApiResponse<List<Map<String, Object>>> resp = get("/api/v1/internal/boms/where-used",
+        ApiResponse<List<Map<String, Object>>> resp = get("/api/v1/internal/boms/where-used?partId={partId}",
                 MAP_LIST_TYPE, Map.of("partId", partId));
         return resp.getData() == null ? List.of() : resp.getData();
     }
