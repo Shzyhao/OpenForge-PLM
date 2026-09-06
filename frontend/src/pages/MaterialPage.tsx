@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -9,8 +10,9 @@ import {
 } from '../api/material'
 import { ApiError } from '../api/client'
 
-/** 物料管理页（M2）：列表 + 筛选 + 新建 + 状态流转 */
+/** 物料管理页（M2）：列表 + 筛选 + 新建 + 状态流转（禁用/启用走统一变更中心，刀2） */
 export default function MaterialPage() {
+  const navigate = useNavigate()
   const [data, setData] = useState<Part[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -56,7 +58,7 @@ export default function MaterialPage() {
       },
     },
     {
-      title: '操作', width: 220,
+      title: '操作', width: 300,
       render: (_, part) => (
         <Space size="small">
           {part.lifecycleState === 'DRAFT' && (
@@ -67,6 +69,18 @@ export default function MaterialPage() {
               <Button size="small" type="primary" onClick={() => act(part.id, 'approve')}>发布</Button>
               <Button size="small" onClick={() => act(part.id, 'reject')}>驳回</Button>
             </>
+          )}
+          {part.lifecycleState === 'RELEASED' && (
+            <Button size="small" danger ghost
+              onClick={() => navigate(`/change?action=part-state&partId=${part.id}&target=FROZEN`)}>
+              禁用变更
+            </Button>
+          )}
+          {part.lifecycleState === 'FROZEN' && (
+            <Button size="small" type="primary" ghost
+              onClick={() => navigate(`/change?action=part-state&partId=${part.id}&target=RELEASED`)}>
+              启用变更
+            </Button>
           )}
         </Space>
       ),

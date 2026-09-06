@@ -11,6 +11,7 @@ import com.openforge.material.dto.SubstituteRequest;
 import com.openforge.material.dto.SubstituteUpdateRequest;
 import com.openforge.material.entity.Bom;
 import com.openforge.material.entity.BomLine;
+import com.openforge.material.entity.BomLineSubstitute;
 import com.openforge.material.entity.Part;
 import com.openforge.material.entity.PartVersion;
 import com.openforge.material.mapper.BomLineMapper;
@@ -26,6 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -50,6 +52,8 @@ class PartBomIntegrationTest {
     private PartVersionMapper partVersionMapper;
     @Autowired
     private BomLineMapper bomLineMapper;
+    @Autowired
+    private com.openforge.material.mapper.BomLineSubstituteMapper substituteMapper;
 
     @MockBean
     private NumberClient numberClient;
@@ -364,5 +368,112 @@ class PartBomIntegrationTest {
         assertThat(identical.added()).isEmpty();
         assertThat(identical.removed()).isEmpty();
         assertThat(identical.changed()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("变更中心应用替代组：全量替换+last_change_id 回写；重放校验拒绝非法项；仅发布版")
+    void applySubstituteChangeFlow() {
+        Part a = releasedPart("应用父件");
+        Part b = releasedPart("应用子件");
+        Part c = releasedPart("应用替代C");
+        Part d = releasedPart("应用替代D");
+        Part e = releasedPart("应用替代E");
+
+        Bom bom = bomService.create(a.getId(), 1L);
+        BomLine line = bomService.addLine(bom.getId(), line(b.getId(), "2"));
+        bomService.addSubstitute(bom.getId(), line.getId(), sub(c.getId(), 1, "1"));
+        bomService.submit(bom.getId(), 1L);
+        bomService.approve(bom.getId(), 1L);
+
+        // 草稿 BOM 拒绝应用（用同父件新草稿验证）
+        Bom draft = bomService.create(a.getId(), 1L);
+        BomLine draftLine = bomService.addLine(draft.getId(), line(b.getId(), "2"));
+        assertThatThrownBy(() -> bomService.applySubstituteChange(draftLine.getId(),
+                List.of(subRequest(d.getId(), 1, "1")), 901L))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(codeOf(ex).code()).isEqualTo(ErrorCode.INVALID_ARGUMENT));
+
+        // 发布版：全量替换 C → D+E，回写 last_change_id
+        bomService.applySubstituteChange(line.getId(),
+                List.of(subRequest(d.getId(), 1, "1"), subRequest(e.getId(), 2, "1.5")), 902L);
+        List<BomLineResponse.SubstituteView> after = bomService.substitutes(bom.getId(), line.getId());
+        assertThat(after).extracting(BomLineResponse.SubstituteView::getPartNumber)
+                .containsExactly(d.getPartNumber(), e.getPartNumber());
+        BomLineSubstitute first = substituteMapper.selectList(null).stream()
+                .filter(s -> s.getBomLineId().equals(line.getId()) && s.getPriority() == 1)
+                .findFirst().orElseThrow();
+        assertThat(first.getLastChangeId()).isEqualTo(902L);
+
+        // 重放校验：禁用件（FROZEN）不可进替代组
+        partService.applyLifecycle(d.getId(), "FROZEN", 1L);
+        assertThatThrownBy(() -> bomService.applySubstituteChange(line.getId(),
+                List.of(subRequest(d.getId(), 1, "1")), 903L))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(codeOf(ex).code()).isEqualTo(ErrorCode.INVALID_ARGUMENT));
+    }
+
+    private SubstituteRequest subRequest(Long partId, Integer priority, String coefficient) {
+        SubstituteRequest s = new SubstituteRequest();
+        s.setSubstitutePartId(partId);
+        s.setPriority(priority);
+        s.setQtyCoefficient(new BigDecimal(coefficient));
+        return s;
+    }
+
+    @Test
+    @DisplayName("物料禁用联动：FROZEN 拒绝新增行/替代件引用；启用恢复；非法目标与非法流转拒绝")
+    void frozenReferenceInterception() {
+        Part parent = releasedPart("联动父件");
+        Part child = releasedPart("联动子件");
+        Part other = releasedPart("联动其他件");
+
+        Bom bom = bomService.create(parent.getId(), 1L);   // 保持 DRAFT 供引用校验
+        bomService.addLine(bom.getId(), line(child.getId(), "1"));
+        BomLine otherLine = bomService.addLine(bom.getId(), line(other.getId(), "1"));
+
+        // 禁用（RELEASED→FROZEN）→ 新增替代件/行引用均被拒
+        Part frozen = partService.applyLifecycle(child.getId(), "FROZEN", 1L);
+        assertThat(frozen.getLifecycleState()).isEqualTo("FROZEN");
+        assertThatThrownBy(() -> bomService.addSubstitute(bom.getId(), otherLine.getId(), sub(child.getId(), 1, "1")))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(ex.getMessage()).contains("已禁用"));
+        assertThatThrownBy(() -> bomService.addLine(bom.getId(), line(child.getId(), "1")))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(ex.getMessage()).contains("已禁用"));
+
+        // 启用（FROZEN→RELEASED）后恢复引用（作为 otherLine 的替代件）
+        partService.applyLifecycle(child.getId(), "RELEASED", 1L);
+        assertThat(bomService.addSubstitute(bom.getId(), otherLine.getId(), sub(child.getId(), 1, "1")))
+                .isNotNull();
+
+        // 非法目标 / 非法流转（child 当前 RELEASED：再次启用非法）
+        assertThatThrownBy(() -> partService.applyLifecycle(child.getId(), "DRAFT", 1L))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(codeOf(ex).code()).isEqualTo(ErrorCode.INVALID_ARGUMENT));
+        assertThatThrownBy(() -> partService.applyLifecycle(child.getId(), "RELEASED", 1L))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(codeOf(ex).code()).isEqualTo(ErrorCode.INVALID_STATE_TRANSITION));
+    }
+
+    @Test
+    @DisplayName("有效期三态（刀3）：未生效/即将到期/过期/有效 判定与行视图下发")
+    void validityStatusCalculation() {
+        LocalDate today = java.time.LocalDate.now();
+        assertThat(bomService.validityStatus(null, null)).isEqualTo("VALID");
+        assertThat(bomService.validityStatus(today.plusDays(1), null)).isEqualTo("NOT_YET_EFFECTIVE");
+        assertThat(bomService.validityStatus(null, today.minusDays(1))).isEqualTo("EXPIRED");
+        assertThat(bomService.validityStatus(null, today)).isEqualTo("EXPIRING");
+        assertThat(bomService.validityStatus(null, today.plusDays(30))).isEqualTo("EXPIRING");
+        assertThat(bomService.validityStatus(null, today.plusDays(31))).isEqualTo("VALID");
+
+        // 行视图下发
+        Part parent = releasedPart("有效期父件");
+        Part child = releasedPart("有效期子件");
+        Bom bom = bomService.create(parent.getId(), 1L);
+        BomLineRequest expiredLine = line(child.getId(), "1");
+        expiredLine.setEffectiveTo(today.minusDays(1));
+        bomService.addLine(bom.getId(), expiredLine);
+        List<BomLineResponse> rows = bomService.lineDetails(bom.getId());
+        assertThat(rows.get(0).getValidityStatus()).isEqualTo("EXPIRED");
     }
 }
