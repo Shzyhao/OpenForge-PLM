@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -52,6 +53,10 @@ public class BomService {
     /** 单行替代件防呆上限（设计文档 §5.5） */
     @Value("${openforge.material.substitute.max-per-line:10}")
     private int maxSubstitutesPerLine;
+
+    /** 有效期"即将到期"窗口天数（刀3 三态标识） */
+    @Value("${openforge.material.validity.expiring-days:30}")
+    private int validityExpiringDays;
 
     // ===== BOM 头 =====
 
@@ -115,24 +120,38 @@ public class BomService {
         Map<Long, List<BomLineSubstitute>> subs = substitutesByLineIds(lineIds(ls));
         List<BomLineResponse> result = new ArrayList<>(ls.size());
         for (BomLine line : ls) {
-            Part child = partService.detail(line.getChildPartId());
-            BomLineResponse row = new BomLineResponse();
-            row.setId(line.getId());
-            row.setBomId(line.getBomId());
-            row.setPosition(line.getPosition());
-            row.setChildPartId(child.getId());
-            row.setChildPartNumber(child.getPartNumber());
-            row.setChildPartName(child.getName());
-            row.setQuantity(line.getQuantity());
-            row.setRefDes(line.getRefDes());
-            row.setUsageType(line.getUsageType());
-            row.setEffectiveFrom(line.getEffectiveFrom());
-            row.setEffectiveTo(line.getEffectiveTo());
-            row.setAttrs(line.getAttrs());
-            row.setSubstitutes(substituteViews(subs.getOrDefault(line.getId(), List.of())));
-            result.add(row);
+            result.add(toLineResponse(line, subs.getOrDefault(line.getId(), List.of())));
         }
         return result;
+    }
+
+    /** 单行视图（变更服务内部调用：行定位与主件信息）。 */
+    public BomLineResponse lineDetail(Long lineId) {
+        BomLine line = bomLineMapper.selectById(lineId);
+        if (line == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "BOM 行不存在");
+        }
+        return toLineResponse(line, substitutesOf(lineId));
+    }
+
+    private BomLineResponse toLineResponse(BomLine line, List<BomLineSubstitute> substitutes) {
+        Part child = partService.detail(line.getChildPartId());
+        BomLineResponse row = new BomLineResponse();
+        row.setId(line.getId());
+        row.setBomId(line.getBomId());
+        row.setPosition(line.getPosition());
+        row.setChildPartId(child.getId());
+        row.setChildPartNumber(child.getPartNumber());
+        row.setChildPartName(child.getName());
+        row.setQuantity(line.getQuantity());
+        row.setRefDes(line.getRefDes());
+        row.setUsageType(line.getUsageType());
+        row.setEffectiveFrom(line.getEffectiveFrom());
+        row.setEffectiveTo(line.getEffectiveTo());
+        row.setAttrs(line.getAttrs());
+        row.setValidityStatus(validityStatus(line.getEffectiveFrom(), line.getEffectiveTo()));
+        row.setSubstitutes(substituteViews(substitutes));
+        return row;
     }
 
     public void removeLine(Long bomId, Long lineId) {
@@ -219,6 +238,59 @@ public class BomService {
         substituteMapper.deleteById(subId);
     }
 
+    /**
+     * 变更中心应用：全量替换指定行的替代组（仅已发布 BOM；变更单执行入口，设计 §5.4）。
+     * 重放全部替代件校验；成功后回写 last_change_id=变更单 id（追溯锚点）。
+     */
+    @Transactional
+    public void applySubstituteChange(Long lineId, List<SubstituteRequest> substitutes, Long changeId) {
+        BomLine line = bomLineMapper.selectById(lineId);
+        if (line == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "BOM 行不存在");
+        }
+        Bom bom = requireBom(line.getBomId());
+        if (!"RELEASED".equals(bom.getLifecycleState())) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT,
+                    "仅已发布 BOM 可经变更应用替代组（当前 " + bom.getLifecycleState() + "）");
+        }
+        // 重放校验（§5.5）：非 DRAFT/禁用/废止、≠主件、非祖先、组内不重复、系数>0、上限
+        Set<Long> seen = new HashSet<>();
+        for (SubstituteRequest request : substitutes) {
+            Part sub = requireReferenceablePart(request.getSubstitutePartId(), "替代件");
+            if (sub.getId().equals(line.getChildPartId())) {
+                throw new BizException(ErrorCode.INVALID_ARGUMENT, "替代件不能与主件相同");
+            }
+            requireNotAncestor(bom.getId(), sub);
+            if (!seen.add(request.getSubstitutePartId())) {
+                throw new BizException(ErrorCode.INVALID_ARGUMENT, "替代组内存在重复替代件");
+            }
+            if (request.getQtyCoefficient() != null
+                    && request.getQtyCoefficient().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BizException(ErrorCode.INVALID_ARGUMENT, "替代系数必须大于 0");
+            }
+        }
+        if (substitutes.size() > maxSubstitutesPerLine) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT,
+                    "单行替代件数量超过上限（" + maxSubstitutesPerLine + "）");
+        }
+        substituteMapper.delete(new LambdaQueryWrapper<BomLineSubstitute>()
+                .eq(BomLineSubstitute::getBomLineId, lineId));
+        List<BomLineSubstitute> group = new ArrayList<>();
+        for (SubstituteRequest request : substitutes) {
+            BomLineSubstitute entity = new BomLineSubstitute();
+            entity.setBomLineId(lineId);
+            entity.setSubstitutePartId(request.getSubstitutePartId());
+            entity.setPriority(request.getPriority() != null ? request.getPriority() : 1);
+            entity.setQtyCoefficient(request.getQtyCoefficient() != null
+                    ? request.getQtyCoefficient() : BigDecimal.ONE);
+            entity.setLastChangeId(changeId);
+            entity.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
+            substituteMapper.insert(entity);
+            group.add(entity);
+        }
+        log.info("substitute change applied: lineId={} changeId={} count={}", lineId, changeId, group.size());
+    }
+
     // ===== 展开（含环检测） / 反查 =====
 
     /** 多层展开为树；展开过程中检测循环引用。level 为最大层数（1=单层）。 */
@@ -230,7 +302,7 @@ public class BomService {
     private BomNode expandNode(Bom bom, int level, Set<Long> pathAncestors) {
         Part parent = partService.detail(bom.getParentPartId());
         BomNode node = new BomNode(parent.getId(), parent.getPartNumber(), parent.getName(),
-                BigDecimal.ONE, new ArrayList<>(), new ArrayList<>());
+                BigDecimal.ONE, null, new ArrayList<>(), new ArrayList<>());
         if (level <= 0) {
             return node;
         }
@@ -251,7 +323,8 @@ public class BomService {
                     })
                     .collect(Collectors.toList());
             BomNode childNode = new BomNode(child.getId(), child.getPartNumber(), child.getName(),
-                    line.getQuantity(), subNodes, new ArrayList<>());
+                    line.getQuantity(), validityStatus(line.getEffectiveFrom(), line.getEffectiveTo()),
+                    subNodes, new ArrayList<>());
             node.children().add(childNode);
             // 递归展开子件自己的 BOM（草稿 BOM 也参与展开，便于设计期检查）
             List<Bom> childBoms = bomMapper.selectList(new LambdaQueryWrapper<Bom>()
@@ -282,6 +355,7 @@ public class BomService {
             row.put("lineId", ref.getId());
             row.put("position", ref.getPosition());
             row.put("quantity", ref.getQuantity());
+            row.put("validityStatus", validityStatus(ref.getEffectiveFrom(), ref.getEffectiveTo()));
             result.add(row);
         }
         for (BomLineSubstitute sub : substituteMapper.selectList(new LambdaQueryWrapper<BomLineSubstitute>()
@@ -523,12 +597,38 @@ public class BomService {
 
     // ===== 私有辅助 =====
 
-    /** 被引用物料校验：必须存在且非 DRAFT（决策 D7）。 */
+    /**
+     * 有效期三态（刀3，决策 D4：不过滤展开仅标注）：
+     * NOT_YET_EFFECTIVE（from 在未来）/ EXPIRED（to < 今天）/ EXPIRING（to ≤ 今天+窗口天数）/ VALID。
+     */
+    public String validityStatus(LocalDate from, LocalDate to) {
+        LocalDate today = LocalDate.now();
+        if (from != null && from.isAfter(today)) {
+            return "NOT_YET_EFFECTIVE";
+        }
+        if (to == null) {
+            return "VALID";
+        }
+        if (to.isBefore(today)) {
+            return "EXPIRED";
+        }
+        return !to.isAfter(today.plusDays(validityExpiringDays)) ? "EXPIRING" : "VALID";
+    }
+
+    /** 被引用物料校验：必须存在且非 DRAFT（决策 D7）、非 FROZEN/PHASED_OUT（刀2 禁用联动）。 */
     private Part requireReferenceablePart(Long partId, String role) {
         Part part = partService.detail(partId);
         if ("DRAFT".equals(part.getLifecycleState())) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT,
                     "草稿状态的物料不可被引用为" + role + "，请先发布物料");
+        }
+        if ("FROZEN".equals(part.getLifecycleState())) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT,
+                    "物料 " + part.getPartNumber() + " 已禁用，不可新增" + role + "引用");
+        }
+        if ("PHASED_OUT".equals(part.getLifecycleState())) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT,
+                    "物料 " + part.getPartNumber() + " 已废止，不可新增" + role + "引用");
         }
         return part;
     }
@@ -650,7 +750,8 @@ public class BomService {
 
     /** 展开树节点。 */
     public record BomNode(Long partId, String partNumber, String name,
-                          BigDecimal quantity, List<SubstituteNode> substitutes,
+                          BigDecimal quantity, String validityStatus,
+                          List<SubstituteNode> substitutes,
                           List<BomNode> children) {
     }
 

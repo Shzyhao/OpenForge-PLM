@@ -34,6 +34,9 @@ public class BomLineResponse {
 
     private LocalDate effectiveTo;
 
+    /** 有效期三态（刀3）：VALID/EXPIRING/EXPIRED/NOT_YET_EFFECTIVE */
+    private String validityStatus;
+
     private String attrs;
 
     private List<SubstituteView> substitutes = new ArrayList<>();

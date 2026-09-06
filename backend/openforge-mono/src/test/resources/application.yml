@@ -27,6 +27,8 @@ openforge:
     ttl-minutes: 120
   workflow:
     base-url: http://localhost:18090
+  material:
+    base-url: http://localhost:18090   # 刀2 变更执行通道（mono 回环；真实调用在冒烟中走 MockBean/HTTP 均可）
   integration:
     knowledge-base-url: http://localhost:18090
     ai-base-url: http://localhost:18090

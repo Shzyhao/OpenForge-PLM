@@ -74,8 +74,31 @@ export const PART_STATE_LABELS: Record<string, { label: string; color: string }>
   DRAFT: { label: '草稿', color: 'default' },
   REVIEWING: { label: '评审中', color: 'processing' },
   RELEASED: { label: '已发布', color: 'success' },
-  FROZEN: { label: '已冻结', color: 'warning' },
+  FROZEN: { label: '已禁用', color: 'warning' },
   PHASED_OUT: { label: '已废止', color: 'error' },
+}
+
+/** 有效期三态（刀3，决策 D4：仅标注不过滤） */
+export interface BomLineView {
+  id: number
+  position: number
+  childPartId: number
+  childPartNumber: string
+  childPartName: string
+  quantity: number
+  refDes: string | null
+  usageType: string
+  effectiveFrom: string | null
+  effectiveTo: string | null
+  validityStatus: string
+  substitutes: BomSubstituteView[]
+}
+
+export const VALIDITY_LABELS: Record<string, { label: string; color: string }> = {
+  VALID: { label: '有效', color: 'success' },
+  EXPIRING: { label: '即将到期', color: 'orange' },
+  EXPIRED: { label: '已过期', color: 'red' },
+  NOT_YET_EFFECTIVE: { label: '未生效', color: 'default' },
 }
 
 // ===== BOM（替代件与主数据变更专项 刀1） =====
@@ -171,6 +194,7 @@ export interface BomExpandNode {
   partNumber: string
   name: string
   quantity: number
+  validityStatus: string | null
   substitutes: { partId: number; partNumber: string; name: string; priority: number; qtyCoefficient: number }[]
   children: BomExpandNode[]
 }
