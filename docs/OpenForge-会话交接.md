@@ -7,7 +7,7 @@
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.12.2**（tag + GitHub Release；patch——代码评审六项修复（含生产构建断裂 P1）+ 冒烟工具化 + P3 判停） |
-| dev 最新 | 与 main 同步（发布 PR #106 merge commit 7432700 + 回灌 fast-forward），无未发版提交 |
+| dev 最新 | 领先 main 2 个功能 squash（#107 替代组刀1、#108 变更中心刀2+3）——v1.13.0 候选，未发版 |
 | main vs dev | 完全同步 |
 | 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库）；**合并门冒烟一键化：`./scripts/smoke.sh`（#103）；代码评审六项修复后置（#105）** |
 | 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑 + SecurityLogControllerTest 结构回归）+ **全页面浏览器级巡检 15 界面（#101）** + mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%） |
@@ -54,6 +54,8 @@
 | #101 | **全页面浏览器级巡检**（约定 #9 扩展：15 界面逐页真实打开）实锤安全日志分页结构回归——MP Page 直返（records/size）致前端 list undefined（"暂无数据"而总数正常）；修统一 PageResponse + 回归测试；README 快速开始补 PROFILE=mono | 未发版 |
 | #103 | 网关链路冒烟脚本化——scripts/smoke.sh 13 项断言一键复跑（约定 #8 工具化，full/mono 通用，负向自检防假绿） | 未发版 |
 | #105 | **系统代码评审**（子代理全量 diff + 抽查交叉，12 发现）修复六项：生产 Dockerfile 通配符断裂（P1，自 v1.12.0）/ INTERNAL_TOKEN 双键漂移（轮换即全 401）/ mono 回环死锁窗口（Tomcat 40）/ Nacos 测试残留清理 / 守护求值定点 UPDATE / 自检列表原子替换；记录不修：路由 TOCTOU、producer 域粒度、smoke.sh bash3.2、测试固定端口 | 未发版 |
+| #107 | **替代件专项刀1**——BOM 替代组从表（替代组 API/校验矩阵/单行上限）+ 行号 position + 升版 revise（A/1→A/2 深拷贝）+ diff 补齐（位号/用量类型/属性/替代组，多类型并存按行号对位）+ D7 引用收紧（草稿件不可被引用）+ BomPage 重写（行管理/替代组面板/展开树标注）；设计文档《OpenForge-替代件与主数据变更设计》v1.0 入册；真实链路实锤 compare 未改动双版本空 types 越界 500 并修复 | v1.13.0 候选 |
+| #108 | **刀2 统一变更中心 + 刀3 有效期三态**——change_type/payload/apply_state（审批与执行分离 D6）：替代组变更（服务端权威 before 快照+富化）与物料禁用启用（where-used 影响清单）审批通过即执行（material /api/v1/internal/** 执行端点+MaterialClient 内部令牌+租户透传），失败落因可重试；FROZEN/PHASED_OUT 拒绝新增引用；validityStatus 四态下发（lines/expand/where-used）+ 前端变更中心/入口按钮/色点徽标；**真实链路实锤修复 MaterialClient where-used URI 缺 query 占位符** + dev 库 ecr-review v1 角色漂移（ADMIN→已更名 ADMINS 任务无人可见）重部署 v2 | v1.13.0 候选 |
 
 ## 关键架构决策（已实施）
 
@@ -66,7 +68,7 @@
 
 ## 下一步（按优先级）
 
-1. **v1.12.0 候选**：无在途功能。Nacos Harness（#93 已常开 CI）、BROKEN 可观测性（#92）、设计器浏览器验证（#94 + 现场验证）三项 v1.11.0 候选已全部交付；剩余大项见下
+1. **v1.13.0 候选**：替代件与主数据变更专项三刀全部合入 dev（#107/#108），待发版 PR → main。无在途功能。Nacos Harness（#93 已常开 CI）、BROKEN 可观测性（#92）、设计器浏览器验证（#94 + 现场验证）三项 v1.11.0 候选已全部交付；剩余大项见下
 2. **单进程 mono 模式**：**刀 1（骨架）已实施并全栈实测（PROFILE=mono）**——mono 224MB + gateway 181MB = **405MB RSS（-78%）**、网关链路冒烟 8/8 域等价，方案与数据见 docs/OpenForge-mono单进程设计.md；**刀 2 评估完成不实施**（回环均有缓存/低频，直调化收益≈零、侵入风险不成比例，见 PR 表与 mono 设计 §3.2）；H2 文件库 dev 模式维持 §8.3 备选不动
 3. **连接器与行业模板包**：需外部场景输入
 4. **Milvus/Neo4j/ES**：架构文档路线项，随规模引入
