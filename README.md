@@ -38,7 +38,7 @@
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.12.2-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.14.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 

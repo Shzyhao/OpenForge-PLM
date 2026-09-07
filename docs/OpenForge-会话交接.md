@@ -1,16 +1,16 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-09-06 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-09-07 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.12.2**（tag + GitHub Release；patch——代码评审六项修复（含生产构建断裂 P1）+ 冒烟工具化 + P3 判停） |
-| dev 最新 | 领先 main 2 个功能 squash（#107/#108，v1.13.0 候选）+ **集成编排器 MVP（v1.14.0 候选，工作区未提交未 PR）**——新服务 openforge-connector 五刀全落地（HTTP/REST + JDBC 只读连接器、凭据 AES-GCM、出站白名单、版本化发布、invoke API、前端设计器、mono 第 9 模块、smoke 9 域 6 断言），方案 docs/OpenForge-集成编排器MVP设计.md |
-| main vs dev | 完全同步 |
-| 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库）；**合并门冒烟一键化：`./scripts/smoke.sh`（#103）；代码评审六项修复后置（#105）** |
-| 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑 + SecurityLogControllerTest 结构回归）+ **全页面浏览器级巡检 15 界面（#101）** + mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%） |
+| 最新发布版 | **v1.14.0**（tag + GitHub Release；集成编排器 MVP，内含原 v1.13.0 候选内容——#107/#108 替代件专项） |
+| dev 最新 | 与 main 同步（v1.14.0 已合入）；下一步 P2：AI API 配置器（用户第三诉求，方案 §12.1）/ 事件定时触发 / manage 审计（R8） |
+| main vs dev | v1.14.0 合入后同步 |
+| 工作区 | 干净；本地 admin 密码 smoke-test-2026（dev 库）；冒烟 `./scripts/smoke.sh`（9 业务域 20 断言，连接器 6 项幂等可重跑） |
+| 全量测试 | CI 全绿（run 34128910566）：backend/frontend/ai 三作业；**容器测试（Auth/Metadata/Connector Testcontainers 真实 Docker）首次真实执行全绿**——CI 首跑实纱两缺陷已修：①CONN_SPEC 传参错位；②**平台级** MybatisPlusAutoConfig 拦截器顺序（分页先于多租户 → 分页 count SQL 无租户条件、多租户 total 虚高），已按官方顺序重排 |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
