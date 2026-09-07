@@ -1,0 +1,14 @@
+# 集成编排器（架构文档 8.2 连接器规范；BUSINESS：常规静态部署服务——EXTENSION 专指动态对象扩展模块，须携带 ownerRef）
+moduleKey: connector
+moduleType: BUSINESS
+displayName: 集成编排器
+version: 0.1.0
+routes:
+  - /api/v1/connectors
+  - /api/v1/connector-credentials
+dependencies: [auth]
+menu:
+  - { path: /integration/connectors, title: 集成编排器, icon: ApiOutlined }
+flyway:
+  historyTable: flyway_connector_history
+serviceUri: 8094

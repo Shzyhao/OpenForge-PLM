@@ -156,6 +156,17 @@ public class PartService {
         return part;
     }
 
+    /**
+     * 变更执行入口（刀2 统一变更中心）：仅承接 禁用（RELEASED→FROZEN）/启用（FROZEN→RELEASED），
+     * 其余流转走 submit/approve/reject；状态机校验复用 PART。
+     */
+    public Part applyLifecycle(Long id, String target, Long operatorId) {
+        if (!"FROZEN".equals(target) && !"RELEASED".equals(target)) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "变更执行仅支持 禁用(FROZEN)/启用(RELEASED)");
+        }
+        return transition(id, target, operatorId);
+    }
+
     private Part transition(Long id, String target, Long operatorId) {
         Part part = detail(id);
         StateMachine.requireTransition(StateMachine.PART, part.getLifecycleState(), target);

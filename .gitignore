@@ -53,3 +53,4 @@ secrets/
 *.tar.gz
 *.zip
 coverage/
+shots/

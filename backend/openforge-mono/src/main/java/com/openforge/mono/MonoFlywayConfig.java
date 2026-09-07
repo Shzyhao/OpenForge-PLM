@@ -82,4 +82,10 @@ public class MonoFlywayConfig {
                           @Value("${openforge.mono.flyway.target.metadata:}") String target) {
         return base(ds, "metadata", "flyway_metadata_history", target);
     }
+
+    @Bean(initMethod = "migrate")
+    Flyway connectorFlyway(DataSource ds,
+                           @Value("${openforge.mono.flyway.target.connector:}") String target) {
+        return base(ds, "connector", "flyway_connector_history", target);
+    }
 }

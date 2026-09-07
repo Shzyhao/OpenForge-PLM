@@ -1,0 +1,48 @@
+server:
+  port: 8094
+
+spring:
+  application:
+    name: openforge-connector
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}
+        server-addr: ${NACOS_ADDR:localhost:8848}
+  datasource:
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
+    username: ${PG_USER:openforge}
+    password: ${PG_PASSWORD:openforge}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/connector
+    baseline-on-migrate: true
+    baseline-version: 0
+    table: flyway_connector_history   # 多服务共享库，独立迁移历史
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+openforge:
+  security:
+    auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
+    internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
+  module:
+    descriptor: classpath:module/connector.yml
+  connector:
+    # 凭据加密主密钥（Base64 32 字节）；未配置 = 凭据功能拒绝使用（不降级明文）
+    master-key: ${OPENFORGE_CONNECTOR_MASTER_KEY:}
+    # 出站域白名单（host 或 host:port，逗号分隔）；未配置 = 拒绝一切出站（安全默认值）
+    egress-whitelist: ${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:}
+    # 仅测试/开发放开私网目标；生产必须 false
+    egress-allow-private: ${OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE:false}
+    cache-ttl-seconds: ${OPENFORGE_CONN_CACHE_TTL:30}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

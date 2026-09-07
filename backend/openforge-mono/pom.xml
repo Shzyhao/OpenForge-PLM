@@ -57,6 +57,11 @@
             <artifactId>openforge-metadata</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.openforge</groupId>
+            <artifactId>openforge-connector</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

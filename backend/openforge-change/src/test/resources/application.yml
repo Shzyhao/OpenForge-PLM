@@ -23,3 +23,5 @@ openforge:
     internal-token: test-internal-token
   workflow:
     base-url: http://localhost:0   # 测试中 WorkflowClient 被 MockBean 替换
+  material:
+    base-url: http://localhost:0   # 测试中 MaterialClient 被 MockBean 替换

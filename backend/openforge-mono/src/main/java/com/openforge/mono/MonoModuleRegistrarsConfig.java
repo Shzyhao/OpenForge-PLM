@@ -79,4 +79,11 @@ public class MonoModuleRegistrarsConfig {
                                              @Value("${openforge.security.internal-token}") String internalToken) {
         return registrar("module/metadata.yml", env, authBaseUrl, internalToken);
     }
+
+    @Bean
+    public ModuleRegistrar connectorRegistrar(Environment env,
+                                              @Value("${openforge.security.auth-base-url}") String authBaseUrl,
+                                              @Value("${openforge.security.internal-token}") String internalToken) {
+        return registrar("module/connector.yml", env, authBaseUrl, internalToken);
+    }
 }
