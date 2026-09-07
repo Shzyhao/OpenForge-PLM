@@ -6,6 +6,7 @@ version: 0.1.0
 routes:
   - /api/v1/connectors
   - /api/v1/connector-credentials
+  - /api/v1/ai-providers
 dependencies: [auth]
 menu:
   - { path: /integration/connectors, title: 集成编排器, icon: ApiOutlined }

@@ -119,6 +119,12 @@ public class MyConnector implements ConnectorSpi {
   统一承担——实现方只写传输细节；
 - 前端 `ConnectorConfigPanel` 增加对应分支 + `CONN_TYPES` 注册即可出现在设计器。
 
+**触发（v1.15.0，P2-2）**：连接器可带 `triggerType`（EVENT/CRON）配置，新连接器类型零改造即可被触发——
+`TriggerDispatcher` 经 `ConnectorRuntime` 统一执行，失败自动落 `sys_connector_dlq` 死信
+（界面死信队列 Tab 重放/丢弃）。EVENT 触发订阅平台既有主题（白名单
+`openforge.connector.trigger.allowed-topics`，默认 meta/object/doc/change/task/connector 六主题，
+新模块主题按需追加配置）；CRON 为 Spring 6 段表达式（秒位禁裸 \*）。
+
 ## 7. 部署
 
 - **开发**：`./scripts/dev-up.sh`（PROFILE=mono|core|lite|full 预设裁剪——mono 为

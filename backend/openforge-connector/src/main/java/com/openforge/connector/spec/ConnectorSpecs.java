@@ -290,9 +290,11 @@ public final class ConnectorSpecs {
     }
 
     private static void checkUrl(String url) {
+        // 占位符替换哑元后再解析：运行时先渲染再建 URI，设计态校验须同样容忍 {{param}}
+        String probe = PLACEHOLDER.matcher(url).replaceAll("param");
         URI uri;
         try {
-            uri = URI.create(url);
+            uri = URI.create(probe);
         } catch (IllegalArgumentException e) {
             throw new BizException(ErrorCode.CONN_SPEC_INVALID, "url 无法解析: " + url);
         }

@@ -56,4 +56,18 @@ class EgressGuardTest {
         EgressGuard guard = new EgressGuard("localhost,127.0.0.1", true);
         assertThatCode(() -> guard.check("http://127.0.0.1:18080/api")).doesNotThrowAnyException();
     }
+
+    @Test
+    @DisplayName("URL 模板占位符（路径/查询）可过校验；host 位占位符不命中白名单被拒")
+    void urlPlaceholderTolerated() {
+        EgressGuard guard = new EgressGuard("erp.example.com", true);
+        // P2-2 触发入参渲染进 URL：{{code}} 在查询位不阻断（运行时先渲染再请求）
+        assertThatCode(() -> guard.check("https://erp.example.com/api?code={{code}}"))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> guard.check("https://erp.example.com/docs/{{docId}}/export"))
+                .doesNotThrowAnyException();
+        // host 位占位符替换为哑元 host，无法命中白名单 → 拒绝（安全语义不变）
+        assertThatCode(() -> guard.check("https://{{host}}.example.com/api"))
+                .isInstanceOf(BizException.class);
+    }
 }

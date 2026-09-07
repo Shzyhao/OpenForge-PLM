@@ -42,12 +42,7 @@ public class EgressGuard {
 
     /** 校验目标 URL；不通过抛 CONN_EGRESS_BLOCKED。 */
     public void check(String url) {
-        URI uri;
-        try {
-            uri = URI.create(url);
-        } catch (IllegalArgumentException e) {
-            throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "目标地址无法解析");
-        }
+        URI uri = parse(url);
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
         if (!scheme.equals("http") && !scheme.equals("https")) {
             throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "仅允许 http/https 出站");
@@ -65,6 +60,23 @@ public class EgressGuard {
         }
         if (!allowPrivate) {
             checkNotPrivate(host);
+        }
+    }
+
+    /**
+     * 解析 URL：占位符 {{param}}（路径/查询模板）替换哑元后再解析——运行时先渲染再请求，
+     * 校验时同样容忍模板。host 位占位符替换后为哑元 host，无法命中白名单（安全语义不变）。
+     */
+    private URI parse(String url) {
+        try {
+            return URI.create(url);
+        } catch (IllegalArgumentException ignoredFirst) {
+            String probe = url.replaceAll("\\{\\{[a-zA-Z_][a-zA-Z0-9_]*}}", "param");
+            try {
+                return URI.create(probe);
+            } catch (IllegalArgumentException e) {
+                throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "目标地址无法解析");
+            }
         }
     }
 

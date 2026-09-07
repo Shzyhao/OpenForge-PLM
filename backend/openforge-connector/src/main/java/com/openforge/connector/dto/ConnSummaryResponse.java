@@ -16,6 +16,8 @@ public class ConnSummaryResponse {
     private String status;
     private Integer currentVersion;
     private String description;
+    /** 触发类型徽标（P2-2）：NONE/EVENT/CRON */
+    private String triggerType;
     private LocalDateTime updatedAt;
 
     public static ConnSummaryResponse from(ConnDefinition def) {
@@ -27,6 +29,7 @@ public class ConnSummaryResponse {
         response.setStatus(def.getStatus());
         response.setCurrentVersion(def.getCurrentVersion());
         response.setDescription(def.getDescription());
+        response.setTriggerType(def.getTriggerType() == null ? "NONE" : def.getTriggerType());
         response.setUpdatedAt(def.getUpdatedAt());
         return response;
     }

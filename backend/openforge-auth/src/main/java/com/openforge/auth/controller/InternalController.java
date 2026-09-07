@@ -29,6 +29,7 @@ public class InternalController {
     private final PermissionService permissionService;
     private final com.openforge.auth.service.ModuleRegistryService moduleRegistryService;
     private final com.openforge.auth.mapper.UserMapper userMapper;
+    private final com.openforge.auth.service.SecurityLogService securityLogService;
     private final String internalToken;
 
     public InternalController(NumberRuleService numberRuleService,
@@ -36,12 +37,14 @@ public class InternalController {
                               PermissionService permissionService,
                               com.openforge.auth.service.ModuleRegistryService moduleRegistryService,
                               com.openforge.auth.mapper.UserMapper userMapper,
+                              com.openforge.auth.service.SecurityLogService securityLogService,
                               @Value("${openforge.internal.token:openforge-internal-dev-token}") String internalToken) {
         this.numberRuleService = numberRuleService;
         this.rbacService = rbacService;
         this.permissionService = permissionService;
         this.moduleRegistryService = moduleRegistryService;
         this.userMapper = userMapper;
+        this.securityLogService = securityLogService;
         this.internalToken = internalToken;
     }
 
@@ -64,6 +67,31 @@ public class InternalController {
                 userType,
                 rbacService.getRoleCodesOfUser(userId),
                 permissionService.getPermissionCodesOfUser(userId)));
+    }
+
+    /**
+     * 跨服务操作审计入口（连接器 MVP R8）：各业务域 manage 操作经内部令牌落 sys_audit_log，
+     * 供 /api/v1/security/audit-logs 统一检索。尽力而为语义（与 auth 域内审计一致，失败不阻断业务）。
+     */
+    @PostMapping("/audit")
+    public ApiResponse<Void> audit(
+            @RequestBody AuditRequest request,
+            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        requireInternal(token);
+        securityLogService.audit(request.getOperatorId(), request.getAction(),
+                request.getTargetType(), request.getTargetId(), request.getDetail());
+        return ApiResponse.ok(null);
+    }
+
+    @lombok.Data
+    public static class AuditRequest {
+        private Long operatorId;
+        @jakarta.validation.constraints.NotBlank
+        private String action;
+        @jakarta.validation.constraints.NotBlank
+        private String targetType;
+        private String targetId;
+        private String detail;
     }
 
     /**
