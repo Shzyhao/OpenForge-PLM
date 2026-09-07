@@ -117,7 +117,7 @@ class ConnectorPostgresContainerTest {
 
         String created = mockMvc.perform(post("/api/v1/connectors").header("X-User-Id", 1)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(CONN_SPEC.formatted("erp_stock", "cred_tenant0", mockPort)))
+                        .content(CONN_SPEC.formatted("erp_stock", mockPort, "cred_tenant0")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
@@ -143,7 +143,7 @@ class ConnectorPostgresContainerTest {
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/connectors").header("X-User-Id", 1).header("X-User-Tenant", 2)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(CONN_SPEC.formatted("erp_stock", "cred_tenant2", mockPort)))
+                        .content(CONN_SPEC.formatted("erp_stock", mockPort, "cred_tenant2")))
                 .andExpect(status().isOk());
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM conn_definition WHERE conn_code = 'erp_stock'", Long.class))
