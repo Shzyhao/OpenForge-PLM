@@ -24,4 +24,10 @@ public class SaveConnRequest {
     /** spec JSON 对象（schemaVersion=1，见集成编排器 MVP 设计 §4.1） */
     @NotNull(message = "spec 不能为空")
     private Map<String, Object> spec;
+
+    /** 触发类型（P2-2 §12.2）：NONE（默认）/EVENT/CRON */
+    private String triggerType;
+
+    /** 触发配置：EVENT={topic,tag,params?}；CRON={cron,params?} */
+    private Map<String, Object> trigger;
 }

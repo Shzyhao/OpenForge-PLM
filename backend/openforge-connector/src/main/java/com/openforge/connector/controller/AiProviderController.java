@@ -53,8 +53,8 @@ public class AiProviderController {
 
     @DeleteMapping("/{id}")
     @RequirePermission("ai:manage")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
-        providerService.delete(id);
+    public ApiResponse<Void> delete(@PathVariable Long id, HttpServletRequest http) {
+        providerService.delete(id, currentUserId(http));
         return ApiResponse.ok(null);
     }
 

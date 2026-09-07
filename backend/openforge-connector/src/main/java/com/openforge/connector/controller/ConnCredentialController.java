@@ -52,8 +52,8 @@ public class ConnCredentialController {
 
     @DeleteMapping("/{id}")
     @RequirePermission("conn:manage")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
-        credentialService.delete(id);
+    public ApiResponse<Void> delete(@PathVariable Long id, HttpServletRequest http) {
+        credentialService.delete(id, currentUserId(http));
         return ApiResponse.ok(null);
     }
 

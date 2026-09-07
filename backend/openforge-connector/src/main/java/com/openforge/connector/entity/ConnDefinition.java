@@ -34,6 +34,11 @@ public class ConnDefinition {
     /** 设计态 spec（集成编排器 MVP 设计 §4.1，schemaVersion=1） */
     private String specJson;
 
+    /** 触发配置（P2-2 §12.2）：NONE/EVENT/CRON；配置体在 trigger_json */
+    private String triggerType;
+
+    private String triggerJson;
+
     private Long tenantId;
 
     private Long createdBy;

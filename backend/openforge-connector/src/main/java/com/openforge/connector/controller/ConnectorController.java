@@ -33,6 +33,7 @@ import java.util.Map;
 public class ConnectorController {
 
     private final ConnectorDefinitionService definitionService;
+    private final com.openforge.connector.service.TriggerDispatcher triggerDispatcher;
 
     @PostMapping
     @RequirePermission("conn:manage")
@@ -62,8 +63,8 @@ public class ConnectorController {
 
     @DeleteMapping("/{id}")
     @RequirePermission("conn:manage")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
-        definitionService.delete(id);
+    public ApiResponse<Void> delete(@PathVariable Long id, HttpServletRequest http) {
+        definitionService.delete(id, currentUserId(http));
         return ApiResponse.ok(null);
     }
 
@@ -107,6 +108,32 @@ public class ConnectorController {
             @PathVariable String connCode, @RequestBody(required = false) InvokeRequest request) {
         return ApiResponse.ok(definitionService.invoke(connCode,
                 request == null || request.getParams() == null ? java.util.Map.of() : request.getParams()));
+    }
+
+    // ===== 触发死信（P2-2 §12.2：EVENT/CRON 执行失败落死信，人工重放/丢弃） =====
+
+    @GetMapping("/dlq")
+    @RequirePermission("conn:manage")
+    public ApiResponse<PageResponse<com.openforge.connector.dto.DlqResponse>> dlq(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "20") long pageSize) {
+        return ApiResponse.ok(triggerDispatcher.dlqPage(status, page, pageSize));
+    }
+
+    /** 重放：payload 原样重投；成功 RESOLVED，仍失败 retry_count+1 保持 PENDING。 */
+    @PostMapping("/dlq/{id}/replay")
+    @RequirePermission("conn:manage")
+    public ApiResponse<Map<String, Object>> replayDlq(@PathVariable Long id) {
+        return ApiResponse.ok(triggerDispatcher.replay(id));
+    }
+
+    /** 丢弃：保留记录供追溯（status=DISCARDED）。 */
+    @DeleteMapping("/dlq/{id}")
+    @RequirePermission("conn:manage")
+    public ApiResponse<Void> discardDlq(@PathVariable Long id) {
+        triggerDispatcher.discard(id);
+        return ApiResponse.ok(null);
     }
 
     private Long currentUserId(HttpServletRequest request) {

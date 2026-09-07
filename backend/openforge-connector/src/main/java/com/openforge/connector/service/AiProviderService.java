@@ -37,11 +37,14 @@ public class AiProviderService {
     private final AesGcmCipher cipher;
     private final EgressGuard egressGuard;
     private final HttpClient httpClient;
+    private final com.openforge.connector.client.AuthAuditClient auditClient;
 
-    public AiProviderService(AiProviderMapper providerMapper, AesGcmCipher cipher, EgressGuard egressGuard) {
+    public AiProviderService(AiProviderMapper providerMapper, AesGcmCipher cipher, EgressGuard egressGuard,
+                             com.openforge.connector.client.AuthAuditClient auditClient) {
         this.providerMapper = providerMapper;
         this.cipher = cipher;
         this.egressGuard = egressGuard;
+        this.auditClient = auditClient;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -68,6 +71,9 @@ public class AiProviderService {
         provider.setTenantId(TenantContext.getTenantId());
         provider.setCreatedBy(userId);
         providerMapper.insert(provider);
+        auditClient.record(userId, "AI_PROVIDER_CREATE", "AI_PROVIDER", provider.getProviderCode(),
+                "新建 AI 供应商 " + provider.getProviderName() + "（" + provider.getModel()
+                        + (provider.getEnabled() != null && provider.getEnabled() == 1 ? "，启用" : "，停用") + "）");
         return AiProviderResponse.from(provider);
     }
 
@@ -75,12 +81,19 @@ public class AiProviderService {
     @Transactional
     public AiProviderResponse update(Long id, SaveAiProviderRequest request, Long userId) {
         AiProvider provider = requireProvider(id);
+        Integer oldEnabled = provider.getEnabled();
         applyRequest(provider, request);
         if (request.getApiKey() != null && !request.getApiKey().isBlank()) {
             provider.setApiKeyEnc(cipher.encrypt(request.getApiKey()));
         }
         provider.setUpdatedBy(userId);
         providerMapper.updateById(provider);
+        String transition = oldEnabled != null && provider.getEnabled() != null && !oldEnabled.equals(provider.getEnabled())
+                ? (provider.getEnabled() == 1 ? "，启用" : "，停用") : "";
+        auditClient.record(userId, "AI_PROVIDER_UPDATE", "AI_PROVIDER", provider.getProviderCode(),
+                "更新 AI 供应商 " + provider.getProviderName() + "（" + provider.getModel() + "）"
+                        + transition
+                        + (request.getApiKey() != null && !request.getApiKey().isBlank() ? "，含 key 轮换" : ""));
         return AiProviderResponse.from(provider);
     }
 
@@ -93,9 +106,11 @@ public class AiProviderService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        requireProvider(id);
+    public void delete(Long id, Long userId) {
+        AiProvider provider = requireProvider(id);
         providerMapper.deleteById(id);
+        auditClient.record(userId, "AI_PROVIDER_DELETE", "AI_PROVIDER", provider.getProviderCode(),
+                "删除 AI 供应商 " + provider.getProviderName() + "（" + provider.getModel() + "）");
     }
 
     /**
