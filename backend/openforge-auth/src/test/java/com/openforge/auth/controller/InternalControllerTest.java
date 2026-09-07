@@ -106,4 +106,32 @@ class InternalControllerTest {
         org.assertj.core.api.Assertions.assertThat(permissionService.getPermissionCodesOfRole(admins.getId()))
                 .contains("equipment:view");
     }
+
+    @Autowired
+    private com.openforge.auth.service.SecurityLogService securityLogService;
+
+    @Test
+    @DisplayName("内部审计：令牌门禁 + 正确令牌落 sys_audit_log")
+    void internalAudit() throws Exception {
+        // 无令牌拒绝
+        mockMvc.perform(post("/api/v1/internal/audit")
+                        .contentType("application/json")
+                        .content("{\"action\":\"CONN_PUBLISH\",\"targetType\":\"CONNECTOR\"}"))
+                .andExpect(status().isUnauthorized());
+
+        // 正确令牌写入（R8：跨服务 manage 审计入口）
+        mockMvc.perform(post("/api/v1/internal/audit")
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType("application/json")
+                        .content("{\"operatorId\":7,\"action\":\"CONN_PUBLISH\",\"targetType\":\"CONNECTOR\","
+                                + "\"targetId\":\"erp_sync\",\"detail\":\"发布连接器 至版本 v3\"}"))
+                .andExpect(jsonPath("$.code").value(0));
+
+        com.openforge.auth.entity.SysAuditLog row = securityLogService.auditLogs(1, 50, "CONN_PUBLISH")
+                .getRecords().stream()
+                .filter(a -> "CONNECTOR".equals(a.getTargetType()) && "erp_sync".equals(a.getTargetId()))
+                .findFirst().orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(row.getOperatorId()).isEqualTo(7);
+        org.assertj.core.api.Assertions.assertThat(row.getDetail()).contains("v3");
+    }
 }

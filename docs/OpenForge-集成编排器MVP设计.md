@@ -426,6 +426,19 @@ serviceUri: 8094
 
 ### 12.2 P2：事件触发 + 定时调度
 
+> **已交付（v1.15.0，dev 实施于 2026-09-07）**：连接器 `trigger_type/trigger_json` 配置（随发布进版本快照）+
+> CRON 调度器（跨租户全量重同步 + 自续链调度，30s 可配；秒位禁裸 \* 防风暴）+
+> EVENT 消费者（`ConnectorEventConsumer`，订阅主题白名单 6 主题；起点 = FIRST_OFFSET + 启动时间闸门——
+> occurredAt 早于「启动时刻-2min 可配」的信封按历史 ACK 跳过。CI 真实 MQ 回路实纱：LAST_OFFSET 对新消费组
+> rebalance 完成前的消息永久错过；FIRST_OFFSET+闸门兼顾"不回放历史"与"不丢启动窗口事件"（停机期间事件
+> 按 at-most-once 刻意不补）；`EVENT_ENABLED=false` 时 bean 不创建，与 knowledge 消费者同语义）+
+> `sys_connector_dlq` 应用级死信（执行失败即落，不依赖 broker %DLQ%——B2 幂等行先于业务插入，
+> broker 死信实际不可达）+ 重放/丢弃端点（`/api/v1/connectors/dlq`，重放原样重投 payload）+
+> 前端死信队列 Tab + 触发表单。**实施中实纱两处平台缺陷并修复**：spec 校验 `checkUrl` 与
+> EgressGuard 均对 URL 模板占位符 `{{param}}` 误拒（运行时先渲染再建 URI，设计态校验未同样容忍）。
+> 注：`part.released` 主题随 material 事件化仍为 P3（B2 设计 §5），EVENT 白名单现含
+> meta/object/doc/change/task/connector 六主题（`openforge.connector.trigger.allowed-topics` 可扩）。
+
 - 连接器增加 `trigger` 配置（EVENT：订阅既有主题如 `part.released` → 渲染模板 → 执行；CRON：Spring Scheduling 起步）；
 - 引入 `sys_connector_dlq` 死信 + 重放端点 + 界面（对齐 B2 事件总线幂等/死信既有语义）。
 
@@ -449,6 +462,6 @@ serviceUri: 8094
 | R5 | `flow/` 画布组件为流程域设计，复用需泛化改造 | 刀3 spike 结论：flowModel 深度绑定流程域语义（审批/规则/序列化），泛化成本超阈值，触发降级路径（列表+NodeConfigPanel 组件化，P3 一次性引入画布，组件复用零浪费） |
 | R6 | SSRF 校验与实际请求之间存在 DNS 重绑定窗口（TOCTOU） | MVP 已做：白名单 host 匹配 + 解析后私网拒绝（收敛窗口）。根治需固定解析 IP 直连或出站代理，列 P2（与出站脱敏代理通道合并实施） |
 | R7 | 凭据以明文参与连接池 key 摘要（SHA-256 of char[]） | 摘要不可逆，泄露面可接受；凭据轮换生成新池、旧池 LRU 驱逐关闭 |
-| R8 | manage 操作（建模/发布/停用/凭据增删）未落操作审计 | 现状：平台审计仅覆盖 auth 域内部（登录/权限/模块变更），无跨服务审计拦截器，§7 原表述不成立。执行面已有 conn_exec_log；manage 审计随 P2 平台审计能力统一补（先于生产启用） |
+| R8 | manage 操作（建模/发布/停用/凭据增删）未落操作审计 | **已闭环（v1.15.0）**：auth 新增内部审计端点 `POST /api/v1/internal/audit`（X-Internal-Token，跨服务沿 metadata→auth 权限注册同模式）；connector 侧 `AuthAuditClient` afterCommit 尽力而为上报（失败仅告警不阻断业务）——连接器 CRUD/发布/停用、凭据增删改、AI 供应商增改删全部落 `sys_audit_log`，经既有 `GET /api/v1/security/audit-logs` 统一检索 |
 | R9 | 本机 testcontainers 连不上 Docker 引擎（CLI 可用但 npipe 400），容器测试从未真实执行 | **已闭环（2026-09-07 CI run 34128910566 全绿）**：容器测试在 CI 真实 Docker 首跑即揪出两缺陷（CONN_SPEC 传参错位；多租户拦截器后于分页注册致 count SQL 无租户条件——平台级修复）+ mono 断言 8→9，修复后 Auth/Metadata/Connector 容器测试与 MonoSmoke 9 模块全部真实执行通过 |
 | Q2 | `conn:invoke` 是否要细化到连接器级 ACL | MVP 租户级，P2 评估（§12.3） |

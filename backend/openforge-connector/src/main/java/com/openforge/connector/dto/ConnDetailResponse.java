@@ -19,6 +19,9 @@ public class ConnDetailResponse {
     private Integer currentVersion;
     private String description;
     private Map<String, Object> spec;
+    /** 触发配置（P2-2）：NONE 时 trigger 为空对象 */
+    private String triggerType;
+    private Map<String, Object> trigger;
     private List<VersionItem> versions;
 
     @Data
