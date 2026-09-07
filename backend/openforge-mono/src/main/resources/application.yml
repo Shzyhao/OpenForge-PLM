@@ -78,8 +78,17 @@ openforge:
     embedding-model: ${OPENFORGE_LLM_EMBEDDING_MODEL:embedding-3}
   metadata:
     cache-ttl-seconds: ${META_CACHE_TTL_SECONDS:30}
+  connector:
+    master-key: ${OPENFORGE_CONNECTOR_MASTER_KEY:}
+    egress-whitelist: ${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:}
+    egress-allow-private: ${OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE:false}
+    cache-ttl-seconds: ${OPENFORGE_CONN_CACHE_TTL:30}
+    log-retention-days: ${CONN_LOG_RETENTION_DAYS:180}
+    log-retention-cron: ${CONN_LOG_RETENTION_CRON:0 45 3 * * *}
   workflow:
     base-url: ${WORKFLOW_SERVICE_URI:http://localhost:${server.port}}
+  material:
+    base-url: ${MATERIAL_SERVICE_URI:http://localhost:${server.port}}   # 刀2 变更执行通道（mono 回环）
   integration:
     knowledge-base-url: ${KNOWLEDGE_SERVICE_URI:http://localhost:${server.port}}
     ai-base-url: ${OPENFORGE_AI_BASE_URL:http://localhost:8001}   # Python AI 网关恒进程外（设计 §1 非目标）

@@ -21,6 +21,9 @@ public class BomLine {
 
     private Long childPartId;
 
+    /** 行号：变更单引用与 diff 对位的锚点，同 BOM 内 1..n */
+    private Integer position;
+
     private BigDecimal quantity;
 
     /** 位号，逗号分隔 */

@@ -14,6 +14,10 @@ public class EcrDetailResponse {
     private String urgency;
     private String affectedItems;
     private String state;
+    private String changeType;
+    private String payload;
+    private String applyState;
+    private String applyResult;
     private Long workflowInstanceId;
     private LocalDateTime createdAt;
 

@@ -114,6 +114,16 @@ services:
       MODULE_SERVICE_URI: http://metadata:8088
     depends_on: [auth]
 
+  connector:
+    build: { <<: *java-build, args: { MODULE: openforge-connector, PORT: "8094" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://connector:8094
+      # 生产必配：凭据加密主密钥（Base64 32 字节；未配置凭据功能拒绝使用）与出站白名单（未配置=全拒）
+      OPENFORGE_CONNECTOR_MASTER_KEY: ${OPENFORGE_CONNECTOR_MASTER_KEY:-}
+      OPENFORGE_CONNECTOR_EGRESS_WHITELIST: ${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:-}
+    depends_on: [auth]
+
   gateway:
     build: { <<: *java-build, args: { MODULE: openforge-gateway, PORT: "8080" } }
     environment:

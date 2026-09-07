@@ -36,8 +36,16 @@ public class ChangeController {
     public ApiResponse<PageResponse<ChangeRequest>> page(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long pageSize,
-            @RequestParam(required = false) String title) {
-        return ApiResponse.ok(ecrService.page(page, pageSize, title));
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String changeType) {
+        return ApiResponse.ok(ecrService.page(page, pageSize, title, changeType));
+    }
+
+    /** FAILED/PENDING 变更单人工重试执行（决策 D6：审批与执行分离）。 */
+    @PostMapping("/requests/{id}/apply")
+    @RequirePermission("change:manage")
+    public ApiResponse<ChangeRequest> retryApply(@PathVariable Long id) {
+        return ApiResponse.ok(ecrService.retryApply(id));
     }
 
     @GetMapping("/requests/{id}")
@@ -45,10 +53,10 @@ public class ChangeController {
         return ApiResponse.ok(ecrService.detail(id));
     }
 
-    /** ECR 状态分布统计（报表）。 */
+    /** ECR 统计（报表）：by=state（默认）/ type。 */
     @GetMapping("/stats")
-    public ApiResponse<java.util.Map<String, Long>> stats() {
-        return ApiResponse.ok(ecrService.stats());
+    public ApiResponse<java.util.Map<String, Long>> stats(@RequestParam(defaultValue = "state") String by) {
+        return ApiResponse.ok(ecrService.stats(by));
     }
 
     private Long currentUserId(HttpServletRequest request) {

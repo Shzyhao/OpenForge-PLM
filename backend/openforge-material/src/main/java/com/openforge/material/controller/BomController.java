@@ -4,8 +4,12 @@ import com.openforge.common.annotation.RequirePermission;
 import com.openforge.common.api.ApiResponse;
 import com.openforge.material.dto.BomDiffResponse;
 import com.openforge.material.dto.BomLineRequest;
+import com.openforge.material.dto.BomLineResponse;
+import com.openforge.material.dto.SubstituteRequest;
+import com.openforge.material.dto.SubstituteUpdateRequest;
 import com.openforge.material.entity.Bom;
 import com.openforge.material.entity.BomLine;
+import com.openforge.material.entity.BomLineSubstitute;
 import com.openforge.material.service.BomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,6 +41,11 @@ public class BomController {
         return ApiResponse.ok(bomService.create(body.get("parentPartId"), operator));
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<Bom> detail(@PathVariable Long id) {
+        return ApiResponse.ok(bomService.requireBom(id));
+    }
+
     @PostMapping("/{id}/lines")
     @RequirePermission("bom:manage")
     public ApiResponse<BomLine> addLine(@PathVariable Long id,
@@ -44,8 +54,8 @@ public class BomController {
     }
 
     @GetMapping("/{id}/lines")
-    public ApiResponse<List<BomLine>> lines(@PathVariable Long id) {
-        return ApiResponse.ok(bomService.lines(id));
+    public ApiResponse<List<BomLineResponse>> lines(@PathVariable Long id) {
+        return ApiResponse.ok(bomService.lineDetails(id));
     }
 
     @DeleteMapping("/{id}/lines/{lineId}")
@@ -54,6 +64,39 @@ public class BomController {
         bomService.removeLine(id, lineId);
         return ApiResponse.ok();
     }
+
+    // ===== 替代组（仅草稿 BOM；发布版调整走统一变更中心） =====
+
+    @PostMapping("/{id}/lines/{lineId}/substitutes")
+    @RequirePermission("bom:manage")
+    public ApiResponse<BomLineSubstitute> addSubstitute(@PathVariable Long id, @PathVariable Long lineId,
+                                                        @Valid @RequestBody SubstituteRequest request) {
+        return ApiResponse.ok(bomService.addSubstitute(id, lineId, request));
+    }
+
+    @GetMapping("/{id}/lines/{lineId}/substitutes")
+    public ApiResponse<List<BomLineResponse.SubstituteView>> substitutes(@PathVariable Long id,
+                                                                         @PathVariable Long lineId) {
+        return ApiResponse.ok(bomService.substitutes(id, lineId));
+    }
+
+    @PutMapping("/{id}/lines/{lineId}/substitutes/{subId}")
+    @RequirePermission("bom:manage")
+    public ApiResponse<BomLineSubstitute> updateSubstitute(@PathVariable Long id, @PathVariable Long lineId,
+                                                           @PathVariable Long subId,
+                                                           @Valid @RequestBody SubstituteUpdateRequest request) {
+        return ApiResponse.ok(bomService.updateSubstitute(id, lineId, subId, request));
+    }
+
+    @DeleteMapping("/{id}/lines/{lineId}/substitutes/{subId}")
+    @RequirePermission("bom:manage")
+    public ApiResponse<Void> removeSubstitute(@PathVariable Long id, @PathVariable Long lineId,
+                                              @PathVariable Long subId) {
+        bomService.removeSubstitute(id, lineId, subId);
+        return ApiResponse.ok();
+    }
+
+    // ===== 展开 / 反查 / 对比 / 升版 =====
 
     @GetMapping("/expand")
     public ApiResponse<BomService.BomNode> expand(@RequestParam Long bomId,
@@ -69,6 +112,12 @@ public class BomController {
     @GetMapping("/compare")
     public ApiResponse<BomDiffResponse> compare(@RequestParam Long a, @RequestParam Long b) {
         return ApiResponse.ok(bomService.compare(a, b));
+    }
+
+    @PostMapping("/{id}/revise")
+    @RequirePermission("bom:manage")
+    public ApiResponse<Bom> revise(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request) {
+        return ApiResponse.ok(bomService.revise(id, currentUserId(request)));
     }
 
     @PostMapping("/{id}/submit")

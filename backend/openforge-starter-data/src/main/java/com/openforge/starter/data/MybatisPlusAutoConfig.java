@@ -23,7 +23,8 @@ public class MybatisPlusAutoConfig {
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.POSTGRE_SQL));
+        // 官方要求顺序：多租户（改写 SQL）必须在分页之前——否则分页 count SQL 不携带
+        // 租户条件，多租户下 total 虚高（连接器容器测试 CI 首跑实纱，单租户部署无感知）
         interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(new TenantLineHandler() {
             @Override
             public Expression getTenantId() {
@@ -35,6 +36,7 @@ public class MybatisPlusAutoConfig {
                 return TenantTables.isGlobal(tableName);
             }
         }));
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.POSTGRE_SQL));
         return interceptor;
     }
 }

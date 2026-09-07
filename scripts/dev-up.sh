@@ -15,6 +15,12 @@ export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(which java
 JVM_OPTS="-Xms48m -Xmx160m -Xss512k -XX:MaxMetaspaceSize=200m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
 # dev 收紧线程/连接池（yml 已环境变量化，默认值不变；9×2=18 PG 连接，单人开发足够）
 export TOMCAT_MAX_THREADS="${TOMCAT_MAX_THREADS:-10}" TOMCAT_MIN_SPARE="${TOMCAT_MIN_SPARE:-2}"
+# 集成编排器开发态默认：白名单放行本机（冒烟自测目标），生产环境不注入此变量 = 全拒语义
+export OPENFORGE_CONNECTOR_EGRESS_WHITELIST="${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:-localhost,127.0.0.1}"
+export OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE="${OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE:-true}"
+# 凭据加密主密钥：固定开发默认（32 字节 base64）保证重启后 dev 库凭据仍可解密；
+# 生产必须显式注入 OPENFORGE_CONNECTOR_MASTER_KEY（prod compose 不给默认值，未配置=凭据功能拒绝）
+export OPENFORGE_CONNECTOR_MASTER_KEY="${OPENFORGE_CONNECTOR_MASTER_KEY:-b3BlbmZvcmdlLWRldi1tYXN0ZXIta2V5LTAxMjM0NTY=}"
 export HIKARI_MAX_POOL="${HIKARI_MAX_POOL:-2}" HIKARI_MIN_IDLE="${HIKARI_MIN_IDLE:-1}"
 
 echo "=== [1/4] 基础依赖 (PostgreSQL；Redis/MinIO 为 extras 可选) ==="
@@ -65,9 +71,10 @@ echo "=== [3/4] 启动 Java 服务（auth 先行 → 业务服务 ${START_PARALL
 declare -A PORTS=(
   [auth]=8081 [material]=8082 [doc]=8083 [workflow]=8084
   [change]=8085 [knowledge]=8086 [project]=8087 [metadata]=8088 [gateway]=8080
+  [connector]=8094
   [mono]=8090
 )
-SVC_ORDER="auth material doc workflow change knowledge project metadata gateway"
+SVC_ORDER="auth material doc workflow change knowledge project metadata connector gateway"
 case "${PROFILE:-full}" in
   core) PRESET="auth metadata doc workflow gateway" ;;
   lite) PRESET="auth gateway" ;;

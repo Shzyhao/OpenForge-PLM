@@ -122,13 +122,24 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
             body.put("flywayTable", descriptor.getFlywayTable() == null ? "" : descriptor.getFlywayTable());
             body.put("healthPath", descriptor.getHealth() == null ? "" : descriptor.getHealth());
             body.put("serviceUri", serviceUri == null ? "" : serviceUri);
-            client().post()
+            java.util.Map<?, ?> response = client().post()
                     .uri("/api/v1/internal/modules")
                     .header("X-Internal-Token", internalToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .toBodilessEntity();
+                    .body(java.util.Map.class);
+            // 注册中心把业务拒绝包在 HTTP 200 ApiResponse 里（如 EXTENSION 缺 ownerRef）——
+            // 必须检查业务码，否则失败静默（心跳看似成功、路由永不出现）
+            boolean rejected = response == null
+                    || !Integer.valueOf(0).equals(response.get("code"));
+            if (rejected) {
+                registered = false;
+                log.warn("模块注册被注册中心拒绝（{}）: {} — {}",
+                        trigger, descriptor.getModuleKey(),
+                        response == null ? "无响应" : response.get("message"));
+                return;
+            }
             registered = true;
             log.debug("模块注册心跳成功（{}）: {}", trigger, descriptor.getModuleKey());
         } catch (Exception e) {
