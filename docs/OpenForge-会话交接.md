@@ -7,7 +7,7 @@
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.14.0**（tag + GitHub Release；集成编排器 MVP，内含原 v1.13.0 候选内容——#107/#108 替代件专项） |
-| dev 最新 | 与 main 同步（v1.14.0 已合入）；下一步 P2：AI API 配置器（用户第三诉求，方案 §12.1）/ 事件定时触发 / manage 审计（R8） |
+| dev 最新 | 领先 main：**P2-1 AI API 配置器已完成**（afd2d2b，CI 绿）——ai_provider 表（connector 域，AES-GCM 复用凭据加密）+ 管理 API（ai:manage，V26）+ /internal/ai-provider/chain + ai-gateway 降级链热加载（30s 轮询，env 兜底零破坏）+ 前端集成编排器页 AI 模型 Tab；真实栈浏览器巡检过（CRUD/密文落库/白名单拦截 6011/连通测试 FAILED 如实上报）。下一步 P2：事件/定时触发连接器、manage 审计（R8） |
 | main vs dev | v1.14.0 合入后同步 |
 | 工作区 | 干净；本地 admin 密码 smoke-test-2026（dev 库）；冒烟 `./scripts/smoke.sh`（9 业务域 20 断言，连接器 6 项幂等可重跑） |
 | 全量测试 | CI 全绿（run 34128910566）：backend/frontend/ai 三作业；**容器测试（Auth/Metadata/Connector Testcontainers 真实 Docker）首次真实执行全绿**——CI 首跑实纱两缺陷已修：①CONN_SPEC 传参错位；②**平台级** MybatisPlusAutoConfig 拦截器顺序（分页先于多租户 → 分页 count SQL 无租户条件、多租户 total 虚高），已按官方顺序重排 |
