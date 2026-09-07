@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .config import settings
 from .doc_parse import parse_document
 from .llm import llm_client, LLMOfflineError
+from .provider_chain import provider_chain
 from .nl2sql import nl_to_sql
 from .sql_gateway import validate_sql
 
@@ -55,7 +56,10 @@ class TableRegisterRequest(BaseModel):
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok", "llm_online": llm_client.online, "model": settings.llm_model}
+    chain = provider_chain.get_chain()
+    return {"status": "ok", "llm_online": llm_client.online,
+            "model": llm_client.model or settings.llm_model,
+            "providers": len(chain)}
 
 
 @app.post("/api/v1/ai/chat")
@@ -122,6 +126,12 @@ TABLE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 def _require_internal_token(token: Optional[str]) -> None:
     if not settings.internal_token or token != settings.internal_token:
         raise HTTPException(status_code=401, detail="内部接口令牌无效")
+
+
+@app.on_event("startup")
+def start_provider_chain_polling():
+    """AI 供应商降级链轮询（30s；连接器不可达时保持快照/env 兜底）。"""
+    provider_chain.start_polling()
 
 
 @app.on_event("startup")

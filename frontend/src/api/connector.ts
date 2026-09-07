@@ -158,3 +158,49 @@ export function updateCredential(id: number, body: {
 export function deleteCredential(id: number): Promise<void> {
   return del(`/api/v1/connector-credentials/${id}`)
 }
+
+// ===== AI 供应商（P2-1 AI API 配置器，集成编排器 MVP 设计 §12.1） =====
+
+export interface AiProvider {
+  id: number
+  providerCode: string
+  providerName: string
+  baseUrl: string
+  model: string
+  timeoutMs: number
+  enabled: boolean
+  priority: number
+}
+
+export interface ProviderTestResult {
+  status: string
+  httpStatus: number | null
+  durationMs: number
+  error: string | null
+}
+
+export function fetchAiProviders(page = 1, pageSize = 50): Promise<PageData<AiProvider>> {
+  return get(`/api/v1/ai-providers?page=${page}&pageSize=${pageSize}`)
+}
+
+export function createAiProvider(body: {
+  providerCode: string; providerName: string; baseUrl: string; apiKey: string
+  model: string; timeoutMs?: number; enabled?: number; priority?: number
+}): Promise<AiProvider> {
+  return post('/api/v1/ai-providers', body)
+}
+
+export function updateAiProvider(id: number, body: {
+  providerName?: string; baseUrl?: string; apiKey?: string; model?: string
+  timeoutMs?: number; enabled?: number; priority?: number
+}): Promise<AiProvider> {
+  return put(`/api/v1/ai-providers/${id}`, body)
+}
+
+export function deleteAiProvider(id: number): Promise<void> {
+  return del(`/api/v1/ai-providers/${id}`)
+}
+
+export function testAiProvider(id: number): Promise<ProviderTestResult> {
+  return post(`/api/v1/ai-providers/${id}/test`)
+}
