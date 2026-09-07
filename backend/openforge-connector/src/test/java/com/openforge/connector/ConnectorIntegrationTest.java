@@ -287,4 +287,40 @@ class ConnectorIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("租户隔离：同 connCode 双租户互不可见（CI 容器测试失败场景的 H2 常驻复现）")
+    void tenantIsolation() throws Exception {
+        grantPermissions();
+
+        // 租户 0（默认，无头）建凭据 + 连接器
+        mockMvc.perform(post("/api/v1/connector-credentials").header("X-User-Id", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"credCode\":\"cred_iso0\",\"credName\":\"iso0\",\"authType\":\"BEARER\",\"secret\":\"s0\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/connectors").header("X-User-Id", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(connSpec("iso_conn", "cred_iso0", "http://localhost:" + mockPort + "/inventory")))
+                .andExpect(status().isOk());
+
+        // 租户 2 同 code 建凭据 + 连接器（uk 租户内唯一，应成功）
+        mockMvc.perform(post("/api/v1/connector-credentials").header("X-User-Id", 1).header("X-User-Tenant", 2)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"credCode\":\"cred_iso2\",\"credName\":\"iso2\",\"authType\":\"BEARER\",\"secret\":\"s2\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/connectors").header("X-User-Id", 1).header("X-User-Tenant", 2)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(connSpec("iso_conn", "cred_iso2", "http://localhost:" + mockPort + "/inventory")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        // 租户 2 列表只应有自己的 1 条
+        mockMvc.perform(get("/api/v1/connectors").header("X-User-Id", 1).header("X-User-Tenant", 2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+        // 租户 7 不应有任何可见
+        mockMvc.perform(get("/api/v1/connectors").header("X-User-Id", 1).header("X-User-Tenant", 7))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+    }
 }
