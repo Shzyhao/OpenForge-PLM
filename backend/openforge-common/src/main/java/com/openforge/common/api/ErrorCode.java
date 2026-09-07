@@ -56,7 +56,21 @@ public enum ErrorCode {
     MODULE_NOT_FOUND(4023, "模块不存在"),
 
     // 5xxx 系统
-    INTERNAL_ERROR(5000, "系统内部错误");
+    INTERNAL_ERROR(5000, "系统内部错误"),
+
+    // 6xxx 集成域（连接器，架构文档 8.2）
+    CONN_CODE_EXISTS(6001, "连接器编码已存在"),
+    CONN_NOT_FOUND(6002, "连接器不存在"),
+    CONN_PUBLISHED_LOCKED(6003, "已发布连接器不可修改，请先停用"),
+    CONN_NOT_PUBLISHED(6004, "连接器未发布，不可调用"),
+    CONN_DISABLED(6005, "连接器已停用"),
+    CONN_SPEC_INVALID(6006, "连接器配置不合法"),
+    CONN_CRED_NOT_FOUND(6007, "凭据不存在"),
+    CONN_CRED_CODE_EXISTS(6008, "凭据编码已存在"),
+    CONN_MASTER_KEY_MISSING(6009, "凭据加密主密钥未配置，凭据功能不可用"),
+    CONN_CREDENTIAL_DECRYPT_FAILED(6010, "凭据解密失败"),
+    CONN_EGRESS_BLOCKED(6011, "目标地址不在出站白名单内"),
+    CONN_INVOKE_FAILED(6012, "连接器调用失败");
 
     private final int code;
     private final String message;

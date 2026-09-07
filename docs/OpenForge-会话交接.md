@@ -1,13 +1,13 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-09-05 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-09-06 ｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.12.2**（tag + GitHub Release；patch——代码评审六项修复（含生产构建断裂 P1）+ 冒烟工具化 + P3 判停） |
-| dev 最新 | 领先 main 2 个功能 squash（#107 替代组刀1、#108 变更中心刀2+3）——v1.13.0 候选，未发版 |
+| dev 最新 | 领先 main 2 个功能 squash（#107/#108，v1.13.0 候选）+ **集成编排器 MVP（v1.14.0 候选，工作区未提交未 PR）**——新服务 openforge-connector 五刀全落地（HTTP/REST + JDBC 只读连接器、凭据 AES-GCM、出站白名单、版本化发布、invoke API、前端设计器、mono 第 9 模块、smoke 9 域 6 断言），方案 docs/OpenForge-集成编排器MVP设计.md |
 | main vs dev | 完全同步 |
 | 工作区 | 干净，无在途 PR，远端仅 main/dev；服务全停；本地 admin 密码 smoke-test-2026（dev 库）；**合并门冒烟一键化：`./scripts/smoke.sh`（#103）；代码评审六项修复后置（#105）** |
 | 全量测试 | 全 reactor verify 绿（含 MonoSmokeTest 3/3 + Nacos 回路 CI 真跑 + SecurityLogControllerTest 结构回归）+ **全页面浏览器级巡检 15 界面（#101）** + mono 真库网关链路冒烟 8/8 域（RSS 405MB，-78%） |

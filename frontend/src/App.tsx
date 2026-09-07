@@ -15,6 +15,7 @@ import SecurityLogPage from './pages/SecurityLogPage'
 import MetaObjectsPage from './pages/MetaObjectsPage'
 import ObjectDataPage from './pages/ObjectDataPage'
 import LayoutDesignerPage from './pages/LayoutDesignerPage'
+import IntegrationPage from './pages/IntegrationPage'
 import ModuleAdminPage from './pages/ModuleAdminPage'
 import AppLayout from './layouts/AppLayout'
 import { getToken } from './api/client'
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="meta/objects" element={<MetaObjectsPage />} />
         <Route path="meta/data" element={<ObjectDataPage />} />
         <Route path="meta/designer" element={<LayoutDesignerPage />} />
+        <Route path="integration" element={<IntegrationPage />} />
         <Route path="system/users" element={<UserAdminPage />} />
         <Route path="system/roles" element={<RoleAdminPage />} />
         <Route path="system/logs" element={<SecurityLogPage />} />

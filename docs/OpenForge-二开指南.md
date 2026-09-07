@@ -100,6 +100,25 @@ docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --pro
   SQL 安全网关（SELECT only/表白名单/危险函数/LIMIT 强制）；动态对象发布即入白名单；
 - **登记新表**：内部接口 `POST /internal/tables`（token 防护，不经网关路由）。
 
+## 6.5 连接器扩展（集成编排器 v1.14.0）
+
+新连接器类型 = 实现 `ConnectorSpi` + 注册为 Spring Bean，运行时自动分发：
+
+```java
+@Component
+public class MyConnector implements ConnectorSpi {
+    public String type() { return "MY_TYPE"; }              // 对应 conn_definition.conn_type
+    public ConnectorResult execute(ConnectorExecution e) { ... } // 失败封装在返回值，不抛业务异常
+}
+```
+
+- spec 解析校验加到 `ConnectorSpecs.parseMyType`（错误统一 CONN_SPEC_INVALID=6006，
+  schemaVersion=1 契约见 `docs/OpenForge-集成编排器MVP设计.md` §4.1）；
+- 凭据走 `credentialRef`/`passwordRef` 引用（AES-GCM 密文，解密后仅内存态、日志脱敏）；
+- 出站一律过 `EgressGuard`（域白名单 + 私网拦截）；执行日志/参数校验由 `ConnectorRuntime`
+  统一承担——实现方只写传输细节；
+- 前端 `ConnectorConfigPanel` 增加对应分支 + `CONN_TYPES` 注册即可出现在设计器。
+
 ## 7. 部署
 
 - **开发**：`./scripts/dev-up.sh`（PROFILE=mono|core|lite|full 预设裁剪——mono 为
