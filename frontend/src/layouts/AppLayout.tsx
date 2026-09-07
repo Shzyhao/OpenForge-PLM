@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Avatar, Button, Dropdown, Layout, Menu, Result, Spin, Tag, theme, Typography } from 'antd'
 import {
-  ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined, FileTextOutlined,
-  HomeOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined,
-  TableOutlined, TeamOutlined,
+  ApiOutlined, ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined,
+  FileTextOutlined, HomeOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ProjectOutlined,
+  SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearToken, getPasswordStatus } from '../api/client'
@@ -39,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/meta/objects', menu: 'menu:meta', icon: <BlockOutlined />, label: '对象建模', module: 'metadata' },
   { key: '/meta/data', menu: 'menu:meta', icon: <TableOutlined />, label: '动态数据', module: 'metadata' },
   { key: '/meta/designer', menu: 'menu:meta', icon: <BlockOutlined />, label: '界面设计', module: 'metadata' },
+  { key: '/integration', menu: 'menu:connector', icon: <ApiOutlined />, label: '集成编排器', module: 'connector' },
   { key: '/system/users', menu: 'menu:system', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/system/roles', menu: 'menu:system', icon: <TeamOutlined />, label: '角色权限' },
   { key: '/system/logs', menu: 'menu:system', icon: <FileTextOutlined />, label: '安全日志' },
@@ -53,6 +54,7 @@ const NAV_GROUP_OF: Record<string, string> = {
   '/change': '协作', '/workflow': '协作',
   '/knowledge': '知识', '/project': '知识',
   '/meta/objects': '低代码', '/meta/data': '低代码', '/meta/designer': '低代码',
+  '/integration': '低代码',
   '/system/users': '系统', '/system/roles': '系统', '/system/logs': '系统', '/system/modules': '系统',
 }
 
