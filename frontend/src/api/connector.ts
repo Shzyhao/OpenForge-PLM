@@ -18,7 +18,34 @@ export interface ConnSummary {
   status: ConnStatus
   currentVersion: number
   description: string | null
+  triggerType: TriggerType
   updatedAt: string | null
+}
+
+/** 触发类型（P2-2 §12.2）：NONE=仅手动/API；EVENT=订阅平台事件；CRON=定时 */
+export type TriggerType = 'NONE' | 'EVENT' | 'CRON'
+
+export const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
+  { value: 'NONE', label: '无（手动/API）' },
+  { value: 'EVENT', label: '事件触发' },
+  { value: 'CRON', label: '定时触发' },
+]
+
+/** 平台既有事件主题与事件（B2 一域一 topic；EVENT 触发白名单） */
+export const EVENT_TOPICS: Record<string, string[]> = {
+  'openforge-meta': ['schema.migrated', 'meta.published'],
+  'openforge-object': ['object.record.created', 'object.record.updated'],
+  'openforge-doc': ['doc.released'],
+  'openforge-change': ['change.closed'],
+  'openforge-task': ['task.created', 'task.completed'],
+  'openforge-connector': ['connector.published'],
+}
+
+export interface TriggerForm {
+  topic?: string
+  tag?: string
+  cron?: string
+  params?: Record<string, unknown>
 }
 
 export interface ConnVersionItem {
@@ -29,6 +56,7 @@ export interface ConnVersionItem {
 
 export interface ConnDetail extends ConnSummary {
   spec: Record<string, unknown>
+  trigger: TriggerForm
   versions: ConnVersionItem[]
 }
 
@@ -105,12 +133,14 @@ export function fetchConnector(id: number): Promise<ConnDetail> {
 
 export function createConnector(body: {
   connCode: string; connName: string; connType: ConnType; description?: string; spec: Record<string, unknown>
+  triggerType?: TriggerType; trigger?: TriggerForm
 }): Promise<ConnDetail> {
   return post('/api/v1/connectors', body)
 }
 
 export function updateConnector(id: number, body: {
   connName: string; connType: ConnType; description?: string; spec: Record<string, unknown>
+  triggerType?: TriggerType; trigger?: TriggerForm
 }): Promise<ConnDetail> {
   return put(`/api/v1/connectors/${id}`, body)
 }
@@ -203,4 +233,36 @@ export function deleteAiProvider(id: number): Promise<void> {
 
 export function testAiProvider(id: number): Promise<ProviderTestResult> {
   return post(`/api/v1/ai-providers/${id}/test`)
+}
+
+// ===== 触发死信（P2-2 §12.2：EVENT/CRON 执行失败落死信，人工重放/丢弃） =====
+
+export interface DlqRecord {
+  id: number
+  connId: number
+  connCode: string
+  connVersion: number
+  triggerType: string
+  source: string | null
+  payloadJson: string
+  errorMsg: string | null
+  retryCount: number
+  status: 'PENDING' | 'RESOLVED' | 'DISCARDED'
+  createdAt: string
+  replayedAt: string | null
+}
+
+export function fetchDlq(status?: string, page = 1, pageSize = 20): Promise<PageData<DlqRecord>> {
+  const q = status ? `status=${status}&` : ''
+  return get(`/api/v1/connectors/dlq?${q}page=${page}&pageSize=${pageSize}`)
+}
+
+/** 重放：payload 原样重投；成功 RESOLVED，仍失败 retry_count+1 保持 PENDING */
+export function replayDlq(id: number): Promise<{ status: string; retryCount: number }> {
+  return post(`/api/v1/connectors/dlq/${id}/replay`)
+}
+
+/** 丢弃：保留记录供追溯（status=DISCARDED） */
+export function discardDlq(id: number): Promise<void> {
+  return del(`/api/v1/connectors/dlq/${id}`)
 }

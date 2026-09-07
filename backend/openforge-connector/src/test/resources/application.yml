@@ -20,3 +20,7 @@ openforge:
     # 测试白名单：本机 mock 服务器；放开私网（loopback）
     egress-whitelist: localhost,127.0.0.1
     egress-allow-private: true
+    trigger:
+      # 测试加速调度重同步（默认 8s/30s）
+      resync-initial-ms: 1000
+      resync-ms: 3000

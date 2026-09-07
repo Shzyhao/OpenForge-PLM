@@ -23,6 +23,11 @@ public class ConnDefinitionVersion {
 
     private String specJson;
 
+    /** 发布时的触发配置快照（P2-2，随 spec 一并不可变拷贝） */
+    private String triggerType;
+
+    private String triggerJson;
+
     private Long publishedBy;
 
     private LocalDateTime publishedAt;

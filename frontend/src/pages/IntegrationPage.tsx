@@ -7,12 +7,12 @@ import {
   DeleteOutlined, PlusOutlined, ReloadOutlined, RocketOutlined, SendOutlined,
 } from '@ant-design/icons'
 import {
-  CONN_TYPES, createAiProvider, createConnector, createCredential, deleteAiProvider,
-  deleteConnector, deleteCredential, disableConnector, fetchAiProviders, fetchConnector,
-  fetchConnectors, fetchCredentials, fetchExecLogs, publishConnector, testAiProvider,
-  testConnector, updateAiProvider, updateConnector,
-  type AiProvider, type ConnSummary, type ConnType, type Credential, type ExecLog,
-  type InvokeResult, type PageData,
+  CONN_TYPES, EVENT_TOPICS, TRIGGER_TYPES, createAiProvider, createConnector, createCredential,
+  deleteAiProvider, deleteConnector, deleteCredential, disableConnector, discardDlq, fetchAiProviders,
+  fetchConnector, fetchConnectors, fetchCredentials, fetchDlq, fetchExecLogs, publishConnector,
+  replayDlq, testAiProvider, testConnector, updateAiProvider, updateConnector,
+  type AiProvider, type ConnSummary, type ConnType, type Credential, type DlqRecord, type ExecLog,
+  type InvokeResult, type PageData, type TriggerForm, type TriggerType,
 } from '../api/connector'
 import ConnectorConfigPanel, { type ConnectorConfigPanelHandle } from '../components/ConnectorConfigPanel'
 import { usePerm } from '../perm/PermContext'
@@ -28,10 +28,13 @@ interface SpecDraft {
   connType: ConnType
   description: string
   spec: Record<string, unknown>
+  triggerType: TriggerType
+  trigger: TriggerForm
 }
 
 const EMPTY_DRAFT = (connType: ConnType): SpecDraft => ({
   connCode: '', connName: '', connType, description: '', spec: {},
+  triggerType: 'NONE', trigger: {},
 })
 
 export default function IntegrationPage() {
@@ -49,9 +52,18 @@ export default function IntegrationPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState<ConnSummary | null>(null)
   const [draft, setDraft] = useState<SpecDraft>(EMPTY_DRAFT('HTTP_REST'))
+  const [triggerParamsText, setTriggerParamsText] = useState('{}')
   const [saving, setSaving] = useState(false)
   const panelRef = useRef<ConnectorConfigPanelHandle>(null)
   const [specForm] = Form.useForm<{ connCode: string; connName: string; description: string }>()
+
+  // 触发死信（P2-2 §12.2）
+  const [dlq, setDlq] = useState<DlqRecord[]>([])
+  const [dlqTotal, setDlqTotal] = useState(0)
+  const [dlqPage, setDlqPage] = useState(1)
+  const [dlqStatus, setDlqStatus] = useState<string>('PENDING')
+  const [dlqLoading, setDlqLoading] = useState(false)
+  const [dlqBusyId, setDlqBusyId] = useState<number | null>(null)
 
   // 试运行面板
   const [testing, setTesting] = useState<ConnSummary | null>(null)
@@ -104,6 +116,20 @@ export default function IntegrationPage() {
     }
   }, [])
 
+  const loadDlq = useCallback(async (targetPage = 1, status = dlqStatus) => {
+    setDlqLoading(true)
+    try {
+      const result = await fetchDlq(status || undefined, targetPage, 15)
+      setDlq(result.list)
+      setDlqTotal(result.total)
+      setDlqPage(result.page)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '死信加载失败')
+    } finally {
+      setDlqLoading(false)
+    }
+  }, [dlqStatus])
+
   useEffect(() => { void load(1) /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
   useEffect(() => { void loadCredentials() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
 
@@ -120,6 +146,7 @@ export default function IntegrationPage() {
   const openCreate = () => {
     setEditing(null)
     setDraft(EMPTY_DRAFT('HTTP_REST'))
+    setTriggerParamsText('{}')
     specForm.resetFields()
     setDrawerOpen(true)
   }
@@ -134,10 +161,14 @@ export default function IntegrationPage() {
         connType: detail.connType,
         description: detail.description ?? '',
         spec: detail.spec,
+        triggerType: detail.triggerType ?? 'NONE',
+        trigger: detail.trigger ?? {},
       })
       specForm.setFieldsValue({
         connCode: detail.connCode, connName: detail.connName, description: detail.description ?? '',
       })
+      setTriggerParamsText(detail.trigger?.params && Object.keys(detail.trigger.params).length
+        ? JSON.stringify(detail.trigger.params, null, 2) : '{}')
       setDrawerOpen(true)
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败')
@@ -148,18 +179,34 @@ export default function IntegrationPage() {
     const basic = await specForm.validateFields()
     const spec = await panelRef.current?.collect()
     if (!spec) return
+    // 触发入参 JSON 校验（EVENT/CRON 才需要）
+    let triggerParams: Record<string, unknown> | undefined
+    if (draft.triggerType !== 'NONE' && triggerParamsText.trim()) {
+      try {
+        triggerParams = JSON.parse(triggerParamsText)
+      } catch {
+        message.warning('触发参数须为合法 JSON 对象')
+        return
+      }
+    }
+    const trigger: TriggerForm | undefined = draft.triggerType === 'NONE' ? undefined
+      : draft.triggerType === 'EVENT'
+        ? { ...draft.trigger, params: triggerParams ?? {} }
+        : { ...draft.trigger, params: triggerParams ?? {} }
     setSaving(true)
     try {
       if (editing) {
         await updateConnector(editing.id, {
           connName: basic.connName, connType: draft.connType,
           description: basic.description, spec,
+          triggerType: draft.triggerType, trigger,
         })
         message.success('已保存')
       } else {
         await createConnector({
           connCode: basic.connCode, connName: basic.connName, connType: draft.connType,
           description: basic.description, spec,
+          triggerType: draft.triggerType, trigger,
         })
         message.success('连接器已创建（草稿）')
       }
@@ -296,6 +343,36 @@ export default function IntegrationPage() {
     }
   }
 
+  const replayDlqRow = async (row: DlqRecord) => {
+    setDlqBusyId(row.id)
+    try {
+      const r = await replayDlq(row.id)
+      if (r.status === 'SUCCESS') {
+        message.success(`重放成功（${row.connCode}），已标记 RESOLVED`)
+      } else {
+        message.warning(`重放仍失败（第 ${r.retryCount} 次），保持 PENDING 待处理`)
+      }
+      await loadDlq(dlqPage)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '重放失败')
+    } finally {
+      setDlqBusyId(null)
+    }
+  }
+
+  const discardDlqRow = async (row: DlqRecord) => {
+    setDlqBusyId(row.id)
+    try {
+      await discardDlq(row.id)
+      message.success('已丢弃（保留记录供追溯）')
+      await loadDlq(dlqPage)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '丢弃失败')
+    } finally {
+      setDlqBusyId(null)
+    }
+  }
+
   const columns = [
     { title: 'Code', dataIndex: 'connCode', width: 150 },
     { title: '名称', dataIndex: 'connName', width: 160 },
@@ -306,6 +383,11 @@ export default function IntegrationPage() {
     {
       title: '状态', dataIndex: 'status', width: 100,
       render: (s: string) => <Tag color={STATUS_COLORS[s]}>{s}</Tag>,
+    },
+    {
+      title: '触发', dataIndex: 'triggerType', width: 90,
+      render: (t: string) => t && t !== 'NONE'
+        ? <Tag color={t === 'EVENT' ? 'geekblue' : 'purple'}>{t}</Tag> : <Typography.Text type="secondary">-</Typography.Text>,
     },
     { title: '版本', dataIndex: 'currentVersion', width: 70, render: (v: number) => `v${v}` },
     { title: '描述', dataIndex: 'description', ellipsis: true },
@@ -442,6 +524,87 @@ export default function IntegrationPage() {
             </Card>
           ),
         },
+        {
+          key: 'dlq', label: '死信队列',
+          children: (
+            <Card title={<Typography.Text strong>触发死信（EVENT/CRON 执行失败；重放原样重投入参）</Typography.Text>}
+              extra={
+                <Space>
+                  <Select style={{ width: 150 }} value={dlqStatus}
+                    onChange={(v) => { setDlqStatus(v); void loadDlq(1, v) }}
+                    options={[
+                      { value: 'PENDING', label: '待重放' },
+                      { value: 'RESOLVED', label: '已恢复' },
+                      { value: 'DISCARDED', label: '已丢弃' },
+                      { value: '', label: '全部' },
+                    ]} />
+                  <Button icon={<ReloadOutlined />} onClick={() => void loadDlq(dlqPage)} />
+                </Space>
+              }
+              styles={{ body: { paddingInline: 0 } }}>
+              <Table rowKey="id" size="small" loading={dlqLoading} dataSource={dlq}
+                pagination={{
+                  current: dlqPage, total: dlqTotal, pageSize: 15, showSizeChanger: false,
+                  onChange: (p) => void loadDlq(p),
+                }}
+                expandable={{
+                  expandedRowRender: (row) => (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <div>
+                        <Typography.Text type="secondary">入参（重放原样重投）：</Typography.Text>
+                        <pre style={{ margin: '4px 0 0', padding: 8, fontSize: 12, background: token.colorFillQuaternary }}>
+                          {row.payloadJson}
+                        </pre>
+                      </div>
+                      {row.errorMsg && (
+                        <div>
+                          <Typography.Text type="secondary">失败原因：</Typography.Text>
+                          <Typography.Text type="danger" style={{ marginLeft: 8 }}>{row.errorMsg}</Typography.Text>
+                        </div>
+                      )}
+                    </div>
+                  ),
+                }}
+                columns={[
+                  { title: 'ID', dataIndex: 'id', width: 70 },
+                  { title: '连接器', dataIndex: 'connCode', width: 160 },
+                  { title: '版本', dataIndex: 'connVersion', width: 70, render: (v: number) => `v${v}` },
+                  {
+                    title: '触发', dataIndex: 'triggerType', width: 80,
+                    render: (t: string) => <Tag color={t === 'EVENT' ? 'geekblue' : 'purple'}>{t}</Tag>,
+                  },
+                  { title: '来源', dataIndex: 'source', width: 190, ellipsis: true },
+                  {
+                    title: '状态', dataIndex: 'status', width: 90,
+                    render: (s: string) => (
+                      <Tag color={s === 'PENDING' ? 'red' : s === 'RESOLVED' ? 'green' : 'default'}>
+                        {s === 'PENDING' ? '待重放' : s === 'RESOLVED' ? '已恢复' : '已丢弃'}
+                      </Tag>
+                    ),
+                  },
+                  { title: '重试', dataIndex: 'retryCount', width: 60 },
+                  { title: '时间', dataIndex: 'createdAt', width: 165 },
+                  {
+                    title: '操作', width: 170,
+                    render: (_: unknown, row: DlqRecord) => (
+                      <Space>
+                        {row.status === 'PENDING' && (
+                          <Button size="small" loading={dlqBusyId === row.id} disabled={!canManage}
+                            onClick={() => void replayDlqRow(row)}>重放</Button>
+                        )}
+                        {row.status === 'PENDING' && (
+                          <Popconfirm title="丢弃该死信？保留记录供追溯。" onConfirm={() => void discardDlqRow(row)}
+                            disabled={!canManage}>
+                            <Button size="small" danger disabled={!canManage}>丢弃</Button>
+                          </Popconfirm>
+                        )}
+                      </Space>
+                    ),
+                  },
+                ]} />
+            </Card>
+          ),
+        },
       ]} />
 
       <Drawer
@@ -482,6 +645,48 @@ export default function IntegrationPage() {
             spec={editing && draft.connType === editing.connType ? draft.spec : {}}
             credentials={credentials} />
         </div>
+        <Card size="small" title="触发（P2-2：发布后生效；随版本快照不可变）" style={{ marginTop: 16 }}>
+          <Space size="large" style={{ display: 'flex' }} wrap>
+            <Form.Item label="触发方式" style={{ marginBottom: 0 }}>
+              <Select style={{ width: 200 }} value={draft.triggerType}
+                onChange={(t) => setDraft((d) => ({ ...d, triggerType: t }))}
+                options={TRIGGER_TYPES} />
+            </Form.Item>
+            {draft.triggerType === 'EVENT' && (
+              <>
+                <Form.Item label="订阅主题（平台既有）" style={{ marginBottom: 0 }}>
+                  <Select style={{ width: 220 }} showSearch value={draft.trigger.topic}
+                    onChange={(v) => setDraft((d) => ({
+                      ...d, trigger: { ...d.trigger, topic: v, tag: undefined },
+                    }))}
+                    options={Object.keys(EVENT_TOPICS).map((t) => ({ value: t, label: t }))} />
+                </Form.Item>
+                <Form.Item label="事件（tag）" style={{ marginBottom: 0 }}>
+                  <Select style={{ width: 240 }} showSearch value={draft.trigger.tag}
+                    onChange={(v) => setDraft((d) => ({ ...d, trigger: { ...d.trigger, tag: v } }))}
+                    options={(draft.trigger.topic ? EVENT_TOPICS[draft.trigger.topic] : [])
+                      .map((t) => ({ value: t, label: t }))} />
+                </Form.Item>
+              </>
+            )}
+            {draft.triggerType === 'CRON' && (
+              <Form.Item label="Cron（Spring 6 段：秒 分 时 日 月 周）" style={{ marginBottom: 0 }}>
+                <Input style={{ width: 240, fontFamily: 'monospace' }} placeholder="0 */5 * * * *"
+                  value={draft.trigger.cron}
+                  onChange={(e) => setDraft((d) => ({ ...d, trigger: { ...d.trigger, cron: e.target.value } }))} />
+              </Form.Item>
+            )}
+          </Space>
+          {draft.triggerType !== 'NONE' && (
+            <div style={{ marginTop: 12 }}>
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+                触发入参默认值 JSON（EVENT 触发时事件 payload 覆盖同名键；可用 {'{{param}}'} 渲染进 URL/模板）
+              </Typography.Text>
+              <Input.TextArea rows={3} value={triggerParamsText} style={{ fontFamily: 'monospace' }}
+                onChange={(e) => setTriggerParamsText(e.target.value)} />
+            </div>
+          )}
+        </Card>
       </Drawer>
 
       <Modal

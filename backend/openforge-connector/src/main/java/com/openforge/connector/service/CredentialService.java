@@ -28,12 +28,15 @@ public class CredentialService {
     private final ConnCredentialMapper credentialMapper;
     private final AesGcmCipher cipher;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final com.openforge.connector.client.AuthAuditClient auditClient;
 
     public CredentialService(ConnCredentialMapper credentialMapper, AesGcmCipher cipher,
-                             com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+                             com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+                             com.openforge.connector.client.AuthAuditClient auditClient) {
         this.credentialMapper = credentialMapper;
         this.cipher = cipher;
         this.objectMapper = objectMapper;
+        this.auditClient = auditClient;
     }
 
     @Transactional
@@ -55,6 +58,8 @@ public class CredentialService {
         credential.setTenantId(TenantContext.getTenantId());
         credential.setCreatedBy(userId);
         credentialMapper.insert(credential);
+        auditClient.record(userId, "CONN_CRED_CREATE", "CREDENTIAL", credential.getCredCode(),
+                "新建凭据 " + credential.getCredName() + "（" + credential.getAuthType() + "）");
         return CredentialResponse.from(credential);
     }
 
@@ -77,6 +82,9 @@ public class CredentialService {
         }
         credential.setUpdatedBy(userId);
         credentialMapper.updateById(credential);
+        auditClient.record(userId, "CONN_CRED_UPDATE", "CREDENTIAL", credential.getCredCode(),
+                "更新凭据 " + credential.getCredName()
+                        + (request.getSecret() != null && !request.getSecret().isBlank() ? "（含密值轮换）" : ""));
         return CredentialResponse.from(credential);
     }
 
@@ -87,9 +95,11 @@ public class CredentialService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        requireCredential(id);
+    public void delete(Long id, Long userId) {
+        ConnCredential credential = requireCredential(id);
         credentialMapper.deleteById(id);
+        auditClient.record(userId, "CONN_CRED_DELETE", "CREDENTIAL", credential.getCredCode(),
+                "删除凭据 " + credential.getCredName() + "（" + credential.getAuthType() + "）");
     }
 
     /** 运行时解密入口（仅 ConnectorRuntime 调用；密文不出服务层）。 */

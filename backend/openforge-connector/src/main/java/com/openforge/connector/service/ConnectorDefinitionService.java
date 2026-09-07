@@ -20,8 +20,8 @@ import com.openforge.connector.mapper.ConnDefinitionVersionMapper;
 import com.openforge.connector.mapper.ConnExecLogMapper;
 import com.openforge.connector.spec.ConnectorSpecs;
 import com.openforge.connector.spec.HttpRestSpec;
+import com.openforge.connector.spec.TriggerSpecs;
 import com.openforge.connector.spi.ConnectorResult;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +39,6 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ConnectorDefinitionService {
 
     private final ConnDefinitionMapper definitionMapper;
@@ -50,6 +49,34 @@ public class ConnectorDefinitionService {
     private final ConnectorRuntime connectorRuntime;
     private final ObjectMapper objectMapper;
     private final com.openforge.common.event.EventPublisher eventPublisher;
+    private final com.openforge.connector.client.AuthAuditClient auditClient;
+    private final java.util.Set<String> allowedTopics;
+
+    public ConnectorDefinitionService(
+            ConnDefinitionMapper definitionMapper,
+            ConnDefinitionVersionMapper versionMapper,
+            ConnExecLogMapper execLogMapper,
+            CredentialService credentialService,
+            PublishedConnCache publishedConnCache,
+            ConnectorRuntime connectorRuntime,
+            ObjectMapper objectMapper,
+            com.openforge.common.event.EventPublisher eventPublisher,
+            com.openforge.connector.client.AuthAuditClient auditClient,
+            @org.springframework.beans.factory.annotation.Value(
+                    "${openforge.connector.trigger.allowed-topics:" + TriggerSpecs.DEFAULT_TOPICS + "}")
+            String allowedTopics) {
+        this.definitionMapper = definitionMapper;
+        this.versionMapper = versionMapper;
+        this.execLogMapper = execLogMapper;
+        this.credentialService = credentialService;
+        this.publishedConnCache = publishedConnCache;
+        this.connectorRuntime = connectorRuntime;
+        this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
+        this.auditClient = auditClient;
+        this.allowedTopics = java.util.Arrays.stream(allowedTopics.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
 
     @Transactional
     public ConnDetailResponse create(SaveConnRequest request, Long userId) {
@@ -68,9 +95,12 @@ public class ConnectorDefinitionService {
         def.setStatus("DRAFT");
         def.setCurrentVersion(0);
         def.setSpecJson(normalizeAndValidate(request));
+        applyTrigger(def, request);
         def.setTenantId(TenantContext.getTenantId());
         def.setCreatedBy(userId);
         definitionMapper.insert(def);
+        auditClient.record(userId, "CONN_CREATE", "CONNECTOR", def.getConnCode(),
+                "新建连接器 " + def.getConnName() + "（" + def.getConnType() + "）");
         return detail(def.getId());
     }
 
@@ -86,8 +116,11 @@ public class ConnectorDefinitionService {
         def.setConnType(request.getConnType());
         def.setDescription(request.getDescription());
         def.setSpecJson(normalizeAndValidate(request));
+        applyTrigger(def, request);
         def.setUpdatedBy(userId);
         definitionMapper.updateById(def);
+        auditClient.record(userId, "CONN_UPDATE", "CONNECTOR", def.getConnCode(),
+                "更新连接器 " + def.getConnName() + "（" + def.getConnType() + "）");
         return detail(id);
     }
 
@@ -108,6 +141,9 @@ public class ConnectorDefinitionService {
         response.setCurrentVersion(def.getCurrentVersion());
         response.setDescription(def.getDescription());
         response.setSpec(fromJson(def.getSpecJson()));
+        response.setTriggerType(def.getTriggerType() == null ? "NONE" : def.getTriggerType());
+        response.setTrigger(def.getTriggerJson() == null || def.getTriggerJson().isBlank()
+                ? Map.of() : fromJson(def.getTriggerJson()));
         response.setVersions(versionMapper.selectList(new LambdaQueryWrapper<ConnDefinitionVersion>()
                         .eq(ConnDefinitionVersion::getConnId, id)
                         .orderByDesc(ConnDefinitionVersion::getVersion))
@@ -117,12 +153,14 @@ public class ConnectorDefinitionService {
 
     /** 已发布需先停用才可删除。 */
     @Transactional
-    public void delete(Long id) {
+    public void delete(Long id, Long userId) {
         ConnDefinition def = requireDefinition(id);
         if ("PUBLISHED".equals(def.getStatus())) {
             throw new BizException(ErrorCode.CONN_PUBLISHED_LOCKED, "已发布连接器不可删除，请先停用");
         }
         definitionMapper.deleteById(id);
+        auditClient.record(userId, "CONN_DELETE", "CONNECTOR", def.getConnCode(),
+                "删除连接器 " + def.getConnName() + "（状态 " + def.getStatus() + "）");
     }
 
     @Transactional
@@ -139,6 +177,8 @@ public class ConnectorDefinitionService {
         snapshot.setConnId(id);
         snapshot.setVersion(version);
         snapshot.setSpecJson(def.getSpecJson());
+        snapshot.setTriggerType(def.getTriggerType() == null ? "NONE" : def.getTriggerType());
+        snapshot.setTriggerJson(def.getTriggerJson());
         snapshot.setPublishedBy(userId);
         snapshot.setTenantId(def.getTenantId());
         versionMapper.insert(snapshot);
@@ -159,6 +199,8 @@ public class ConnectorDefinitionService {
         PublishedConn published = new PublishedConn(id, def.getConnCode(), def.getConnType(),
                 version, def.getSpecJson());
         afterCommit(() -> publishedConnCache.put(published));
+        auditClient.record(userId, "CONN_PUBLISH", "CONNECTOR", def.getConnCode(),
+                "发布连接器 " + def.getConnName() + " 至版本 v" + version);
 
         return Map.of("connId", id, "connCode", def.getConnCode(),
                 "status", def.getStatus(), "version", version);
@@ -174,6 +216,8 @@ public class ConnectorDefinitionService {
         def.setUpdatedBy(userId);
         definitionMapper.updateById(def);
         afterCommit(() -> publishedConnCache.evict(def.getConnCode()));
+        auditClient.record(userId, "CONN_DISABLE", "CONNECTOR", def.getConnCode(),
+                "停用连接器 " + def.getConnName() + "（v" + def.getCurrentVersion() + "）");
         return Map.of("connId", id, "status", "DISABLED");
     }
 
@@ -203,6 +247,25 @@ public class ConnectorDefinitionService {
     }
 
     // ===== 内部 =====
+
+    /** 触发配置校验 + canonical 落库（P2-2 §12.2）。 */
+    private void applyTrigger(ConnDefinition def, SaveConnRequest request) {
+        Map<String, Object> normalized = TriggerSpecs.validateAndNormalize(
+                request.getTriggerType(), request.getTrigger(), allowedTopics);
+        String type = normalized.isEmpty() ? TriggerSpecs.TYPE_NONE
+                : (request.getTriggerType() == null || request.getTriggerType().isBlank()
+                        ? TriggerSpecs.TYPE_NONE : request.getTriggerType());
+        def.setTriggerType(type);
+        def.setTriggerJson(normalized.isEmpty() ? null : toJson(normalized));
+    }
+
+    private String toJson(Map<String, Object> value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "trigger 序列化失败");
+        }
+    }
 
     /** spec 规范化（canonical JSON 落库）+ 校验（含凭据引用存在性）。 */
     private String normalizeAndValidate(SaveConnRequest request) {

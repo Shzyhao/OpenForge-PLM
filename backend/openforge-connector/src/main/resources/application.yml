@@ -40,6 +40,15 @@ openforge:
     # 仅测试/开发放开私网目标；生产必须 false
     egress-allow-private: ${OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE:false}
     cache-ttl-seconds: ${OPENFORGE_CONN_CACHE_TTL:30}
+    trigger:
+      # EVENT 触发可订阅的平台主题白名单（一域一 topic，B2 设计）；新模块主题按需追加
+      allowed-topics: ${OPENFORGE_CONN_TRIGGER_TOPICS:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector}
+      # 事件消费者订阅主题（与 allowed-topics 保持一致即可）
+      subscribe-topics: ${OPENFORGE_CONN_TRIGGER_SUBSCRIBE:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector}
+      # CRON 调度线程池与重同步周期（发布/停用/改表达式后至多一个周期生效）
+      cron-pool-size: ${OPENFORGE_CONN_TRIGGER_POOL:2}
+      resync-initial-ms: ${OPENFORGE_CONN_TRIGGER_RESYNC_INIT:8000}
+      resync-ms: ${OPENFORGE_CONN_TRIGGER_RESYNC:30000}
 
 management:
   endpoints:
