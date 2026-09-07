@@ -449,4 +449,6 @@ serviceUri: 8094
 | R5 | `flow/` 画布组件为流程域设计，复用需泛化改造 | 刀3 spike 结论：flowModel 深度绑定流程域语义（审批/规则/序列化），泛化成本超阈值，触发降级路径（列表+NodeConfigPanel 组件化，P3 一次性引入画布，组件复用零浪费） |
 | R6 | SSRF 校验与实际请求之间存在 DNS 重绑定窗口（TOCTOU） | MVP 已做：白名单 host 匹配 + 解析后私网拒绝（收敛窗口）。根治需固定解析 IP 直连或出站代理，列 P2（与出站脱敏代理通道合并实施） |
 | R7 | 凭据以明文参与连接池 key 摘要（SHA-256 of char[]） | 摘要不可逆，泄露面可接受；凭据轮换生成新池、旧池 LRU 驱逐关闭 |
+| R8 | manage 操作（建模/发布/停用/凭据增删）未落操作审计 | 现状：平台审计仅覆盖 auth 域内部（登录/权限/模块变更），无跨服务审计拦截器，§7 原表述不成立。执行面已有 conn_exec_log；manage 审计随 P2 平台审计能力统一补（先于生产启用） |
+| R9 | 本机 testcontainers 连不上 Docker 引擎（CLI 可用但 npipe 400），容器测试（PG 双租户/MySQL）从未真实执行 | 已缓解：JDBC 端到端已在真实栈验证（2026-09-07 对 dev PG 真实查询通过）；容器测试依赖 CI（ubuntu runner 有 Docker）真实执行，push 后以 CI 为准 |
 | Q2 | `conn:invoke` 是否要细化到连接器级 ACL | MVP 租户级，P2 评估（§12.3） |
