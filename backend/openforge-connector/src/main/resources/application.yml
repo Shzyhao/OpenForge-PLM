@@ -45,6 +45,8 @@ openforge:
       allowed-topics: ${OPENFORGE_CONN_TRIGGER_TOPICS:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector}
       # 事件消费者订阅主题（与 allowed-topics 保持一致即可）
       subscribe-topics: ${OPENFORGE_CONN_TRIGGER_SUBSCRIBE:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector}
+      # 事件时间闸门偏差容忍（分钟）：FIRST_OFFSET 拉到的早于「启动时刻-偏差」的信封按历史跳过
+      stale-skew-minutes: ${OPENFORGE_CONN_TRIGGER_STALE_SKEW:2}
       # CRON 调度线程池与重同步周期（发布/停用/改表达式后至多一个周期生效）
       cron-pool-size: ${OPENFORGE_CONN_TRIGGER_POOL:2}
       resync-initial-ms: ${OPENFORGE_CONN_TRIGGER_RESYNC_INIT:8000}

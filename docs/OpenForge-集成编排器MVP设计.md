@@ -428,8 +428,10 @@ serviceUri: 8094
 
 > **已交付（v1.15.0，dev 实施于 2026-09-07）**：连接器 `trigger_type/trigger_json` 配置（随发布进版本快照）+
 > CRON 调度器（跨租户全量重同步 + 自续链调度，30s 可配；秒位禁裸 \* 防风暴）+
-> EVENT 消费者（`ConnectorEventConsumer`，订阅主题白名单 6 主题，`CONSUME_FROM_LAST_OFFSET` 防首次上线回放历史；
-> `EVENT_ENABLED=false` 时 bean 不创建，与 knowledge 消费者同语义）+
+> EVENT 消费者（`ConnectorEventConsumer`，订阅主题白名单 6 主题；起点 = FIRST_OFFSET + 启动时间闸门——
+> occurredAt 早于「启动时刻-2min 可配」的信封按历史 ACK 跳过。CI 真实 MQ 回路实纱：LAST_OFFSET 对新消费组
+> rebalance 完成前的消息永久错过；FIRST_OFFSET+闸门兼顾"不回放历史"与"不丢启动窗口事件"（停机期间事件
+> 按 at-most-once 刻意不补）；`EVENT_ENABLED=false` 时 bean 不创建，与 knowledge 消费者同语义）+
 > `sys_connector_dlq` 应用级死信（执行失败即落，不依赖 broker %DLQ%——B2 幂等行先于业务插入，
 > broker 死信实际不可达）+ 重放/丢弃端点（`/api/v1/connectors/dlq`，重放原样重投 payload）+
 > 前端死信队列 Tab + 触发表单。**实施中实纱两处平台缺陷并修复**：spec 校验 `checkUrl` 与
