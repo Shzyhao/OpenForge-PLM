@@ -130,7 +130,8 @@ class ConnectorEventBrokerLoopTest {
         // 已发布 EVENT 触发连接器（直插主档，PUBLISHED 状态即被消费者/调度器全量扫描命中）
         String code = "mq_evt_" + System.currentTimeMillis();
         String spec = "{\"schemaVersion\":1,\"method\":\"GET\",\"url\":\"http://127.0.0.1:"
-                + target.getAddress().getPort() + "/mq?code={{code}}\"}";
+                + target.getAddress().getPort() + "/mq?code={{code}}\","
+                + "\"parameterSchema\":{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"string\"}},\"required\":[\"code\"]}}";
         jdbc.update("INSERT INTO conn_definition (conn_code, conn_name, conn_type, status, current_version, "
                         + "spec_json, trigger_type, trigger_json, tenant_id) VALUES (?,?,?,?,?,?,?,?,0)",
                 code, "MQ 回路连接器", "HTTP_REST", "PUBLISHED", 1, spec, "EVENT",
