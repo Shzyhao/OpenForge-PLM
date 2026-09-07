@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Button, Card, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Table,
-  Tabs, Tag, theme, Typography, message,
+  Button, Card, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Select, Space,
+  Table, Tabs, Tag, theme, Typography, message,
 } from 'antd'
 import {
   DeleteOutlined, PlusOutlined, ReloadOutlined, RocketOutlined, SendOutlined,
 } from '@ant-design/icons'
 import {
-  CONN_TYPES, createConnector, createCredential, deleteConnector, deleteCredential, disableConnector,
-  fetchConnector, fetchConnectors, fetchCredentials, fetchExecLogs, publishConnector, testConnector,
-  updateConnector,
-  type ConnSummary, type ConnType, type Credential, type ExecLog, type InvokeResult, type PageData,
+  CONN_TYPES, createAiProvider, createConnector, createCredential, deleteAiProvider,
+  deleteConnector, deleteCredential, disableConnector, fetchAiProviders, fetchConnector,
+  fetchConnectors, fetchCredentials, fetchExecLogs, publishConnector, testAiProvider,
+  testConnector, updateAiProvider, updateConnector,
+  type AiProvider, type ConnSummary, type ConnType, type Credential, type ExecLog,
+  type InvokeResult, type PageData,
 } from '../api/connector'
 import ConnectorConfigPanel, { type ConnectorConfigPanelHandle } from '../components/ConnectorConfigPanel'
 import { usePerm } from '../perm/PermContext'
@@ -62,6 +64,16 @@ export default function IntegrationPage() {
   const [logs, setLogs] = useState<ExecLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
 
+  // AI 模型（P2-1 AI API 配置器）
+  const [providers, setProviders] = useState<AiProvider[]>([])
+  const [provModalOpen, setProvModalOpen] = useState(false)
+  const [provSaving, setProvSaving] = useState(false)
+  const [provForm] = Form.useForm<{
+    providerCode: string; providerName: string; baseUrl: string; apiKey: string
+    model: string; timeoutMs: number; priority: number
+  }>()
+  const [provTestBusyId, setProvTestBusyId] = useState<number | null>(null)
+
   // 凭据
   const [credModalOpen, setCredModalOpen] = useState(false)
   const [credSaving, setCredSaving] = useState(false)
@@ -94,6 +106,16 @@ export default function IntegrationPage() {
 
   useEffect(() => { void load(1) /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
   useEffect(() => { void loadCredentials() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
+
+  const loadProviders = useCallback(async () => {
+    try {
+      const result = await fetchAiProviders(1, 50)
+      setProviders(result.list)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'AI 模型加载失败')
+    }
+  }, [])
+  useEffect(() => { void loadProviders() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
 
   const openCreate = () => {
     setEditing(null)
@@ -218,6 +240,43 @@ export default function IntegrationPage() {
     }
   }
 
+  const saveProvider = async () => {
+    const v = await provForm.validateFields()
+    setProvSaving(true)
+    try {
+      await createAiProvider({
+        providerCode: v.providerCode, providerName: v.providerName, baseUrl: v.baseUrl,
+        apiKey: v.apiKey, model: v.model, timeoutMs: v.timeoutMs || undefined,
+        priority: v.priority ?? undefined, enabled: 1,
+      })
+      message.success('AI 供应商已创建（key 密文落库）')
+      setProvModalOpen(false)
+      provForm.resetFields()
+      await loadProviders()
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '创建失败')
+    } finally {
+      setProvSaving(false)
+    }
+  }
+
+  const testProvider = async (row: AiProvider) => {
+    setProvTestBusyId(row.id)
+    try {
+      const r = await testAiProvider(row.id)
+      if (r.status === 'SUCCESS') {
+        message.success(`连通正常（${r.httpStatus}，${r.durationMs}ms）`)
+      } else {
+        message.warning(`连通失败：${r.error ?? '未知错误'}`)
+      }
+      await loadProviders()
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '测试失败')
+    } finally {
+      setProvTestBusyId(null)
+    }
+  }
+
   const saveCredential = async () => {
     const values = await credForm.validateFields()
     setCredSaving(true)
@@ -301,6 +360,53 @@ export default function IntegrationPage() {
                 current: page, total, pageSize: 15, showSizeChanger: false,
                 onChange: (p) => load(p),
               }} />
+          ),
+        },
+        {
+          key: 'ai', label: 'AI 模型',
+          children: (
+            <Card title={<Typography.Text strong>AI 供应商（降级链按优先级升序；ai-gateway 30s 热加载）</Typography.Text>}
+              extra={
+                <Button type="primary" size="small" icon={<PlusOutlined />} disabled={!canManage}
+                  onClick={() => setProvModalOpen(true)}>新建供应商</Button>
+              } styles={{ body: { paddingInline: 0 } }}>
+              <Table rowKey="id" size="small" dataSource={providers}
+                pagination={{ pageSize: 10, showSizeChanger: false }}
+                columns={[
+                  { title: 'Code', dataIndex: 'providerCode', width: 140 },
+                  { title: '名称', dataIndex: 'providerName', width: 160 },
+                  { title: 'Base URL', dataIndex: 'baseUrl', ellipsis: true },
+                  { title: '模型', dataIndex: 'model', width: 140 },
+                  { title: '优先级', dataIndex: 'priority', width: 80 },
+                  {
+                    title: '状态', dataIndex: 'enabled', width: 90,
+                    render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? '启用' : '停用'}</Tag>,
+                  },
+                  {
+                    title: '操作', width: 190,
+                    render: (_: unknown, row: AiProvider) => (
+                      <Space>
+                        <Button size="small" loading={provTestBusyId === row.id}
+                          onClick={() => void testProvider(row)}>测试</Button>
+                        <Popconfirm title="停用后 ai-gateway 将跳过该供应商，确定？"
+                          onConfirm={() => {
+                            void updateAiProvider(row.id, { enabled: row.enabled ? 0 : 1 })
+                              .then(loadProviders)
+                              .catch((e: unknown) => message.error(e instanceof Error ? e.message : '操作失败'))
+                          }} disabled={!canManage}>
+                          <Button size="small" disabled={!canManage}>{row.enabled ? '停用' : '启用'}</Button>
+                        </Popconfirm>
+                        <Popconfirm title="删除该供应商？" onConfirm={() => {
+                          void deleteAiProvider(row.id).then(loadProviders)
+                            .catch((e: unknown) => message.error(e instanceof Error ? e.message : '删除失败'))
+                        }} disabled={!canManage}>
+                          <Button size="small" danger icon={<DeleteOutlined />} disabled={!canManage} />
+                        </Popconfirm>
+                      </Space>
+                    ),
+                  },
+                ]} />
+            </Card>
           ),
         },
         {
@@ -430,6 +536,40 @@ export default function IntegrationPage() {
             { title: '耗时(ms)', dataIndex: 'durationMs', width: 90 },
             { title: '错误', dataIndex: 'errorMsg', ellipsis: true },
           ]} />
+      </Modal>
+
+      <Modal
+        title="新建 AI 供应商" open={provModalOpen} onCancel={() => setProvModalOpen(false)}
+        onOk={saveProvider} confirmLoading={provSaving} destroyOnClose>
+        <Form form={provForm} layout="vertical">
+          <Form.Item name="providerCode" label="Code"
+            rules={[
+              { required: true, message: '必填' },
+              { pattern: /^[a-z][a-z0-9_]{2,63}$/, message: '小写字母开头，仅小写字母/数字/下划线，3~64 位' },
+            ]}>
+            <Input placeholder="如 glm_main" />
+          </Form.Item>
+          <Form.Item name="providerName" label="名称" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="如 智谱主模型" />
+          </Form.Item>
+          <Form.Item name="baseUrl" label="Base URL（OpenAI 兼容）" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="https://open.bigmodel.cn/api/paas/v4" style={{ fontFamily: 'monospace' }} />
+          </Form.Item>
+          <Form.Item name="apiKey" label="API Key（保存后不可查看，仅可覆盖更新）" rules={[{ required: true, message: '必填' }]}>
+            <Input.Password placeholder="sk-..." autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item name="model" label="默认模型" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="如 glm-4-flash" />
+          </Form.Item>
+          <Space size="large" style={{ display: 'flex' }} wrap>
+            <Form.Item name="priority" label="降级优先级（越小越先）" initialValue={100} style={{ marginBottom: 0 }}>
+              <InputNumber min={1} max={999} style={{ width: 140 }} />
+            </Form.Item>
+            <Form.Item name="timeoutMs" label="超时(ms)" initialValue={60000} style={{ marginBottom: 0 }}>
+              <InputNumber min={1000} max={120000} step={1000} style={{ width: 130 }} />
+            </Form.Item>
+          </Space>
+        </Form>
       </Modal>
 
       <Modal
