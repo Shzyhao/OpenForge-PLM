@@ -50,9 +50,12 @@
 | `openforge-doc` | doc.released | doc | knowledge(预留) |
 | `openforge-change` | change.closed | change | knowledge(预留) |
 | `openforge-task` | task.created / .completed | workflow | notify(预留)、统计(预留) |
+| `openforge-material` | part.released / bom.published | material | connector(EVENT 触发)、knowledge(预留) |
 
-原则：**一域一 topic**（消费组独立位点，互不拖累）；`part.released/bom.published`
-随 material 事件化纳入 `openforge-material`（P3，本期不建）。
+原则：**一域一 topic**（消费组独立位点，互不拖累）。`part.released/bom.published`
+已随 v1.16.0 material 事件化交付（原 P3 计划提前）：发射点为 Part/Bom 状态机
+transition 至 RELEASED（覆盖审批发布与变更启用两条路径），事务 afterCommit 发送，
+失败由 EventPublisher 落 outbox/熔断不阻断业务；连接器 EVENT 触发主题白名单同步纳入。
 
 ### 3.3 生产者（common 统一出口）
 

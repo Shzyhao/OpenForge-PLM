@@ -15,7 +15,7 @@ class TriggerSpecsTest {
 
     private static final Set<String> TOPICS = Set.of(
             "openforge-meta", "openforge-object", "openforge-doc",
-            "openforge-change", "openforge-task", "openforge-connector");
+            "openforge-change", "openforge-task", "openforge-connector", "openforge-material");
 
     @Test
     @DisplayName("NONE：空配置规范化为空 Map")
@@ -54,8 +54,12 @@ class TriggerSpecsTest {
     @DisplayName("EVENT：白名单外 topic / 缺 topic / 非法 tag / 缺配置 全拒绝")
     void eventInvalid() {
         assertThatThrownBy(() -> TriggerSpecs.validateAndNormalize("EVENT",
-                Map.of("topic", "part.released", "tag", "x"), TOPICS))  // material 主题 P3 未建
+                Map.of("topic", "openforge-unknown", "tag", "x"), TOPICS))
                 .isInstanceOf(BizException.class).hasMessageContaining("白名单");
+        // material 事件域（v1.16.0）：part.released/bom.published 合法
+        assertThat(TriggerSpecs.validateAndNormalize("EVENT",
+                Map.of("topic", "openforge-material", "tag", "part.released"), TOPICS))
+                .containsEntry("tag", "part.released");
         assertThatThrownBy(() -> TriggerSpecs.validateAndNormalize("EVENT", Map.of("tag", "doc.released"), TOPICS))
                 .isInstanceOf(BizException.class);
         assertThatThrownBy(() -> TriggerSpecs.validateAndNormalize("EVENT",

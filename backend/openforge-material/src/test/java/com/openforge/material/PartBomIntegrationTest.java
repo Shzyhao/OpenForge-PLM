@@ -33,6 +33,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -57,6 +62,9 @@ class PartBomIntegrationTest {
 
     @MockBean
     private NumberClient numberClient;
+
+    @MockBean
+    private com.openforge.common.event.EventPublisher eventPublisher;
 
     // JUnit 每个测试方法新建实例，而 H2 数据跨方法共享——序列与分类缓存必须静态
     private static final AtomicLong partSeq = new AtomicLong(100);
@@ -475,5 +483,38 @@ class PartBomIntegrationTest {
         bomService.addLine(bom.getId(), expiredLine);
         List<BomLineResponse> rows = bomService.lineDetails(bom.getId());
         assertThat(rows.get(0).getValidityStatus()).isEqualTo("EXPIRED");
+    }
+
+    @Test
+    @DisplayName("material 事件化（v1.16.0）：part/bom 发布发射 part.released/bom.published；非发布流转不发射")
+    void lifecycleEventsEmitted() {
+        Part draft = part("EVT-零件", null);
+        Bom draftBom = bomService.create(draft.getId(), 1L);
+
+        // part 提交→审批发布：afterCommit 发射 part.released（payload 带物料号与版本）
+        reset(eventPublisher);
+        partService.submit(draft.getId(), 1L);
+        Part released = partService.approve(draft.getId(), 1L);
+        org.mockito.ArgumentCaptor<java.util.Map<String, Object>> partPayload =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(eventPublisher).publish(eq("openforge-material"), eq("part.released"), partPayload.capture());
+        assertThat(partPayload.getValue())
+                .containsEntry("partNumber", released.getPartNumber())
+                .containsEntry("version", released.getVersion());
+
+        // BOM 审批发布（环检测通过）：发射 bom.published
+        reset(eventPublisher);
+        bomService.submit(draftBom.getId(), 1L);
+        Bom releasedBom = bomService.approve(draftBom.getId(), 1L);
+        org.mockito.ArgumentCaptor<java.util.Map<String, Object>> bomPayload =
+                org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(eventPublisher).publish(eq("openforge-material"), eq("bom.published"), bomPayload.capture());
+        assertThat(bomPayload.getValue()).containsEntry("bomId", releasedBom.getId());
+
+        // 非 RELEASED 流转（submit → REVIEWING）不发射
+        reset(eventPublisher);
+        Bom another = bomService.create(draft.getId(), 1L);
+        bomService.submit(another.getId(), 1L);
+        verify(eventPublisher, never()).publish(anyString(), anyString(), org.mockito.ArgumentMatchers.anyMap());
     }
 }
