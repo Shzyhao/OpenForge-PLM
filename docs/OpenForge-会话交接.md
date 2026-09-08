@@ -6,11 +6,11 @@
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.15.0**（tag + GitHub Release；P2-1 AI API 配置器 + P2-2 事件/定时触发与死信 + R8 manage 审计） |
-| dev 最新 | 与 main 同步（v1.15.0 发版后，4b7b8e5 回灌）；P2-2 全量交付见 PR 表。CI 实纱三轮修复均入册：①事件消费起点 FIRST_OFFSET+启动时间闸门（LAST_OFFSET 对新消费组 rebalance 前消息永久错过）②测试 H2 缺事件基础设施表补 V99 迁移（沿 knowledge 先例）③MQ 回路直插 spec 须声明 parameterSchema |
-| main vs dev | v1.15.0 合入后同步 |
+| 最新发布版 | **v1.16.0**（tag + GitHub Release；material 域事件化 B2 P3 落地 + 主密钥轮换 R1 闭环） |
+| dev 最新 | 与 main 同步（v1.16.0 发版后回灌）；本轮交付见 PR 表 v1.16.0 行——part.released/bom.published 事件发射 + 触发白名单七主题 + 双密钥读与批处理重加密；无在途功能 |
+| main vs dev | v1.16.0 合入后同步 |
 | 工作区 | 干净；本地 admin 密码 smoke-test-2026（dev 库）；冒烟 `./scripts/smoke.sh`（9 业务域 20 断言，连接器 6 项幂等可重跑） |
-| 全量测试 | CI 全绿（发版 run 34142358843，真实 MQ 回路 ConnectorEventBrokerLoopTest 真实 Docker 首跑通过）：backend/frontend/ai 三作业（容器测试真实 Docker：Auth/Metadata/Connector + 新增 ConnectorEventBrokerLoopTest 真实 MQ 回路——本机 Docker 不可达自动跳过，CI 真实执行）；本地全仓 `mvn verify` 全绿（connector 49 + mono MonoSmoke 9 模块）；真实栈冒烟 **25 断言全过**（新增第 5 节：CRON 调度/死信落库/重放语义/丢弃/CONN_PUBLISH 审计检索）+ 浏览器巡检（触发列/死信 Tab 含展开行入参与失败原因/新建抽屉 EVENT 主题-tag 联动） |
+| 全量测试 | CI 全绿（v1.16.0 发版 run 34245901081；v1.15.0 曾三跑实纱修复事件消费语义/测试事件表/parameterSchema 后绿）：backend/frontend/ai 三作业（容器测试真实 Docker：Auth/Metadata/Connector + 新增 ConnectorEventBrokerLoopTest 真实 MQ 回路——本机 Docker 不可达自动跳过，CI 真实执行）；本地全仓 `mvn verify` 全绿（connector 49 + mono MonoSmoke 9 模块）；真实栈冒烟 **25 断言全过**（新增第 5 节：CRON 调度/死信落库/重放语义/丢弃/CONN_PUBLISH 审计检索）+ 浏览器巡检（触发列/死信 Tab 含展开行入参与失败原因/新建抽屉 EVENT 主题-tag 联动） |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
@@ -72,7 +72,7 @@
 
 ## 下一步（按优先级）
 
-1. **v1.15.0 已发版**（PR #110 → main + tag + Release + 回灌 dev）。集成编排器 MVP + P2 两期全部闭环，无在途功能。后续候选：多步骤画布编排（P3，NodeConfigPanel 已预留）、密钥轮换批处理（R1）、出站脱敏代理与 SSRF TOCTOU 根治合并实施（R6）、material 域事件化后 part.released 主题入白名单（B2 P3）、按连接器 ACL（Q2）
+1. **v1.16.0 已发版**（PR #111 → main + tag + Release + 回灌）。集成编排器 P2 + P3 前两项（material 事件化/密钥轮换）闭环，无在途功能。剩余候选：多步骤画布编排（P3 旗舰，建议先 spike）、SSRF 根治+出站代理（R6，生产前）、连接器级 ACL（Q2）、新内置连接器类型、多模型分流（AI 中台）、规模化基建（Redis/Milvus/ES 等随规模信号）
 2. **单进程 mono 模式**：**刀 1（骨架）已实施并全栈实测（PROFILE=mono）**——mono 224MB + gateway 181MB = **405MB RSS（-78%）**、网关链路冒烟 8/8 域等价，方案与数据见 docs/OpenForge-mono单进程设计.md；**刀 2 评估完成不实施**（回环均有缓存/低频，直调化收益≈零、侵入风险不成比例，见 PR 表与 mono 设计 §3.2）；H2 文件库 dev 模式维持 §8.3 备选不动
 3. **连接器与行业模板包**：需外部场景输入
 4. **Milvus/Neo4j/ES**：架构文档路线项，随规模引入
