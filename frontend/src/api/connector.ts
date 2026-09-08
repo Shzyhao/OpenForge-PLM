@@ -39,6 +39,7 @@ export const EVENT_TOPICS: Record<string, string[]> = {
   'openforge-change': ['change.closed'],
   'openforge-task': ['task.created', 'task.completed'],
   'openforge-connector': ['connector.published'],
+  'openforge-material': ['part.released', 'bom.published'],
 }
 
 export interface TriggerForm {

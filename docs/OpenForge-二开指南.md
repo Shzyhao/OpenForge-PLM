@@ -127,6 +127,13 @@ public class MyConnector implements ConnectorSpi {
 
 ## 7. 部署
 
+**主密钥轮换（R1，v1.16.0）**——凭据/AI 供应商密钥泄露或定期轮换时：
+
+1. 生成新主密钥：`openssl rand -base64 32`；
+2. 改配置：`OPENFORGE_CONNECTOR_MASTER_KEY=<新钥>`，并新增 `OPENFORGE_CONNECTOR_MASTER_KEY_PREVIOUS=<旧钥>`，重启 connector（或 mono）——运行时双密钥读，存量凭据业务无感，新写入即用新钥；
+3. 触发重加密：`POST /api/v1/connector-credentials/master-key/rotate`（conn:manage 权限）——跨租户批处理把旧密钥行重加密为新密钥，幂等可重跑，响应含扫描/重加密/损坏计数；
+4. 确认 `reencrypted` 覆盖全部存量后，移除 PREVIOUS 配置并重启，轮换闭环。
+
 - **开发**：`./scripts/dev-up.sh`（PROFILE=mono|core|lite|full 预设裁剪——mono 为
   auth+7 业务服务单进程 + gateway 两进程最省档（v1.12.0，实测 RSS 405MB）；SERVICES 精确指定；
   NACOS=1 启注册中心+配置中心；CDS=0 关闭类共享；无源码改动自动跳过构建——详见性能画像 §8）；

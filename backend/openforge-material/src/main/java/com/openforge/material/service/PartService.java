@@ -36,6 +36,7 @@ public class PartService {
     private final NumberClient numberClient;
     /** Spring 配置的 ObjectMapper（含 JavaTimeModule，支持 LocalDateTime 快照序列化） */
     private final ObjectMapper objectMapper;
+    private final com.openforge.common.event.EventPublisher eventPublisher;
 
     public Part create(CreatePartRequest request) {
         PartCategory category = categoryService.requireCategory(request.getCategoryId());
@@ -173,7 +174,34 @@ public class PartService {
         part.setLifecycleState(target);
         part.setUpdatedBy(operatorId);
         partMapper.updateById(part);
+        if ("RELEASED".equals(target)) {
+            publishReleased(part);
+        }
         return part;
+    }
+
+    /**
+     * part.released（B2 设计 §5 material 事件域，v1.16.0 交付）：覆盖审批发布与变更启用两条
+     * RELEASED 路径。事务活跃时 afterCommit 发送（回滚不留事件），失败由 EventPublisher
+     * 落 outbox/熔断，不阻断业务。
+     */
+    private void publishReleased(Part part) {
+        Runnable emit = () -> eventPublisher.publish("openforge-material", "part.released", java.util.Map.of(
+                "partId", part.getId(),
+                "partNumber", part.getPartNumber() == null ? "" : part.getPartNumber(),
+                "partName", part.getName() == null ? "" : part.getName(),
+                "version", part.getVersion() == null ? "" : part.getVersion()));
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            emit.run();
+                        }
+                    });
+        } else {
+            emit.run();
+        }
     }
 
     private Part requireDraft(Long id) {
