@@ -222,14 +222,14 @@ class ConnectorTriggerIntegrationTest {
     @DisplayName("触发配置校验与版本快照：EVENT 白名单外拒绝；发布后快照携带 trigger")
     void triggerValidationAndSnapshot() throws Exception {
         grant();
-        // 白名单外 topic 拒绝（material 主题 P3 未建）
+        // 白名单外 topic 拒绝（未注册域；material 主题自 v1.16.0 起合法，不再用于负向断言）
         mockMvc.perform(post("/api/v1/connectors").header("X-User-Id", 1)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(("{\"connCode\":\"trig_bad_" + System.currentTimeMillis() + "\",\"connName\":\"坏\","
                                 + "\"connType\":\"HTTP_REST\","
                                 + "\"spec\":{\"schemaVersion\":1,\"method\":\"GET\",\"url\":\"http://localhost:8080/h\"},"
                                 + "\"triggerType\":\"EVENT\","
-                                + "\"trigger\":{\"topic\":\"openforge-material\",\"tag\":\"part.released\"}}")))
+                                + "\"trigger\":{\"topic\":\"openforge-unknown\",\"tag\":\"part.released\"}}")))
                 .andExpect(jsonPath("$.code").value(6006));
 
         long id = createPublished("trig_snap_" + System.currentTimeMillis(),

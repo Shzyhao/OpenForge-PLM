@@ -28,6 +28,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class ConnCredentialController {
 
     private final CredentialService credentialService;
+    private final com.openforge.connector.service.KeyRotationService keyRotationService;
+
+    /**
+     * 主密钥轮换重加密（R1，v1.16.0）：把仍由旧密钥加密的凭据/AI 供应商密钥用新主密钥重加密。
+     * 前置=环境已换新 MASTER_KEY 且 PREVIOUS 指向旧密钥；幂等可重跑；完成后运维移除 PREVIOUS 配置。
+     */
+    @PostMapping("/master-key/rotate")
+    @RequirePermission("conn:manage")
+    public ApiResponse<com.openforge.connector.service.KeyRotationService.RotationResult> rotateMasterKey(
+            HttpServletRequest http) {
+        return ApiResponse.ok(keyRotationService.rotate(currentUserId(http)));
+    }
 
     @PostMapping
     @RequirePermission("conn:manage")

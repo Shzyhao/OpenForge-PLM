@@ -35,6 +35,8 @@ openforge:
   connector:
     # 凭据加密主密钥（Base64 32 字节）；未配置 = 凭据功能拒绝使用（不降级明文）
     master-key: ${OPENFORGE_CONNECTOR_MASTER_KEY:}
+    # 轮换期旧主密钥（可选）：解密先试当前密钥、失败回落旧密钥；重加密批处理完成后移除
+    master-key-previous: ${OPENFORGE_CONNECTOR_MASTER_KEY_PREVIOUS:}
     # 出站域白名单（host 或 host:port，逗号分隔）；未配置 = 拒绝一切出站（安全默认值）
     egress-whitelist: ${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:}
     # 仅测试/开发放开私网目标；生产必须 false
@@ -42,9 +44,9 @@ openforge:
     cache-ttl-seconds: ${OPENFORGE_CONN_CACHE_TTL:30}
     trigger:
       # EVENT 触发可订阅的平台主题白名单（一域一 topic，B2 设计）；新模块主题按需追加
-      allowed-topics: ${OPENFORGE_CONN_TRIGGER_TOPICS:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector}
+      allowed-topics: ${OPENFORGE_CONN_TRIGGER_TOPICS:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector,openforge-material}
       # 事件消费者订阅主题（与 allowed-topics 保持一致即可）
-      subscribe-topics: ${OPENFORGE_CONN_TRIGGER_SUBSCRIBE:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector}
+      subscribe-topics: ${OPENFORGE_CONN_TRIGGER_SUBSCRIBE:openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector,openforge-material}
       # 事件时间闸门偏差容忍（分钟）：FIRST_OFFSET 拉到的早于「启动时刻-偏差」的信封按历史跳过
       stale-skew-minutes: ${OPENFORGE_CONN_TRIGGER_STALE_SKEW:2}
       # CRON 调度线程池与重同步周期（发布/停用/改表达式后至多一个周期生效）

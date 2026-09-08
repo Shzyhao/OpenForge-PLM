@@ -7,10 +7,10 @@
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.15.0**（tag + GitHub Release；P2-1 AI API 配置器 + P2-2 事件/定时触发与死信 + R8 manage 审计） |
-| dev 最新 | 与 main 同步（v1.15.0 发版后）；P2-2 全量交付见 PR 表——EVENT/CRON 触发（配置随版本快照）+ sys_connector_dlq 死信（重放/丢弃/终态清理）+ auth 内部审计端点 + connector AuthAuditClient + 前端触发表单与死信 Tab；实施实纱修复 spec checkUrl/EgressGuard 误拒 URL 模板占位符两处平台缺陷 |
+| dev 最新 | 与 main 同步（v1.15.0 发版后，4b7b8e5 回灌）；P2-2 全量交付见 PR 表。CI 实纱三轮修复均入册：①事件消费起点 FIRST_OFFSET+启动时间闸门（LAST_OFFSET 对新消费组 rebalance 前消息永久错过）②测试 H2 缺事件基础设施表补 V99 迁移（沿 knowledge 先例）③MQ 回路直插 spec 须声明 parameterSchema |
 | main vs dev | v1.15.0 合入后同步 |
 | 工作区 | 干净；本地 admin 密码 smoke-test-2026（dev 库）；冒烟 `./scripts/smoke.sh`（9 业务域 20 断言，连接器 6 项幂等可重跑） |
-| 全量测试 | CI 全绿：backend/frontend/ai 三作业（容器测试真实 Docker：Auth/Metadata/Connector + 新增 ConnectorEventBrokerLoopTest 真实 MQ 回路——本机 Docker 不可达自动跳过，CI 真实执行）；本地全仓 `mvn verify` 全绿（connector 49 + mono MonoSmoke 9 模块）；真实栈冒烟 **25 断言全过**（新增第 5 节：CRON 调度/死信落库/重放语义/丢弃/CONN_PUBLISH 审计检索）+ 浏览器巡检（触发列/死信 Tab 含展开行入参与失败原因/新建抽屉 EVENT 主题-tag 联动） |
+| 全量测试 | CI 全绿（发版 run 34142358843，真实 MQ 回路 ConnectorEventBrokerLoopTest 真实 Docker 首跑通过）：backend/frontend/ai 三作业（容器测试真实 Docker：Auth/Metadata/Connector + 新增 ConnectorEventBrokerLoopTest 真实 MQ 回路——本机 Docker 不可达自动跳过，CI 真实执行）；本地全仓 `mvn verify` 全绿（connector 49 + mono MonoSmoke 9 模块）；真实栈冒烟 **25 断言全过**（新增第 5 节：CRON 调度/死信落库/重放语义/丢弃/CONN_PUBLISH 审计检索）+ 浏览器巡检（触发列/死信 Tab 含展开行入参与失败原因/新建抽屉 EVENT 主题-tag 联动） |
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
@@ -59,6 +59,7 @@
 | #109 | **v1.14.0 发布**（集成编排器 MVP 五刀 → main + tag + Release） | v1.14.0 |
 | — | **P2-1 AI API 配置器**（afd2d2b）：ai_provider 表（V2 迁移，AES-GCM 复用凭据加密）+ 管理 API（/api/v1/ai-providers，ai:manage V26）+ /internal/ai-provider/chain（内部令牌，返回解密 key）+ ai-gateway provider_chain 30s 轮询热加载 + LLMClient 链式降级（连接异常/5xx/429 切换）+ 前端 AI 模型 Tab | 未发版 |
 | — | **P2-2 事件/定时触发 + 死信 + R8 审计**：trigger_type/trigger_json（V3 迁移，随版本快照）+ TriggerSpecs 校验（EVENT 主题白名单六主题可配/CRON Spring 6 段秒位禁裸 *）+ CronTriggerScheduler（跨租户 @InterceptorIgnore 全量重同步 + 自续链调度 + 代际签名防复活）+ ConnectorEventConsumer（FIRST_OFFSET+启动时间闸门防回放历史/防启动窗口丢失——CI 实纱 LAST_OFFSET 对新消费组 rebalance 前消息永久错过；失败不 RECONSUME——幂等行判重使 broker 死信不可达，改落应用级死信）+ sys_connector_dlq（PENDING/RESOLVED/DISCARDED + 重放原样重投 + 终态保留期清理并入 ExecLogRetentionJob）+ DLQ API（/api/v1/connectors/dlq，conn:manage）+ auth POST /api/v1/internal/audit + AuthAuditClient afterCommit 尽力而为上报（连接器/凭据/AI 供应商 manage 全落 sys_audit_log）+ 前端触发表单与死信队列 Tab + 冒烟第 5 节 5 断言；**平台修复**：spec checkUrl 与 EgressGuard 对 URL 模板占位符 {{param}} 的误拒（哑元替换后解析，host 位占位符仍无法命中白名单）；**测试**：TriggerSpecsTest 8 + ConnectorTriggerIntegrationTest 4（CRON 真实调度/事件直调分发/死信全生命周期/跨租户扫描）+ ManageAuditIntegrationTest（假 auth 捕获 + 503 不阻断）+ ConnectorEventBrokerLoopTest（CI 真实 MQ） | v1.15.0 |
+| — | **material 事件化 + 密钥轮换（R1）**：Part/Bom 状态机 transition 至 RELEASED 发射 part.released/bom.published（topic openforge-material，B2 P3 落地；afterCommit 发送，覆盖审批与变更启用两条路径）+ 连接器 EVENT 触发白名单扩至七主题（后端常量/yml/前端联动）+ material 集成测试事件发射断言；AesGcmCipher 双密钥读（PREVIOUS 回落，GCM 认证失败才回落、损坏密文仍拒）+ KeyRotationService 跨租户批处理重加密（@InterceptorIgnore 游标分批 200/批，逐行原子幂等，损坏行计数跳过）+ 轮换端点（POST /api/v1/connector-credentials/master-key/rotate，conn:manage）+ 轮换审计 CONN_MASTER_KEY_ROTATE + MasterKeyRotationIntegrationTest（独立上下文注入 PREVIOUS：重加密/跳过/损坏计数/幂等四断言）+ smoke 白名单断言；二开指南补轮换四步操作手册 | v1.16.0 |
 
 ## 关键架构决策（已实施）
 
@@ -71,7 +72,7 @@
 
 ## 下一步（按优先级）
 
-1. **P2-2 已全量交付（v1.15.0）**，集成编排器 MVP + P2 两期闭环。后续候选：多步骤画布编排（P3，NodeConfigPanel 已预留）、密钥轮换批处理（R1）、出站脱敏代理与 SSRF TOCTOU 根治合并实施（R6）、material 域事件化后 part.released 主题入白名单（B2 P3）、按连接器 ACL（Q2）
+1. **v1.15.0 已发版**（PR #110 → main + tag + Release + 回灌 dev）。集成编排器 MVP + P2 两期全部闭环，无在途功能。后续候选：多步骤画布编排（P3，NodeConfigPanel 已预留）、密钥轮换批处理（R1）、出站脱敏代理与 SSRF TOCTOU 根治合并实施（R6）、material 域事件化后 part.released 主题入白名单（B2 P3）、按连接器 ACL（Q2）
 2. **单进程 mono 模式**：**刀 1（骨架）已实施并全栈实测（PROFILE=mono）**——mono 224MB + gateway 181MB = **405MB RSS（-78%）**、网关链路冒烟 8/8 域等价，方案与数据见 docs/OpenForge-mono单进程设计.md；**刀 2 评估完成不实施**（回环均有缓存/低频，直调化收益≈零、侵入风险不成比例，见 PR 表与 mono 设计 §3.2）；H2 文件库 dev 模式维持 §8.3 备选不动
 3. **连接器与行业模板包**：需外部场景输入
 4. **Milvus/Neo4j/ES**：架构文档路线项，随规模引入
