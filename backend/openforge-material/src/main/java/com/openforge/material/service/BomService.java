@@ -49,6 +49,7 @@ public class BomService {
     private final BomLineSubstituteMapper substituteMapper;
     private final PartService partService;
     private final NumberClient numberClient;
+    private final com.openforge.common.event.EventPublisher eventPublisher;
 
     /** 单行替代件防呆上限（设计文档 §5.5） */
     @Value("${openforge.material.substitute.max-per-line:10}")
@@ -585,7 +586,34 @@ public class BomService {
         StateMachine.requireTransition(StateMachine.BOM, bom.getLifecycleState(), target);
         bom.setLifecycleState(target);
         bomMapper.updateById(bom);
+        if ("RELEASED".equals(target)) {
+            publishReleased(bom);
+        }
         return bom;
+    }
+
+    /**
+     * bom.published（B2 设计 §5 material 事件域，v1.16.0 交付）：BOM 审批发布（含环检测通过后）。
+     * 事务活跃时 afterCommit 发送，失败由 EventPublisher 落 outbox/熔断，不阻断业务。
+     */
+    private void publishReleased(Bom bom) {
+        Runnable emit = () -> eventPublisher.publish("openforge-material", "bom.published", java.util.Map.of(
+                "bomId", bom.getId(),
+                "bomNumber", bom.getBomNumber() == null ? "" : bom.getBomNumber(),
+                "parentPartId", bom.getParentPartId() == null ? 0 : bom.getParentPartId(),
+                "bomType", bom.getBomType() == null ? "" : bom.getBomType(),
+                "version", bom.getVersion() == null ? "" : bom.getVersion()));
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            emit.run();
+                        }
+                    });
+        } else {
+            emit.run();
+        }
     }
 
     private void requireDraftBom(Long bomId) {

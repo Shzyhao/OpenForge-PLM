@@ -437,7 +437,8 @@ serviceUri: 8094
 > 前端死信队列 Tab + 触发表单。**实施中实纱两处平台缺陷并修复**：spec 校验 `checkUrl` 与
 > EgressGuard 均对 URL 模板占位符 `{{param}}` 误拒（运行时先渲染再建 URI，设计态校验未同样容忍）。
 > 注：`part.released` 主题随 material 事件化仍为 P3（B2 设计 §5），EVENT 白名单现含
-> meta/object/doc/change/task/connector 六主题（`openforge.connector.trigger.allowed-topics` 可扩）。
+> meta/object/doc/change/task/connector/material 七主题（`openforge.connector.trigger.allowed-topics` 可扩）；
+> material 域（part.released/bom.published）随 v1.16.0 事件化入列。
 
 - 连接器增加 `trigger` 配置（EVENT：订阅既有主题如 `part.released` → 渲染模板 → 执行；CRON：Spring Scheduling 起步）；
 - 引入 `sys_connector_dlq` 死信 + 重放端点 + 界面（对齐 B2 事件总线幂等/死信既有语义）。
@@ -455,7 +456,7 @@ serviceUri: 8094
 
 | # | 风险/问题 | 应对 |
 |---|-----------|------|
-| R1 | 主密钥丢失 → 凭据不可解 | 部署文档强制说明密钥备份；密钥轮换（重加密批处理）列 P2 |
+| R1 | 主密钥丢失 → 凭据不可解 | **已闭环（v1.16.0）**：部署文档强制说明密钥备份；密钥轮换交付——`OPENFORGE_CONNECTOR_MASTER_KEY_PREVIOUS` 配置轮换期旧密钥（运行时双密钥读，业务无感），`POST /api/v1/connector-credentials/master-key/rotate` 跨租户批处理重加密（幂等可重跑，损坏行计数跳过），完成后移除旧密钥配置即闭环 |
 | R2 | JDBC 新增 MySQL 驱动依赖体积 | 仅 `mysql-connector-j` 一个 jar（~2.5MB），可接受；更多方言按需加 |
 | R3 | mono 资源遮蔽（v1.12.0 前车之鉴） | 资源目录化从刀1 就按先例执行，不走裸根路径 |
 | R4 | 出站白名单配置成本（每环境维护） | 文档给出常用示例；未配置=全拒是刻意的安全默认值 |

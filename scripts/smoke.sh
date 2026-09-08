@@ -132,6 +132,14 @@ if [ -n "$DLQ_ID" ]; then
   echo "$DQ2" | grep -q "\"connCode\":\"$DLQ_CODE\"" && ok "丢弃保留记录（DISCARDED）" || fail "丢弃状态断言"
 fi
 
+# material 事件域白名单（v1.16.0）：openforge-material/part.released 可建 EVENT 触发连接器
+MAT_CODE="smoke_mat_$(date +%s)"
+printf '{"connCode":"%s","connName":"物料事件冒烟","connType":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health"},"triggerType":"EVENT","trigger":{"topic":"openforge-material","tag":"part.released"}}' "$MAT_CODE" > "$TMPJSON"
+MN=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+echo "$MN" | grep -q '"code":0' && ok "material 事件域触发白名单（part.released 可订阅）" || fail "material 白名单: $(echo $MN | head -c 100)"
+MAT_ID=$(echo "$MN" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$MAT_ID" -H "${AUTH[0]}" >/dev/null || true
+
 # R8 manage 审计：连接器 manage 操作应出现在 auth 审计日志（afterCommit 上报，轮询等待）
 AUDIT_OK=""
 for i in $(seq 1 6); do
