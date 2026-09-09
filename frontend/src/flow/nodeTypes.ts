@@ -132,10 +132,20 @@ const END: NodeBehavior = {
   canBeConnectTarget: true, hasOutgoingEdge: false,
 }
 
+const STEP: NodeBehavior = {
+  type: 'STEP', label: '步骤', color: '#722ed1', idPrefix: 's',
+  canBeConnectTarget: true, hasOutgoingEdge: true, requiresExactlyOneOutEdge: true,
+  summary: (n) => String(n.stepType ?? '未配置类型'),
+  defaults: () => ({ stepType: 'HTTP_REST', stepSpec: {}, stepParams: {} }),
+}
+
 /** 工作流节点集（注册顺序 = 工具栏展示顺序） */
 export const WORKFLOW_NODE_TYPES: NodeType[] = ['START', 'APPROVAL', 'CONDITION', 'END']
 
-export const NODE_BEHAVIORS: Record<string, NodeBehavior> = { START, APPROVAL, CONDITION, END }
+/** 编排链节点集（P3 刀3）：START→步骤链→END */
+export const ORCHESTRATION_NODE_TYPES: NodeType[] = ['START', 'STEP', 'END']
+
+export const NODE_BEHAVIORS: Record<string, NodeBehavior> = { START, APPROVAL, CONDITION, END, STEP }
 
 export function behaviorOf(type: NodeType): NodeBehavior {
   return NODE_BEHAVIORS[type]
