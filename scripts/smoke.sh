@@ -140,6 +140,19 @@ echo "$MN" | grep -q '"code":0' && ok "material 事件域触发白名单（part.
 MAT_ID=$(echo "$MN" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
 curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$MAT_ID" -H "${AUTH[0]}" >/dev/null || true
 
+# P3 链引擎（v1.17.0）：CHAIN 连接器两步链（s2 引用 s1 输出）发布 + 整链试运行
+CHAIN_CODE="smoke_chain_$(date +%s)"
+printf '{"connCode":"%s","connName":"链冒烟","connType":"CHAIN","spec":{"schemaVersion":2,"steps":[{"key":"s1","type":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health"}},{"key":"s2","type":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health?prev={{steps.s1.status}}","parameterSchema":{"type":"object","properties":{},"required":[]}}}]}}' "$CHAIN_CODE" > "$TMPJSON"
+CN2=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+CHAIN_ID=$(echo "$CN2" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$CHAIN_ID/publish" -H "${AUTH[0]}" >/dev/null || true
+TR=$(curl -s -m 10 -X POST "$GW/api/v1/connectors/$CHAIN_ID/test" -H "${AUTH[0]}" -H "Content-Type: application/json" -d '{"params":{}}' || true)
+echo "$TR" | grep -q '"status":"SUCCESS"' && echo "$TR" | grep -q '"body"' && ok "CHAIN 链引擎（两步顺序执行 + 上下文引用 SUCCESS）" || fail "链试运行: $(echo $TR | head -c 120)"
+LG=$(curl -s -m 5 "$GW/api/v1/connectors/$CHAIN_ID/exec-logs?page=1&pageSize=5" -H "${AUTH[0]}" || true)
+echo "$LG" | grep -q 'steps_json' || echo "$LG" | grep -q 'stepsJson' || echo "$LG" | grep -q '"key":"s2"' && ok "链执行日志含步骤摘要" || fail "链日志: $(echo $LG | head -c 100)"
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$CHAIN_ID/disable" -H "${AUTH[0]}" >/dev/null || true
+curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$CHAIN_ID" -H "${AUTH[0]}" >/dev/null || true
+
 # R8 manage 审计：连接器 manage 操作应出现在 auth 审计日志（afterCommit 上报，轮询等待）
 AUDIT_OK=""
 for i in $(seq 1 6); do

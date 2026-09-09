@@ -150,6 +150,7 @@ public final class ChainSpecs {
             throw new BizException(ErrorCode.CONN_SPEC_INVALID, "branches 须为数组");
         }
         List<Map<String, Object>> branches = new ArrayList<>();
+        Map<String, Integer> defaultCount = new java.util.HashMap<>();
         for (Object o : rawList) {
             if (!(o instanceof Map)) {
                 throw new BizException(ErrorCode.CONN_SPEC_INVALID, "branches 元素须为对象");
@@ -161,11 +162,19 @@ public final class ChainSpecs {
                 throw new BizException(ErrorCode.CONN_SPEC_INVALID,
                         "分支端点须为已声明步骤 key: " + from + " -> " + to);
             }
-            if (str(raw.get("expr")).isEmpty()) {
-                throw new BizException(ErrorCode.CONN_SPEC_INVALID,
-                        "分支 expr 不能为空（空 expr 语义由默认分支承担）: " + from + " -> " + to);
+            // 规范化到可变拷贝（入参可能是不可变 Map）：expr 空 = 默认分支（每 from 至多一个）
+            Map<String, Object> normalized = new LinkedHashMap<>(raw);
+            normalized.put("from", from);
+            normalized.put("to", to);
+            if (str(normalized.get("expr")).isEmpty()) {
+                normalized.remove("expr");
+                defaultCount.merge(from, 1, Integer::sum);
+                if (defaultCount.get(from) > 1) {
+                    throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                            "步骤 " + from + " 的默认分支（表达式留空）只能有一个");
+                }
             }
-            branches.add(raw);
+            branches.add(normalized);
         }
         return branches;
     }

@@ -43,10 +43,30 @@ public class ChainExecutor {
         // steps 上下文视图：key -> {status, httpStatus, rowsReturned, body(解析后对象), error}
         Map<String, Object> stepsView = new LinkedHashMap<>();
         List<Map<String, Object>> summaries = new ArrayList<>();
+        Map<String, ChainSpecs.StepDef> byKey = new LinkedHashMap<>();
+        chain.steps().forEach(s -> byKey.put(s.key(), s));
+
         ConnectorResult lastSuccess = null;
         ConnectorResult firstFailure = null;
         String failedKey = null;
-        for (ChainSpecs.StepDef step : chain.steps()) {
+        // 图遍历（P3 刀4）：有 branches 的 from 步完成后按 SpEL 求值选路（expr 空 = 默认分支），
+        // 无分支沿数组序；访问超 steps 数 ×2 判环路终止
+        int cursor = 0;
+        java.util.Set<String> skipped = new java.util.HashSet<>();
+        int visits = 0;
+        int maxVisits = Math.max(2, chain.steps().size() * 2);
+        while (cursor >= 0 && cursor < chain.steps().size()) {
+            ChainSpecs.StepDef step = chain.steps().get(cursor);
+            if (++visits > maxVisits) {
+                firstFailure = ConnectorResult.fail(null, "链执行路过深（疑似环路），已终止");
+                failedKey = step.key();
+                break;
+            }
+            if (skipped.contains(step.key())) {
+                // 分支淘汰的支路：不执行，主线顺延
+                cursor++;
+                continue;
+            }
             Map<String, Object> stepParams = mergeAndRender(step, params, stepsView);
             long stepStart = System.currentTimeMillis();
             ConnectorResult result;
@@ -76,6 +96,13 @@ public class ChainExecutor {
                     break;
                 }
             }
+            // 分支选路（P3 刀4）：命中 → 跳到 to 并标记未命中的兄弟支路跳过；否则主线顺延
+            String chosen = nextOf(chain, step, result.success(), stepsView, skipped);
+            if (chosen != null) {
+                cursor = indexOfKey(chain, chosen);
+                continue;
+            }
+            cursor++;
         }
         // 整体结果：任一步失败 → FAILED（取首个失败步）；否则最后成功步（链的产物）
         ConnectorResult overall = firstFailure != null ? firstFailure
@@ -98,6 +125,67 @@ public class ChainExecutor {
             log.warn("链执行失败: connId={}, 失败步={}, durationMs={}", connId, failedKey, duration);
         }
         return InvokeResponse.from(overall, duration);
+    }
+
+    private final com.openforge.common.spel.ExpressionEvaluator evaluator =
+            new com.openforge.common.spel.ExpressionEvaluator();
+
+    /**
+     * 下一节点（P3 刀4）：from 命中 branches → 按规则序 SpEL 求值（#steps.x.y 上下文），
+     * 首个 true 的 to 入选；expr 空的默认分支兜底。无分支规则 → 沿数组序下一步；末步 → null。
+     * 步骤失败时不再选路（fail-fast 由上层 break；continueOnError 的失败步沿数组序走）。
+     */
+    private String nextOf(ChainSpecs.Chain chain, ChainSpecs.StepDef step, boolean success,
+                          Map<String, Object> stepsView, java.util.Set<String> skipped) {
+        List<Map<String, Object>> rules = chain.branches().stream()
+                .filter(b -> step.key().equals(String.valueOf(b.get("from"))))
+                .toList();
+        if (!rules.isEmpty() && success) {
+            Map<String, Object> variables = Map.of("steps", stepsView);
+            String defaultTo = null;
+            boolean matched = false;
+            for (Map<String, Object> rule : rules) {
+                String expr = rule.get("expr") == null ? "" : String.valueOf(rule.get("expr")).trim();
+                if (expr.isEmpty()) {
+                    defaultTo = String.valueOf(rule.get("to"));
+                    continue;
+                }
+                try {
+                    if (evaluator.evaluate(expr, variables)) {
+                        markSiblingsSkipped(rules, String.valueOf(rule.get("to")), skipped);
+                        return String.valueOf(rule.get("to"));
+                    }
+                } catch (IllegalArgumentException e) {
+                    throw new BizException(com.openforge.common.api.ErrorCode.CONN_SPEC_INVALID, e.getMessage());
+                }
+            }
+            if (defaultTo != null) {
+                markSiblingsSkipped(rules, defaultTo, skipped);
+                return defaultTo;
+            }
+            // 无命中且无默认 → 沿主线顺延（候选支路不标记）
+        }
+        return null;
+    }
+
+    private void markSiblingsSkipped(List<Map<String, Object>> rules, String chosenTo,
+                                     java.util.Set<String> skipped) {
+        for (Map<String, Object> rule : rules) {
+            String to = String.valueOf(rule.get("to"));
+            if (!to.equals(chosenTo)) {
+                skipped.add(to);
+            }
+        }
+    }
+
+    private int indexOfKey(ChainSpecs.Chain chain, String key) {
+        List<ChainSpecs.StepDef> steps = chain.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            if (steps.get(i).key().equals(key)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
