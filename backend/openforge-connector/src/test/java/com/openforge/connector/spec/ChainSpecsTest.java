@@ -90,10 +90,15 @@ class ChainSpecsTest {
                 "steps", List.of(httpStep("a", "http://localhost:8080/a")),
                 "branches", List.of(Map.of("from", "a", "to", "ghost", "expr", "true"))), MAPPER, null))
                 .isInstanceOf(BizException.class);
+        // 默认分支（expr 留空）合法但每 from 至多一个（两条空 expr → 拒绝）
         assertThatThrownBy(() -> ChainSpecs.parse(Map.of("schemaVersion", 2,
-                "steps", List.of(httpStep("a", "http://localhost:8080/a"), httpStep("b", "http://localhost:8080/b")),
-                "branches", List.of(Map.of("from", "a", "to", "b", "expr", ""))), MAPPER, null))
-                .isInstanceOf(BizException.class);
+                "steps", List.of(httpStep("a", "http://localhost:8080/a"),
+                        httpStep("b", "http://localhost:8080/b"),
+                        httpStep("c", "http://localhost:8080/c")),
+                "branches", List.of(
+                        Map.of("from", "a", "to", "b"),
+                        Map.of("from", "a", "to", "c"))), MAPPER, null))
+                .isInstanceOf(BizException.class).hasMessageContaining("默认分支");
     }
 
     @Test

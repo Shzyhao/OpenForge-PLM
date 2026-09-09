@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import com.openforge.security.PermissionQueryClient;
-import com.openforge.workflow.engine.ExpressionEvaluator;
+import com.openforge.common.spel.ExpressionEvaluator;
 import com.openforge.workflow.engine.ProcessDefinition;
 import com.openforge.workflow.entity.WorkflowDef;
 import com.openforge.workflow.entity.WorkflowInstance;

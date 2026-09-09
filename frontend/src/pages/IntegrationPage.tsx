@@ -408,11 +408,15 @@ export default function IntegrationPage() {
 
   // ===== 编排画布（P3 刀3）=====
 
+  const [chainBranches, setChainBranches] = useState<unknown[] | undefined>(undefined)
+
   const openChainEditor = async (row: ConnSummary) => {
     try {
       const detail = await fetchConnector(row.id)
+      const spec = detail.spec as Record<string, unknown>
       setChainConn(row)
-      setChainFlow(chainFlowWithLayout(detail.spec as Record<string, unknown>))
+      setChainBranches(Array.isArray(spec.branches) ? (spec.branches as unknown[]) : undefined)
+      setChainFlow(chainFlowWithLayout(spec))
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败')
     }
@@ -446,7 +450,7 @@ export default function IntegrationPage() {
     if (!chainConn) return
     let spec: Record<string, unknown>
     try {
-      spec = flowToChain(chainFlow)
+      spec = flowToChain(chainFlow, chainBranches)
     } catch (e) {
       message.warning(e instanceof Error ? e.message : '链结构不合法')
       return

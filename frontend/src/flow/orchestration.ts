@@ -42,8 +42,11 @@ export function chainToFlow(spec: Record<string, unknown>): FlowDef {
   return { nodes, edges }
 }
 
-/** 画布 FlowDef → 后端链 spec 对象（schemaVersion=2）。结构非法抛错（message 直接展示）。 */
-export function flowToChain(def: FlowDef): Record<string, unknown> {
+/**
+ * 画布 FlowDef → 后端链 spec 对象（schemaVersion=2）。结构非法抛错（message 直接展示）。
+ * keepBranches：画布首版不提供分支可视化编辑，既有 branches 原样保留（求值在后端）。
+ */
+export function flowToChain(def: FlowDef, keepBranches?: unknown[]): Record<string, unknown> {
   const byId = new Map(def.nodes.map((n) => [n.id, n]))
   const start = def.nodes.find((n) => n.type === 'START')
   if (!start) throw new Error('链必须有「开始」节点')
@@ -74,7 +77,9 @@ export function flowToChain(def: FlowDef): Record<string, unknown> {
     return step
   })
   if (steps.length === 0) throw new Error('链至少需要一个步骤节点')
-  return { schemaVersion: 2, steps }
+  return keepBranches && keepBranches.length
+    ? { schemaVersion: 2, steps, branches: keepBranches }
+    : { schemaVersion: 2, steps }
 }
 
 /** 新建链画布的初始空图（START→END 一条线）。 */
