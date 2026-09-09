@@ -461,7 +461,7 @@ serviceUri: 8094
 | R3 | mono 资源遮蔽（v1.12.0 前车之鉴） | 资源目录化从刀1 就按先例执行，不走裸根路径 |
 | R4 | 出站白名单配置成本（每环境维护） | 文档给出常用示例；未配置=全拒是刻意的安全默认值 |
 | R5 | `flow/` 画布组件为流程域设计，复用需泛化改造 | 刀3 spike 结论：flowModel 深度绑定流程域语义（审批/规则/序列化），泛化成本超阈值，触发降级路径（列表+NodeConfigPanel 组件化，P3 一次性引入画布，组件复用零浪费） |
-| R6 | SSRF 校验与实际请求之间存在 DNS 重绑定窗口（TOCTOU） | MVP 已做：白名单 host 匹配 + 解析后私网拒绝（收敛窗口）。根治需固定解析 IP 直连或出站代理，列 P2（与出站脱敏代理通道合并实施） |
+| R6 | SSRF 校验与实际请求之间存在 DNS 重绑定窗口（TOCTOU） | **已闭环（v1.19.0，固定解析路线）**：出站 HTTP 收编 Apache HttpClient 5（Spring Boot BOM 管版本，~2.4MB 与 R2 同量级；JDK HttpClient 无解析器注入点），连接管理器挂 `EgressPinningDnsResolver`——**解析即校验、所解即所连**（`EgressGuard.resolveValidated` 为公共入口），校验与建连共用同一次解析结果，重绑定窗口消除；连接器 HTTP 与 AI 供应商连通测试两路径统一迁移，重定向保持禁用；IP 字面量直写内网的绕过路径在解析层同样拦截。出站脱敏代理通道（与 ai-gateway 外呼合并实施）仍列后续项。测试：EgressPinningDnsResolverTest 5（回环/私网字面量/公网字面量/不可解析/6011 契约）+ connector 全量 68 回归 + 冒烟 28 断言 |
 | R7 | 凭据以明文参与连接池 key 摘要（SHA-256 of char[]） | 摘要不可逆，泄露面可接受；凭据轮换生成新池、旧池 LRU 驱逐关闭 |
 | R8 | manage 操作（建模/发布/停用/凭据增删）未落操作审计 | **已闭环（v1.15.0）**：auth 新增内部审计端点 `POST /api/v1/internal/audit`（X-Internal-Token，跨服务沿 metadata→auth 权限注册同模式）；connector 侧 `AuthAuditClient` afterCommit 尽力而为上报（失败仅告警不阻断业务）——连接器 CRUD/发布/停用、凭据增删改、AI 供应商增改删全部落 `sys_audit_log`，经既有 `GET /api/v1/security/audit-logs` 统一检索 |
 | R9 | 本机 testcontainers 连不上 Docker 引擎（CLI 可用但 npipe 400），容器测试从未真实执行 | **已闭环（2026-09-07 CI run 34128910566 全绿）**：容器测试在 CI 真实 Docker 首跑即揪出两缺陷（CONN_SPEC 传参错位；多租户拦截器后于分页注册致 count SQL 无租户条件——平台级修复）+ mono 断言 8→9，修复后 Auth/Metadata/Connector 容器测试与 MonoSmoke 9 模块全部真实执行通过 |
