@@ -551,7 +551,7 @@ START/STEP/CONDITION/END（STEP 属性面板插槽 = 既有 `ConnectorConfigPane
 
 | 刀 | 内容 | 量 |
 |----|------|----|
-| 刀1 后端链引擎 | schemaVersion=2 解析/校验（ConnectorSpecs 扩展）+ ChainExecutor 顺序链 + 上下文嵌套取值（TemplateRenderer 扩展）+ exec_log.steps_json（V4）+ 单步兼容适配 + 单测/容器测试 | 3d |
+| 刀1 后端链引擎 | **已实施（2026-09-09）**：ChainSpecs（schemaVersion=2 解析/校验/canonical，步数上限 10）+ CHAIN conn_type（v1/v2 互斥校验）+ ChainExecutor（顺序链/调用入参覆盖静态 params/fail-fast + continueOnError/一链一日志 steps_json）+ ExecutionGateway 统一分派（invoke/test/触发三入口；触发自刀1 即作用于整链）+ TemplateRenderer 点路径下钻（body JSON 解析后 Map 取值）+ 设计态 steps./params. 前缀豁免声明；**实施实纱一处平台缺陷**：EgressGuard 哑元 fallback 正则未含点路径（v1.15.0 修复仅覆盖扁平键），已补齐。测试 ChainSpecsTest 4 + TemplateRendererTest 6 + ConnectorChainIntegrationTest 3（两步链上下文传递/fail-fast/continueOnError/EVENT 触发整链/一链一日志）| 3d |
 | 刀2 画布泛化 | 节点类型注册表协议抽取（flowModel + FlowDesigner 行为零变化）+ 流程设计器浏览器级回归 | 2.5d |
 | 刀3 编排画布页 | IntegrationPage 编排编辑视图（画布 + STEP 面板复用 ConnectorConfigPanel + 整链试运行/步骤日志展开） | 2.5d |
 | 刀4 分支与收尾 | ExpressionEvaluator 下沉 common + CONDITION 步骤/branches 求值 + 触发链（EVENT/CRON 作用于整链）+ 冒烟断言 + 文档 | 2.5d |

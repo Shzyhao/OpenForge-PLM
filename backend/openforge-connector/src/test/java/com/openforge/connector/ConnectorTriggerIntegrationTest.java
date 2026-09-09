@@ -185,7 +185,9 @@ class ConnectorTriggerIntegrationTest {
         int fired = dispatcher.dispatchEvent("openforge-doc", "doc.released",
                 Map.of("code", "D-1001"), "evt-it-" + hitId);
 
-        assertThat(fired).isEqualTo(1);
+        // 同 topic+tag 的多连接器共享 H2 上下文时都会命中（如链集成测试的 doc.released 连接器），
+        // 计数断言放宽为 >=1；本连接器命中由下方执行日志/payload 证据断言
+        assertThat(fired).isGreaterThanOrEqualTo(1);
         assertThat(waitFor(() -> jdbc.queryForObject(
                 "SELECT COUNT(*) FROM conn_exec_log WHERE conn_id=" + hitId
                         + " AND trigger_type='EVENT' AND status='SUCCESS'", Integer.class) > 0, 8000))

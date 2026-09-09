@@ -23,7 +23,9 @@ public final class ConnectorSpecs {
 
     public static final String TYPE_HTTP_REST = "HTTP_REST";
     public static final String TYPE_JDBC_READONLY = "JDBC_READONLY";
-    private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_HTTP_REST, TYPE_JDBC_READONLY);
+    /** P3 刀1：多步骤链（spec schemaVersion=2），执行走 ChainExecutor，无对应 ConnectorSpi。 */
+    public static final String TYPE_CHAIN = "CHAIN";
+    private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_HTTP_REST, TYPE_JDBC_READONLY, TYPE_CHAIN);
 
     /** JDBC 数据源仅放行两种驱动（连接器 MVP 设计 §5）；更多方言按需追加。 */
     private static final Set<String> JDBC_URL_PREFIXES = Set.of("jdbc:postgresql://", "jdbc:mysql://");
@@ -41,7 +43,8 @@ public final class ConnectorSpecs {
     private static final Set<String> FORBIDDEN_HEADERS = Set.of(
             "authorization", "host", "content-length", "connection", "transfer-encoding");
 
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{([a-zA-Z_][a-zA-Z0-9_]*)}}");
+    /** P3 刀1：允许点路径上下文引用（{{steps.x.y}}/{{params.z}}），设计态豁免声明。 */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{([a-zA-Z_][a-zA-Z0-9_.]*)}}");
 
     private static final int TIMEOUT_MIN = 100;
     private static final int TIMEOUT_MAX = 30_000;
@@ -310,7 +313,10 @@ public final class ConnectorSpecs {
     /** 占位符闭包：使用的参数必须已声明（声明了 schema 才约束）；防渲染期 NameError。 */
     private static void checkPlaceholders(String url, Map<String, String> headers,
                                           Map<String, Object> template, Map<String, Object> parameterSchema) {
-        Set<String> used = usedPlaceholders(url, headers, template);
+        // P3 刀1：steps./params. 前缀为链执行上下文引用（运行时注入），豁免 parameterSchema 声明
+        Set<String> used = usedPlaceholders(url, headers, template).stream()
+                .filter(name -> !name.startsWith("steps.") && !name.startsWith("params."))
+                .collect(java.util.stream.Collectors.toSet());
         if (used.isEmpty()) {
             return;
         }
