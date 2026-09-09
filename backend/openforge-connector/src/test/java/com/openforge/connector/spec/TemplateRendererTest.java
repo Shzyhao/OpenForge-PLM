@@ -57,4 +57,24 @@ class TemplateRendererTest {
                 java.util.List.of("{{a}}", 1), Map.of("a", "x"));
         assertThat(rendered).isEqualTo(java.util.List.of("x", 1));
     }
+
+    @Test
+    @DisplayName("P3 刀1：点路径嵌套取值（Map 下钻 / JSON 字符串解析下钻 / 缺失段抛缺参）")
+    void nestedPathResolution() {
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("steps", Map.of(
+                "fetch", Map.of("status", "SUCCESS", "httpStatus", 200,
+                        "body", Map.of("token", "T-1", "data", Map.of("id", 7))),
+                "raw", Map.of("body", "{\"k\":\"v\"}")));
+        // Map 下钻
+        assertThat(TemplateRenderer.renderTemplate("{{steps.fetch.body.token}}", ctx)).isEqualTo("T-1");
+        assertThat(TemplateRenderer.renderTemplate("{{steps.fetch.body.data.id}}", ctx)).isEqualTo(7);
+        // JSON 字符串 body 解析下钻
+        assertThat(TemplateRenderer.renderTemplate("{{steps.raw.body.k}}", ctx)).isEqualTo("v");
+        // 单键形态不受影响
+        assertThat(TemplateRenderer.renderTemplate("{{steps}}", ctx)).isEqualTo(ctx.get("steps"));
+        // 缺失段按缺参失败（与既有缺参语义一致）
+        assertThatThrownBy(() -> TemplateRenderer.renderTemplate("{{steps.fetch.body.missing}}", ctx))
+                .isInstanceOf(BizException.class);
+    }
 }

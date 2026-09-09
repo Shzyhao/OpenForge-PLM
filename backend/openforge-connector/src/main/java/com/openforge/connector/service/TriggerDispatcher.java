@@ -5,12 +5,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.tenant.TenantContext;
+import com.openforge.connector.dto.InvokeResponse;
 import com.openforge.connector.entity.ConnDefinition;
 import com.openforge.connector.entity.ConnTriggerDlq;
 import com.openforge.connector.mapper.ConnDefinitionMapper;
 import com.openforge.connector.mapper.ConnTriggerDlqMapper;
 import com.openforge.connector.spec.TriggerSpecs;
-import com.openforge.connector.spi.ConnectorResult;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
@@ -32,16 +32,16 @@ public class TriggerDispatcher {
 
     private final ConnDefinitionMapper definitionMapper;
     private final ConnTriggerDlqMapper dlqMapper;
-    private final ConnectorRuntime runtime;
+    private final ExecutionGateway executionGateway;
     private final ObjectMapper objectMapper;
 
     public TriggerDispatcher(ConnDefinitionMapper definitionMapper,
                              ConnTriggerDlqMapper dlqMapper,
-                             ConnectorRuntime runtime,
+                             ExecutionGateway executionGateway,
                              ObjectMapper objectMapper) {
         this.definitionMapper = definitionMapper;
         this.dlqMapper = dlqMapper;
-        this.runtime = runtime;
+        this.executionGateway = executionGateway;
         this.objectMapper = objectMapper;
     }
 
@@ -76,8 +76,9 @@ public class TriggerDispatcher {
     }
 
     /**
-     * 单连接器触发执行：执行成功仅落执行日志（runtime 已写）；失败（含 BizException 调用错误
+     * 单连接器触发执行：执行成功仅落执行日志；失败（含 BizException 调用错误
      * 与上游失败结果）落死信。状态非 PUBLISHED（调度间隙被停用）静默跳过。
+     * 单步/链经 ExecutionGateway 自动分派（P3 刀1：触发作用于整链）。
      */
     public boolean executeTrigger(ConnDefinition def, Map<String, Object> params,
                                   String triggerType, String source) {
@@ -86,12 +87,12 @@ public class TriggerDispatcher {
             return false;
         }
         try {
-            ConnectorResult result = runtime.execute(def.getConnType(), def.getSpecJson(),
+            InvokeResponse response = executionGateway.execute(def.getConnType(), def.getSpecJson(),
                     def.getCurrentVersion(), def.getId(), params, triggerType);
-            if (result.success()) {
+            if ("SUCCESS".equals(response.getStatus())) {
                 return true;
             }
-            recordDlq(def, triggerType, source, params, result.error());
+            recordDlq(def, triggerType, source, params, response.getError());
             return false;
         } catch (BizException e) {
             recordDlq(def, triggerType, source, params, e.getMessage());

@@ -18,6 +18,7 @@ import com.openforge.connector.entity.ConnDefinitionVersion;
 import com.openforge.connector.mapper.ConnDefinitionMapper;
 import com.openforge.connector.mapper.ConnDefinitionVersionMapper;
 import com.openforge.connector.mapper.ConnExecLogMapper;
+import com.openforge.connector.spec.ChainSpecs;
 import com.openforge.connector.spec.ConnectorSpecs;
 import com.openforge.connector.spec.HttpRestSpec;
 import com.openforge.connector.spec.TriggerSpecs;
@@ -47,6 +48,7 @@ public class ConnectorDefinitionService {
     private final CredentialService credentialService;
     private final PublishedConnCache publishedConnCache;
     private final ConnectorRuntime connectorRuntime;
+    private final ExecutionGateway executionGateway;
     private final ObjectMapper objectMapper;
     private final com.openforge.common.event.EventPublisher eventPublisher;
     private final com.openforge.connector.client.AuthAuditClient auditClient;
@@ -59,6 +61,7 @@ public class ConnectorDefinitionService {
             CredentialService credentialService,
             PublishedConnCache publishedConnCache,
             ConnectorRuntime connectorRuntime,
+            ExecutionGateway executionGateway,
             ObjectMapper objectMapper,
             com.openforge.common.event.EventPublisher eventPublisher,
             com.openforge.connector.client.AuthAuditClient auditClient,
@@ -71,6 +74,7 @@ public class ConnectorDefinitionService {
         this.credentialService = credentialService;
         this.publishedConnCache = publishedConnCache;
         this.connectorRuntime = connectorRuntime;
+        this.executionGateway = executionGateway;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.auditClient = auditClient;
@@ -221,19 +225,17 @@ public class ConnectorDefinitionService {
         return Map.of("connId", id, "status", "DISABLED");
     }
 
-    /** 试运行：设计态用当前 spec（含 DRAFT），发布态用主档 spec（与最新快照一致）。 */
+    /** 试运行：设计态用当前 spec（含 DRAFT），发布态用主档 spec（与最新快照一致）。链自动分派。 */
     public InvokeResponse test(Long id, InvokeRequest request) {
         ConnDefinition def = requireDefinition(id);
-        long start = System.currentTimeMillis();
-        ConnectorResult result = connectorRuntime.execute(def.getConnType(), def.getSpecJson(),
+        return executionGateway.execute(def.getConnType(), def.getSpecJson(),
                 def.getCurrentVersion(), def.getId(),
                 request.getParams() == null ? Map.of() : request.getParams(), "MANUAL");
-        return InvokeResponse.from(result, System.currentTimeMillis() - start);
     }
 
-    /** 运行时调用入口（仅已发布；trigger=API），委托运行时按缓存→回源执行。 */
+    /** 运行时调用入口（仅已发布；trigger=API），经网关分派单步/链。 */
     public InvokeResponse invoke(String connCode, Map<String, Object> params) {
-        return connectorRuntime.invokePublished(connCode, params, "API");
+        return executionGateway.invokePublished(connCode, params, "API");
     }
 
     /** 执行日志分页（已脱敏；日志表带 tenant_id，租户行级过滤自动生效）。 */
@@ -267,18 +269,35 @@ public class ConnectorDefinitionService {
         }
     }
 
-    /** spec 规范化（canonical JSON 落库）+ 校验（含凭据引用存在性）。 */
+    /** spec 规范化（canonical JSON 落库）+ 校验（含凭据引用存在性）；链（schemaVersion=2）走链校验。 */
     private String normalizeAndValidate(SaveConnRequest request) {
         validateSpec(request.getConnType(), request.getSpec());
         try {
-            return objectMapper.writeValueAsString(request.getSpec());
+            Map<String, Object> normalized = ChainSpecs.isChain(request.getSpec())
+                    ? ChainSpecs.normalize(request.getSpec(), objectMapper, this::checkCredRefExists)
+                    : request.getSpec();
+            return objectMapper.writeValueAsString(normalized);
+        } catch (BizException e) {
+            throw e;
         } catch (Exception e) {
             throw new BizException(ErrorCode.CONN_SPEC_INVALID, "spec 序列化失败");
         }
     }
 
-    /** spec 设计态校验（含凭据引用存在性）：HTTP/JDBC 分类型解析，失败抛 CONN_SPEC_INVALID。 */
+    /** spec 设计态校验（含凭据引用存在性）：单步分类型解析；链逐步骤解析。 */
     private void validateSpec(String connType, Map<String, Object> specMap) {
+        if (ChainSpecs.isChain(specMap)) {
+            if (!ConnectorSpecs.TYPE_CHAIN.equals(connType)) {
+                throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                        "schemaVersion=2（链）须 connType=CHAIN: " + connType);
+            }
+            ChainSpecs.parse(specMap, objectMapper, this::checkCredRefExists);
+            return;
+        }
+        if (ConnectorSpecs.TYPE_CHAIN.equals(connType)) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                    "connType=CHAIN 须使用 schemaVersion=2 链 spec（steps 数组）");
+        }
         ConnectorSpecs.checkType(connType);
         String credRef = switch (connType) {
             case ConnectorSpecs.TYPE_HTTP_REST ->
@@ -304,6 +323,18 @@ public class ConnectorDefinitionService {
             case ConnectorSpecs.TYPE_JDBC_READONLY ->
                     ConnectorSpecs.parseJdbcReadonly(specMap, objectMapper, credExists);
             default -> throw new BizException(ErrorCode.CONN_SPEC_INVALID, "不支持的连接器类型: " + connType);
+        }
+    }
+
+    /** 链步骤凭据引用存在性校验（设计态；缺失抛 CONN_CRED_NOT_FOUND）。 */
+    private void checkCredRefExists(String credRef) {
+        try {
+            credentialService.resolveByCode(credRef);
+        } catch (BizException e) {
+            if (e.getErrorCode() == ErrorCode.CONN_CRED_NOT_FOUND) {
+                throw new BizException(ErrorCode.CONN_CRED_NOT_FOUND, "凭据不存在: " + credRef);
+            }
+            throw e;
         }
     }
 

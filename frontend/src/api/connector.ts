@@ -2,12 +2,13 @@ import { get, post, put, del } from './client'
 
 /** 集成编排器 API（集成编排器 MVP 设计 §6） */
 
-export type ConnType = 'HTTP_REST' | 'JDBC_READONLY'
+export type ConnType = 'HTTP_REST' | 'JDBC_READONLY' | 'CHAIN'
 export type ConnStatus = 'DRAFT' | 'PUBLISHED' | 'DISABLED'
 
 export const CONN_TYPES: { value: ConnType; label: string }[] = [
   { value: 'HTTP_REST', label: 'HTTP/REST 接口' },
   { value: 'JDBC_READONLY', label: '数据库直连（只读）' },
+  { value: 'CHAIN', label: '编排链（多步骤）' },
 ]
 
 export interface ConnSummary {
@@ -120,6 +121,8 @@ export interface ExecLog {
   rowsReturned: number | null
   durationMs: number
   errorMsg: string | null
+  /** 链执行步骤摘要（CHAIN 连接器，P3 刀1） */
+  stepsJson: string | null
   traceId: string | null
   createdAt: string
 }

@@ -37,6 +37,9 @@ public class ConnExecLog {
     /** 已脱敏（不含凭据/敏感头/响应体原文） */
     private String errorMsg;
 
+    /** 链执行步骤摘要（P3 刀1：每步 key/status/duration/error 的 JSON 数组；单步为 null） */
+    private String stepsJson;
+
     private String traceId;
 
     private LocalDateTime createdAt;

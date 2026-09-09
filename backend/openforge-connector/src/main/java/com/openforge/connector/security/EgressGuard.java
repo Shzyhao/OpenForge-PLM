@@ -71,7 +71,8 @@ public class EgressGuard {
         try {
             return URI.create(url);
         } catch (IllegalArgumentException ignoredFirst) {
-            String probe = url.replaceAll("\\{\\{[a-zA-Z_][a-zA-Z0-9_]*}}", "param");
+            // 哑元正则须与 TemplateRenderer 的占位符同形（含点路径：{{steps.x.y}}，P3 刀1）
+            String probe = url.replaceAll("\\{\\{[a-zA-Z_][a-zA-Z0-9_.]*}}", "param");
             try {
                 return URI.create(probe);
             } catch (IllegalArgumentException e) {
