@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
  * - 私网地址拒绝（loopback/site-local/link-local/any-local），DNS 解析后逐一校验，
  *   防以域名解析到内网的方式绕过；测试环境可 openforge.connector.egress-allow-private=true 放开。
  * 白名单匹配在 DNS 解析前按 URL host 字符串比对（精确，大小写不敏感）。
+ * R6 根治（v1.19.0）：{@link #resolveValidated(String)} 作为"解析即校验"公共入口，
+ * 供出站 HTTP 客户端的 DnsResolver 在连接时调用——校验所用的解析结果即实际所连地址，
+ * 消除"校验解析"与"连接解析"两次独立解析之间的 DNS 重绑定（TOCTOU）窗口。
  */
 @Component
 public class EgressGuard {
@@ -106,18 +109,30 @@ public class EgressGuard {
         return false;
     }
 
-    private void checkNotPrivate(String host) {
+    /**
+     * 解析 host 并校验私网（allowPrivate=false 时拒绝回环/站点本地/链路本地/任意本地）。
+     * 出站客户端的 DnsResolver 在连接时调用本方法：返回的地址数组即建立连接所用地址，
+     * 校验与连接共用同一次解析结果——DNS 重绑定窗口由此消除。IP 字面量同样过私网校验。
+     */
+    public InetAddress[] resolveValidated(String host) {
         InetAddress[] addresses;
         try {
             addresses = InetAddress.getAllByName(host);
         } catch (Exception e) {
             throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "目标 host 无法解析");
         }
-        for (InetAddress address : addresses) {
-            if (address.isLoopbackAddress() || address.isSiteLocalAddress()
-                    || address.isLinkLocalAddress() || address.isAnyLocalAddress()) {
-                throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "禁止出站到私网/回环地址");
+        if (!allowPrivate) {
+            for (InetAddress address : addresses) {
+                if (address.isLoopbackAddress() || address.isSiteLocalAddress()
+                        || address.isLinkLocalAddress() || address.isAnyLocalAddress()) {
+                    throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "禁止出站到私网/回环地址");
+                }
             }
         }
+        return addresses;
+    }
+
+    private void checkNotPrivate(String host) {
+        resolveValidated(host);
     }
 }

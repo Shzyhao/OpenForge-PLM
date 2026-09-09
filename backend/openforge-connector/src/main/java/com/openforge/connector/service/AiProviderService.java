@@ -14,20 +14,21 @@ import com.openforge.connector.entity.AiProvider;
 import com.openforge.connector.mapper.AiProviderMapper;
 import com.openforge.connector.security.EgressGuard;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 
 /**
  * AI 供应商服务（集成编排器 MVP 设计 §12.1 P2-1）：LLM 供应商即"AI 连接器"——
  * base_url + api_key（AES-GCM 复用凭据加密体系）+ 模型 + 降级链优先级。
- * 连通性测试由 Java 侧代理执行（key 不出服务）；出站一律过 EgressGuard。
+ * 连通性测试由 Java 侧代理执行（key 不出服务）；出站一律过 EgressGuard，
+ * 连接级走共享出站客户端的固定解析校验（R6 SSRF 根治，v1.19.0）。
  */
 @Slf4j
 @Service
@@ -36,19 +37,17 @@ public class AiProviderService {
     private final AiProviderMapper providerMapper;
     private final AesGcmCipher cipher;
     private final EgressGuard egressGuard;
-    private final HttpClient httpClient;
+    private final CloseableHttpClient httpClient;
     private final com.openforge.connector.client.AuthAuditClient auditClient;
 
     public AiProviderService(AiProviderMapper providerMapper, AesGcmCipher cipher, EgressGuard egressGuard,
+                             CloseableHttpClient outboundHttpClient,
                              com.openforge.connector.client.AuthAuditClient auditClient) {
         this.providerMapper = providerMapper;
         this.cipher = cipher;
         this.egressGuard = egressGuard;
+        this.httpClient = outboundHttpClient;
         this.auditClient = auditClient;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
     }
 
     @Transactional
@@ -124,18 +123,20 @@ public class AiProviderService {
         long start = System.currentTimeMillis();
         ProviderTestResponse response = new ProviderTestResponse();
         try {
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofMillis(Math.min(provider.getTimeoutMs(), 30_000)))
-                    .header("Authorization", "Bearer " + cipher.decrypt(provider.getApiKeyEnc()))
-                    .GET()
-                    .build();
-            HttpResponse<byte[]> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofByteArray());
-            response.setHttpStatus(httpResponse.statusCode());
-            response.setStatus(httpResponse.statusCode() >= 200 && httpResponse.statusCode() < 300
-                    ? "SUCCESS" : "FAILED");
-            if (response.getStatus().equals("FAILED")) {
-                response.setError("上游返回 " + httpResponse.statusCode());
+            HttpUriRequestBase request = new HttpUriRequestBase("GET", URI.create(url));
+            request.setConfig(RequestConfig.custom()
+                    .setConnectionRequestTimeout(Timeout.ofSeconds(10))
+                    .setResponseTimeout(Timeout.ofMilliseconds(
+                            Math.min(provider.getTimeoutMs(), 30_000)))
+                    .build());
+            request.setHeader("Authorization", "Bearer " + cipher.decrypt(provider.getApiKeyEnc()));
+            try (var httpResponse = httpClient.execute(request)) {
+                response.setHttpStatus(httpResponse.getCode());
+                response.setStatus(httpResponse.getCode() >= 200 && httpResponse.getCode() < 300
+                        ? "SUCCESS" : "FAILED");
+                if (response.getStatus().equals("FAILED")) {
+                    response.setError("上游返回 " + httpResponse.getCode());
+                }
             }
         } catch (BizException e) {
             throw e;

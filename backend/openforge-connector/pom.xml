@@ -29,6 +29,13 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
+        <!-- 出站 HTTP（R6 SSRF 根治）：Apache HttpClient 5 的 DnsResolver 扩展点承载
+             "解析即校验、所解即所连"的固定解析语义——JDK HttpClient 无解析器注入点，故收编
+             （版本随 Spring Boot BOM；体量 ~2.4MB，与 R2 收编 JDBC 驱动同量级） -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
         <!-- Nacos 服务发现（默认关闭，部署时 NACOS_ENABLED=true 开启） -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
