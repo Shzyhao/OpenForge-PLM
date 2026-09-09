@@ -21,7 +21,8 @@ import java.util.regex.Pattern;
  */
 public final class TemplateRenderer {
 
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{([a-zA-Z_][a-zA-Z0-9_]*)}}");
+    /** P3 刀1：允许点路径（{{steps.fetch.body.id}}），逐段下钻取值；单键形态不变。 */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{([a-zA-Z_][a-zA-Z0-9_.]*)}}");
 
     private TemplateRenderer() {
     }
@@ -79,10 +80,10 @@ public final class TemplateRenderer {
     }
 
     private static Object valueOf(String name, Map<String, Object> params, boolean urlEncode) {
-        if (params == null || !params.containsKey(name) || params.get(name) == null) {
+        Object value = resolvePath(name, params);
+        if (value == null) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "占位符参数缺失: " + name);
         }
-        Object value = params.get(name);
         if (urlEncode && !(value instanceof Number) && !(value instanceof Boolean)) {
             try {
                 return URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8.name());
@@ -91,5 +92,48 @@ public final class TemplateRenderer {
             }
         }
         return value;
+    }
+
+    /**
+     * 点路径下钻：a.b.c 逐段取 Map；任一段缺失返回 null（调用方按缺参处理）。
+     * 中间段为 JSON 字符串（如步骤 body 原文）时解析后继续下钻。
+     */
+    private static Object resolvePath(String path, Map<String, Object> params) {
+        Object direct = params == null ? null : params.get(path);
+        if (direct != null || (params != null && params.containsKey(path))) {
+            return direct;
+        }
+        String[] segments = path.split("\\.");
+        if (segments.length < 2 || params == null || !params.containsKey(segments[0])) {
+            return null;
+        }
+        Object current = params.get(segments[0]);
+        for (int i = 1; i < segments.length && current != null; i++) {
+            current = childOf(current, segments[i]);
+        }
+        return current;
+    }
+
+    private static Object childOf(Object current, String key) {
+        if (current instanceof Map<?, ?> map) {
+            return map.get(key);
+        }
+        if (current instanceof String s) {
+            String trimmed = s.trim();
+            if (trimmed.startsWith("{")) {
+                try {
+                    // 反序列化为 Map（原生类型值），后续段继续 Map 下钻
+                    com.fasterxml.jackson.databind.ObjectMapper mapper =
+                            new com.fasterxml.jackson.databind.ObjectMapper();
+                    Object parsed = mapper.readValue(trimmed, Object.class);
+                    if (parsed instanceof Map<?, ?> parsedMap) {
+                        return parsedMap.get(key);
+                    }
+                } catch (Exception e) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 }
