@@ -2,7 +2,10 @@
  * 流程定义模型与设计器支撑逻辑——与后端 engine.ProcessDefinition 一一对应。
  * 坐标 x/y 仅为设计器布局信息：deploy 原样存储定义 JSON，引擎解析时忽略未知字段
  * （WorkflowEngineIntegrationTest.designedDefinitionWithLayoutCoordinatesDeploysAndRuns 钉住该契约）。
+ * P3 刀2 泛化：类型相关行为（渲染/连线/序列化/校验）收敛至 nodeTypes.ts 注册表。
  */
+
+import { behaviorOf } from './nodeTypes'
 
 export type NodeType = 'START' | 'APPROVAL' | 'CONDITION' | 'END'
 
@@ -40,6 +43,7 @@ export interface FlowDef {
   edges: FlowEdge[]
 }
 
+/** 类型元数据（从注册表派生；保留既有导出形状） */
 export const NODE_TYPE_META: Record<NodeType, { label: string; color: string }> = {
   START: { label: '开始', color: '#52c41a' },
   APPROVAL: { label: '审批', color: '#1677ff' },
@@ -47,27 +51,22 @@ export const NODE_TYPE_META: Record<NodeType, { label: string; color: string }> 
   END: { label: '结束', color: '#8c8c8c' },
 }
 
-/** 画布节点包围盒（世界坐标；START/END 扁，审批/条件大） */
+/** 画布节点包围盒（世界坐标；small 类型扁，其余大） */
 export function nodeSize(n: FlowNode): { w: number; h: number } {
-  return n.type === 'START' || n.type === 'END' ? { w: 92, h: 44 } : { w: 176, h: 64 }
+  return behaviorOf(n.type).small ? { w: 92, h: 44 } : { w: 176, h: 64 }
 }
 
 export function nodeLabel(n: FlowNode): string {
-  return n.name || NODE_TYPE_META[n.type].label
+  return n.name || behaviorOf(n.type).label
 }
 
-/** 审批人摘要（节点副标题） */
+/** 审批人摘要（节点副标题；由注册表 summary 承载） */
 export function assigneeSummary(n: FlowNode): string {
-  const a = n.assignee
-  if (!a) return '未配置审批人'
-  const mode = a.type === 'USERS' ? (n.mode === 'ANY' ? '或签' : '会签') : ''
-  if (a.type === 'USER') return `用户 ${a.value ?? '?'}`
-  if (a.type === 'ROLE') return `角色 ${a.value ?? '?'}`
-  return `多人(${a.values?.length ?? 0})${mode}`
+  return behaviorOf(n.type).summary?.(n) ?? ''
 }
 
 /**
- * 画布可见连线 = edges[]（START/APPROVAL 的顺序流出）+ CONDITION 的规则分支（expr 标注）。
+ * 画布可见连线 = edges[]（顺序流出）+ 条件类型的规则分支（expr 标注，注册表 expandsRules）。
  * 引擎推进：非条件节点走 edgeFrom 单出边；条件节点完全由 rules[].to 决定（edges 不读）。
  */
 export interface VisualEdge {
@@ -83,7 +82,7 @@ export function visualEdges(def: FlowDef): VisualEdge[] {
     key: `e-${i}-${e.from}-${e.to}`, from: e.from, to: e.to, kind: 'edge',
   }))
   for (const n of def.nodes) {
-    if (n.type === 'CONDITION') {
+    if (behaviorOf(n.type).expandsRules) {
       n.rules?.forEach((r, i) => out.push({
         key: `r-${n.id}-${i}`, from: n.id, to: r.to,
         label: r.expr?.trim() ? r.expr : '默认', kind: 'rule',
@@ -94,8 +93,8 @@ export function visualEdges(def: FlowDef): VisualEdge[] {
 }
 
 /**
- * 分层自动布局（左→右）：深度 = 距 START 的最长路径（edges 与条件分支均计入），
- * 不可达节点排到末层。返回带 x/y 的新定义（不改其余字段）。
+ * 分层自动布局（左→右）：深度 = 距 START 的最长路径（edges 与注册表 layoutUsesRules
+ * 类型的规则分支均计入），不可达节点排到末层。返回带 x/y 的新定义（不改其余字段）。
  */
 export function autoLayout(def: FlowDef): FlowDef {
   const depth = new Map<string, number>()
@@ -104,7 +103,7 @@ export function autoLayout(def: FlowDef): FlowDef {
   // 松弛 |V| 次取最长路径（流程图基本是 DAG；环由次数上限兜底）
   const links: Array<[string, string]> = [
     ...def.edges.map((e) => [e.from, e.to] as [string, string]),
-    ...def.nodes.filter((n) => n.type === 'CONDITION')
+    ...def.nodes.filter((n) => behaviorOf(n.type).layoutUsesRules)
       .flatMap((n) => (n.rules ?? []).map((r) => [n.id, r.to] as [string, string])),
   ]
   for (let i = 0; i < def.nodes.length; i++) {
@@ -133,15 +132,16 @@ export function autoLayout(def: FlowDef): FlowDef {
   return { nodes: positioned, edges: def.edges }
 }
 
-/** 新节点 id：类型前缀 + 既有最大序号 + 1 */
+/** 新节点 id：类型前缀 + 既有最大序号 + 1（单例类型用裸前缀） */
 export function newNodeId(def: FlowDef, type: NodeType): string {
-  const prefix = { START: 'start', APPROVAL: 'a', CONDITION: 'c', END: 'end' }[type]
+  const behavior = behaviorOf(type)
+  const prefix = behavior.idPrefix
   let max = 0
   for (const n of def.nodes) {
     const m = new RegExp(`^${prefix}(\\d+)$`).exec(n.id)
     if (m) max = Math.max(max, Number(m[1]))
   }
-  if ((type === 'START' || type === 'END') && !def.nodes.some((n) => n.id === prefix)) {
+  if (behavior.singleton && !def.nodes.some((n) => n.id === prefix)) {
     return prefix
   }
   return `${prefix}${max + 1}`
@@ -149,30 +149,15 @@ export function newNodeId(def: FlowDef, type: NodeType): string {
 
 /**
  * 部署用规范化序列化：
- * - 剥离引擎不读的死边（END / CONDITION 的顺序出边——条件出口由 rules[].to 决定）；
+ * - 剥离引擎不读的死边（无顺序出边通道的类型——条件出口由 rules[].to 决定）；
  * - 规则表达式空白 → 省略 expr 键（默认分支规范形态，引擎判 expr == null）；
- * - 未填写的可选字段不输出，保持定义 JSON 与引擎规范示例同构。
+ * - 类型专属输出经注册表 serialize；未填写的可选字段不输出。
  */
 export function toDefinitionJson(def: FlowDef): string {
   const nodes: FlowNode[] = def.nodes.map((n) => {
     const out: FlowNode = { id: n.id, type: n.type }
     if (n.name?.trim()) out.name = n.name.trim()
-    if (n.type === 'APPROVAL' && n.assignee?.type) {
-      const a: AssigneeDef = { type: n.assignee.type }
-      if (n.assignee.type === 'USERS') {
-        a.values = (n.assignee.values ?? []).map((v) => v.trim()).filter(Boolean)
-      } else if (n.assignee.value?.trim()) {
-        a.value = n.assignee.value.trim()
-      }
-      out.assignee = a
-      if (n.assignee.type === 'USERS' && n.mode === 'ANY') out.mode = 'ANY'
-    }
-    if (n.type === 'CONDITION') {
-      out.rules = (n.rules ?? []).map((r) => {
-        const expr = r.expr?.trim()
-        return expr ? { expr, to: r.to } : { to: r.to }
-      })
-    }
+    Object.assign(out, behaviorOf(n.type).serialize?.(n) ?? {})
     if (n.rejectTo?.trim()) out.rejectTo = n.rejectTo.trim()
     if (n.x !== undefined) out.x = n.x
     if (n.y !== undefined) out.y = n.y
@@ -180,7 +165,7 @@ export function toDefinitionJson(def: FlowDef): string {
   })
   const edges = def.edges.filter((e) => {
     const from = def.nodes.find((n) => n.id === e.from)
-    return from && from.type !== 'END' && from.type !== 'CONDITION'
+    return from && behaviorOf(from.type).hasOutgoingEdge
   })
   return JSON.stringify({ nodes, edges })
 }
@@ -217,43 +202,17 @@ export function validateFlow(def: FlowDef): string[] {
 
   for (const n of def.nodes) {
     const label = `「${nodeLabel(n)}」`
-    if (n.type === 'APPROVAL') {
-      if (!n.assignee?.type) {
-        errs.push(`${label}缺少审批人配置`)
-      } else if (n.assignee.type === 'USER' && !n.assignee.value?.trim()) {
-        errs.push(`${label}未填写审批用户 id`)
-      } else if (n.assignee.type === 'ROLE' && !n.assignee.value?.trim()) {
-        errs.push(`${label}未填写角色编码`)
-      } else if (n.assignee.type === 'USERS' && (n.assignee.values?.length ?? 0) < 2) {
-        errs.push(`${label}多人会签/或签需至少 2 个用户（单人请用 USER/ROLE）`)
-      }
-    }
-    if (n.type === 'CONDITION') {
-      const rules = n.rules ?? []
-      const defaults = rules.filter((r) => !r.expr?.trim())
-      if (rules.length === 0 || defaults.length !== 1) {
-        errs.push(`${label}需要分支规则且默认分支（表达式留空）恰好一个`)
-      } else if (rules.some((r) => r.expr !== undefined && r.expr !== null && r.expr.trim() === '' && r !== defaults[0])) {
-        errs.push(`${label}存在表达式为空白的多余分支`)
-      }
-      for (const r of rules) {
-        if (!byId.has(r.to)) errs.push(`${label}有分支指向不存在的节点`)
-      }
-    }
-    if (n.type === 'START' || n.type === 'APPROVAL') {
+    const behavior = behaviorOf(n.type)
+    errs.push(...(behavior.validate?.(n, { byId }) ?? []))
+    if (behavior.requiresExactlyOneOutEdge) {
       const out = def.edges.filter((e) => e.from === n.id)
       if (out.length !== 1) errs.push(`${label}需要恰好一条出边（当前 ${out.length} 条）`)
       else if (!byId.has(out[0].to)) errs.push(`${label}的出边指向不存在的节点`)
     }
-    if (n.rejectTo) {
-      const target = byId.get(n.rejectTo)
-      if (!target) errs.push(`${label}的驳回回退目标不存在`)
-      else if (target.type !== 'APPROVAL') errs.push(`${label}的驳回回退只能指向审批节点`)
-    }
   }
   for (const e of def.edges) {
     const from = byId.get(e.from)
-    if (from && (from.type === 'END' || from.type === 'CONDITION')) {
+    if (from && !behaviorOf(from.type).hasOutgoingEdge) {
       errs.push(`「${nodeLabel(from)}」不应有顺序出边（条件节点的出口由分支规则决定）`)
     }
     if (!byId.has(e.from) || !byId.has(e.to)) errs.push('存在指向无效节点的连线')
