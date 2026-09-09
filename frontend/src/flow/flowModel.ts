@@ -7,7 +7,7 @@
 
 import { behaviorOf } from './nodeTypes'
 
-export type NodeType = 'START' | 'APPROVAL' | 'CONDITION' | 'END'
+export type NodeType = 'START' | 'APPROVAL' | 'CONDITION' | 'END' | 'STEP'
 
 export interface AssigneeDef {
   type: 'USER' | 'ROLE' | 'USERS'
@@ -31,6 +31,15 @@ export interface FlowNode {
   rejectTo?: string | null
   x?: number
   y?: number
+  // ===== 编排步骤字段（type=STEP，P3 刀3）=====
+  /** 底层连接器类型（HTTP_REST / JDBC_READONLY） */
+  stepType?: string
+  /** 步骤 spec（v1 单步字段形态） */
+  stepSpec?: Record<string, unknown>
+  /** 步骤静态入参默认值（被调用入参覆盖） */
+  stepParams?: Record<string, unknown>
+  /** 失败是否继续执行后续步骤 */
+  continueOnError?: boolean
 }
 
 export interface FlowEdge {
@@ -49,6 +58,7 @@ export const NODE_TYPE_META: Record<NodeType, { label: string; color: string }> 
   APPROVAL: { label: '审批', color: '#1677ff' },
   CONDITION: { label: '条件', color: '#fa8c16' },
   END: { label: '结束', color: '#8c8c8c' },
+  STEP: { label: '步骤', color: '#722ed1' },
 }
 
 /** 画布节点包围盒（世界坐标；small 类型扁，其余大） */

@@ -75,7 +75,12 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
     const handleId = el.getAttribute('data-handle-id')
     const nodeId = el.getAttribute('data-node-id')
     const edgeKey = el.getAttribute('data-edge-key')
-    svgRef.current?.setPointerCapture(e.pointerId)
+    // capture 失败（合成事件/指针已释放）不应中断交互——后续 move 仅在捕获成功时有精确跟随
+    try {
+      svgRef.current?.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
     if (!readOnly && handleId) {
       interRef.current = { kind: 'connect', from: handleId }
       setConnectPos(toWorld(e.clientX, e.clientY))
@@ -297,6 +302,9 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
   // ===== 属性面板 =====
   const drawerNode = selNode
   const panelSlot = drawerNode ? NODE_PANEL_SLOTS[drawerNode.type] : null
+  // 插槽可能是含 hooks 的组件（如 STEP 面板）——必须以 JSX 元素渲染而非直接调用
+  const PanelSlot = panelSlot as unknown as
+    ((props: { node: FlowNode; def: FlowDef; readOnly: boolean; patch: (id: string, patch: Partial<FlowNode>) => void }) => React.ReactElement | null) | null
 
   return (
     <div>
@@ -450,7 +458,7 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
                   onChange={(e) => patchNode(selNode.id, { name: e.target.value })} />
               </label>
             )}
-            {panelSlot && panelSlot({ node: selNode, def: value, readOnly, patch: patchNode })}
+            {panelSlot && PanelSlot && <PanelSlot node={selNode} def={value} readOnly={readOnly} patch={patchNode} />}
             {!readOnly && (
               <Popconfirm title={`删除节点「${nodeLabel(selNode)}」及其关联连线？`} onConfirm={removeSelected}>
                 <Button danger icon={<DeleteOutlined />}>删除节点</Button>
