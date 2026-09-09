@@ -27,7 +27,7 @@ type View = { tx: number; ty: number; k: number }
 type Selection = { kind: 'node'; id: string } | { kind: 'edge'; key: string } | null
 type Interaction =
   | { kind: 'drag'; id: string; offX: number; offY: number }
-  | { kind: 'connect'; from: string }
+  | { kind: 'connect'; from: string; via?: 'branch' }
   | { kind: 'pan'; sx: number; sy: number; tx: number; ty: number }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -73,6 +73,7 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const el = e.target as Element
     const handleId = el.getAttribute('data-handle-id')
+    const branchHandleId = el.getAttribute('data-branch-handle-id')
     const nodeId = el.getAttribute('data-node-id')
     const edgeKey = el.getAttribute('data-edge-key')
     // capture 失败（合成事件/指针已释放）不应中断交互——后续 move 仅在捕获成功时有精确跟随
@@ -80,6 +81,11 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
       svgRef.current?.setPointerCapture(e.pointerId)
     } catch {
       /* ignore */
+    }
+    if (!readOnly && branchHandleId) {
+      interRef.current = { kind: 'connect', from: branchHandleId, via: 'branch' }
+      setConnectPos(toWorld(e.clientX, e.clientY))
+      return
     }
     if (!readOnly && handleId) {
       interRef.current = { kind: 'connect', from: handleId }
@@ -137,7 +143,7 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
       return n.x !== undefined && n.y !== undefined
         && Math.abs(w.x - n.x) <= bw / 2 && Math.abs(w.y - n.y) <= bh / 2
     })
-    if (hit) applyConnect(it.from, hit.id)
+    if (hit) applyConnect(it.from, hit.id, it.via)
   }
 
   // 滚轮缩放（以光标为中心；React 合成 onWheel 为 passive，需原生监听才能 preventDefault）
@@ -176,7 +182,7 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
   const patchNode = (id: string, patch: Partial<FlowNode>) =>
     onChange({ ...value, nodes: value.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) })
 
-  const applyConnect = (fromId: string, toId: string) => {
+  const applyConnect = (fromId: string, toId: string, via?: 'branch') => {
     if (fromId === toId) return
     const from = nodesById.get(fromId)
     const to = nodesById.get(toId)
@@ -186,12 +192,19 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
       message.warning(`「${behaviorOf(to.type).label}」节点不能作为连线的目标`)
       return
     }
-    if (!fromBehavior.hasOutgoingEdge && !fromBehavior.connectViaRuleModal) {
-      message.warning(`「${fromBehavior.label}」节点没有出边`)
+    if (via === 'branch' || fromBehavior.connectViaRuleModal) {
+      if (via === 'branch' && fromBehavior.ruleTargetCheck) {
+        const err = fromBehavior.ruleTargetCheck(to)
+        if (err) {
+          message.warning(err)
+          return
+        }
+      }
+      setRuleModal({ from: fromId, to: toId, expr: '' })
       return
     }
-    if (fromBehavior.connectViaRuleModal) {
-      setRuleModal({ from: fromId, to: toId, expr: '' })
+    if (!fromBehavior.hasOutgoingEdge) {
+      message.warning(`「${fromBehavior.label}」节点没有出边`)
       return
     }
     onChange({ ...value, edges: [...value.edges.filter((e) => e.from !== fromId), { from: fromId, to: toId }] })
@@ -276,9 +289,11 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
     return { x: (n.x ?? 0) + (side === 'right' ? w / 2 : -w / 2), y: n.y ?? 0 }
   }
 
-  const edgePath = (from: FlowNode, to: FlowNode): { d: string; mid: { x: number; y: number } } => {
+  // startDy：分支锚点连线自橙色锚点（右下）出发，与主线出边在起点处错开
+  const edgePath = (from: FlowNode, to: FlowNode, startDy = 0): { d: string; mid: { x: number; y: number } } => {
     const forward = (to.x ?? 0) > (from.x ?? 0)
-    const s = anchor(from, forward ? 'right' : 'left')
+    const { w } = nodeSize(from)
+    const s = { x: (from.x ?? 0) + (forward ? w / 2 : -w / 2), y: (from.y ?? 0) + startDy }
     const t = anchor(to, forward ? 'left' : 'right')
     let c1: { x: number; y: number }
     let c2: { x: number; y: number }
@@ -368,7 +383,8 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
             const from = nodesById.get(ve.from)
             const to = nodesById.get(ve.to)
             if (!from || !to || from.x === undefined || to.x === undefined) return null
-            const { d, mid } = edgePath(from, to)
+            const { d, mid } = edgePath(from, to,
+              ve.kind === 'rule' && behaviorOf(from.type).branchAnchor ? 16 : 0)
             const active = selected?.kind === 'edge' && selected.key === ve.key
             const color = ve.kind === 'rule' ? '#fa8c16' : '#8c8c8c'
             return (
@@ -424,16 +440,25 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
                   <circle data-handle-id={n.id} cx={x + w / 2} cy={y} r={6}
                     fill="#fff" stroke="#1677ff" strokeWidth={1.5} style={{ cursor: 'crosshair' }} />
                 )}
+                {!readOnly && behavior.branchAnchor && (
+                  <circle data-branch-handle-id={n.id} cx={x + w / 2} cy={y + 16} r={6}
+                    fill="#fff" stroke="#fa8c16" strokeWidth={1.5} style={{ cursor: 'crosshair' }} />
+                )}
               </g>
             )
           })}
-          {connectFrom && connectPos && (
-            <line
-              x1={anchor(connectFrom, 'right').x} y1={connectFrom.y ?? 0}
-              x2={connectPos.x} y2={connectPos.y}
-              stroke="#1677ff" strokeWidth={1.5} strokeDasharray="6 4"
-            />
-          )}
+          {connectFrom && connectPos && (() => {
+            const it = interRef.current
+            const fromBranch = it?.kind === 'connect' && it.via === 'branch'
+              && behaviorOf(connectFrom.type).branchAnchor
+            return (
+              <line
+                x1={anchor(connectFrom, 'right').x} y1={(connectFrom.y ?? 0) + (fromBranch ? 16 : 0)}
+                x2={connectPos.x} y2={connectPos.y}
+                stroke="#1677ff" strokeWidth={1.5} strokeDasharray="6 4"
+              />
+            )
+          })()}
         </g>
       </svg>
 
@@ -474,6 +499,25 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
               {nodesById.get(selEdge.to) ? nodeLabel(nodesById.get(selEdge.to)!) : selEdge.to}
             </Typography.Text>
             {selEdge.kind === 'rule' && <Tag color="orange">条件分支：{selEdge.label}</Tag>}
+            {selEdge.kind === 'rule' && !readOnly && (() => {
+              const from = nodesById.get(selEdge.from)
+              const idx = Number(selEdge.key.split('-')[2])
+              const rules = from?.rules ?? []
+              if (!from || !rules[idx]) return null
+              return (
+                <label style={{ display: 'block' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    分支表达式（留空 = 默认分支）
+                  </Typography.Text>
+                  <Input value={rules[idx].expr ?? ''} placeholder="SpEL 表达式"
+                    onChange={(e) => {
+                      const next = [...rules]
+                      next[idx] = { ...rules[idx], expr: e.target.value }
+                      patchNode(selEdge.from, { rules: next })
+                    }} />
+                </label>
+              )
+            })()}
             {!readOnly && <Button danger icon={<DeleteOutlined />} onClick={removeSelected}>删除连线</Button>}
           </Space>
         )}
@@ -490,7 +534,10 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
       >
         <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
           目标：{ruleModal ? nodeLabel(nodesById.get(ruleModal.to) ?? ({ id: ruleModal.to } as FlowNode)) : ''}
-          。表达式留空 = 默认分支（兜底）；填写 SpEL 表达式（如 <code>#amount &gt; 1000</code>）。
+          。{ruleModal
+            ? behaviorOf(nodesById.get(ruleModal.from)?.type ?? 'START').ruleModalHint
+            ?? '表达式留空 = 默认分支（兜底）；填写 SpEL 表达式（如 #amount > 1000）。'
+            : ''}
         </Typography.Paragraph>
         <Input value={ruleModal?.expr ?? ''} autoFocus placeholder="留空作为默认分支，或输入 SpEL"
           onChange={(e) => setRuleModal((m) => (m ? { ...m, expr: e.target.value } : m))} />

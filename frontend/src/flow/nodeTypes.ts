@@ -23,6 +23,12 @@ export interface NodeBehavior {
   hasOutgoingEdge: boolean
   /** 拖出连线时是否经"条件分支表达式" Modal 写入 rules（CONDITION 语义） */
   connectViaRuleModal?: boolean
+  /** 是否渲染独立分支锚点（橙色，右下）：拖出经分支 Modal 写入 rules（主线出边不受影响，STEP 语义） */
+  branchAnchor?: boolean
+  /** 分支连线目标校验：返回错误文案则拒绝建边（STEP：只允许指向步骤节点） */
+  ruleTargetCheck?: (to: FlowNode) => string | null
+  /** 分支表达式 Modal 的说明文案（缺省用工作流 CONDITION 语境） */
+  ruleModalHint?: string
   /** 可见连线是否含本类型的条件规则展开（rules[].to → rule 视觉边） */
   expandsRules?: boolean
   /** 自动布局是否把 rules[].to 计入分层边 */
@@ -135,8 +141,27 @@ const END: NodeBehavior = {
 const STEP: NodeBehavior = {
   type: 'STEP', label: '步骤', color: '#722ed1', idPrefix: 's',
   canBeConnectTarget: true, hasOutgoingEdge: true, requiresExactlyOneOutEdge: true,
+  expandsRules: true, layoutUsesRules: true, branchAnchor: true,
   summary: (n) => String(n.stepType ?? '未配置类型'),
   defaults: () => ({ stepType: 'HTTP_REST', stepSpec: {}, stepParams: {} }),
+  ruleTargetCheck: (to) => (to.type === 'STEP'
+    ? null : '分支只能指向步骤节点（「开始/结束」不能作为分支目标）'),
+  ruleModalHint: '分支按顺序求值（SpEL，如 #steps.fetch.httpStatus == 200）：'
+    + '命中则跳转至目标、未命中支路跳过；全部未命中时走表达式留空的默认分支，'
+    + '无默认分支则沿主线继续。',
+  validate: (n, ctx) => {
+    const label = `「${n.name || '步骤'}」`
+    const errs: string[] = []
+    let defaults = 0
+    for (const r of n.rules ?? []) {
+      if (!r.expr?.trim()) defaults++
+      const target = ctx.byId.get(r.to)
+      if (!target) errs.push(`${label}有分支指向不存在的节点`)
+      else if (target.type !== 'STEP') errs.push(`${label}的分支只能指向步骤节点`)
+    }
+    if (defaults > 1) errs.push(`${label}的默认分支（表达式留空）只能有一个`)
+    return errs
+  },
 }
 
 /** 工作流节点集（注册顺序 = 工具栏展示顺序） */
