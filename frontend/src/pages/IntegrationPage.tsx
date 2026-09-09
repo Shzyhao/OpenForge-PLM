@@ -408,14 +408,11 @@ export default function IntegrationPage() {
 
   // ===== 编排画布（P3 刀3）=====
 
-  const [chainBranches, setChainBranches] = useState<unknown[] | undefined>(undefined)
-
   const openChainEditor = async (row: ConnSummary) => {
     try {
       const detail = await fetchConnector(row.id)
       const spec = detail.spec as Record<string, unknown>
       setChainConn(row)
-      setChainBranches(Array.isArray(spec.branches) ? (spec.branches as unknown[]) : undefined)
       setChainFlow(chainFlowWithLayout(spec))
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败')
@@ -450,7 +447,7 @@ export default function IntegrationPage() {
     if (!chainConn) return
     let spec: Record<string, unknown>
     try {
-      spec = flowToChain(chainFlow, chainBranches)
+      spec = flowToChain(chainFlow)
     } catch (e) {
       message.warning(e instanceof Error ? e.message : '链结构不合法')
       return
@@ -891,7 +888,8 @@ export default function IntegrationPage() {
           </Space>
         }>
         <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          沿主线连线决定执行顺序；点击步骤节点配置连接参数与入参；上游步骤输出经
+          沿主线连线决定执行顺序；步骤节点右下橙色圆点拖出条件分支（SpEL 按序求值，命中跳转；
+          留空 = 默认分支）。点击步骤节点配置连接参数与入参；上游步骤输出经
           {'{{steps.步骤key.body.字段}}'} 引用。保存后重新发布生效。
         </Typography.Text>
         <FlowDesigner value={chainFlow} onChange={setChainFlow}
