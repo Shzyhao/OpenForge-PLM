@@ -15,6 +15,10 @@ import {
   type InvokeResult, type PageData, type TriggerForm, type TriggerType,
 } from '../api/connector'
 import ConnectorConfigPanel, { type ConnectorConfigPanelHandle } from '../components/ConnectorConfigPanel'
+import FlowDesigner from '../components/FlowDesigner'
+import { ORCHESTRATION_NODE_TYPES } from '../flow/nodeTypes'
+import { chainFlowWithLayout, emptyChainFlow, flowToChain } from '../flow/orchestration'
+import type { FlowDef } from '../flow/flowModel'
 import { usePerm } from '../perm/PermContext'
 
 /** 连接器状态标签色（集成编排器 MVP 设计 §8） */
@@ -52,6 +56,7 @@ export default function IntegrationPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState<ConnSummary | null>(null)
   const [draft, setDraft] = useState<SpecDraft>(EMPTY_DRAFT('HTTP_REST'))
+  const [newType, setNewType] = useState<ConnType>('HTTP_REST')
   const [triggerParamsText, setTriggerParamsText] = useState('{}')
   const [saving, setSaving] = useState(false)
   const panelRef = useRef<ConnectorConfigPanelHandle>(null)
@@ -64,6 +69,15 @@ export default function IntegrationPage() {
   const [dlqStatus, setDlqStatus] = useState<string>('PENDING')
   const [dlqLoading, setDlqLoading] = useState(false)
   const [dlqBusyId, setDlqBusyId] = useState<number | null>(null)
+
+  // 编排画布（P3 刀3）：CHAIN 连接器的链编辑 + 整链试运行
+  const [chainConn, setChainConn] = useState<ConnSummary | null>(null)
+  const [chainFlow, setChainFlow] = useState<FlowDef>(emptyChainFlow())
+  const [chainSaving, setChainSaving] = useState(false)
+  const [chainTestOpen, setChainTestOpen] = useState(false)
+  const [chainTestParams, setChainTestParams] = useState('{}')
+  const [chainTestBusy, setChainTestBusy] = useState(false)
+  const [chainTestResult, setChainTestResult] = useState<InvokeResult | null>(null)
 
   // 试运行面板
   const [testing, setTesting] = useState<ConnSummary | null>(null)
@@ -148,7 +162,26 @@ export default function IntegrationPage() {
     setDraft(EMPTY_DRAFT('HTTP_REST'))
     setTriggerParamsText('{}')
     specForm.resetFields()
+    setNewType('HTTP_REST')
     setDrawerOpen(true)
+  }
+
+  /** 新建保存：CHAIN 类型走骨架创建 + 编排画布，其余走配置抽屉。 */
+  const saveNew = async () => {
+    const basic = await specForm.validateFields()
+    if (newType === 'CHAIN') {
+      setSaving(true)
+      try {
+        await createChain(basic.connCode, basic.connName)
+        setDrawerOpen(false)
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '创建失败')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+    await save()
   }
 
   const openEdit = async (row: ConnSummary) => {
@@ -373,6 +406,89 @@ export default function IntegrationPage() {
     }
   }
 
+  // ===== 编排画布（P3 刀3）=====
+
+  const [chainBranches, setChainBranches] = useState<unknown[] | undefined>(undefined)
+
+  const openChainEditor = async (row: ConnSummary) => {
+    try {
+      const detail = await fetchConnector(row.id)
+      const spec = detail.spec as Record<string, unknown>
+      setChainConn(row)
+      setChainBranches(Array.isArray(spec.branches) ? (spec.branches as unknown[]) : undefined)
+      setChainFlow(chainFlowWithLayout(spec))
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '加载失败')
+    }
+  }
+
+  /** 新建编排链：先落一个最小合法链骨架（s1 占位步骤），随即进入画布编辑。 */
+  const createChain = async (code: string, name: string) => {
+    const spec = {
+      schemaVersion: 2,
+      steps: [{
+        key: 's1', type: 'HTTP_REST',
+        spec: { schemaVersion: 1, method: 'GET', url: 'http://localhost:8080/actuator/health' },
+      }],
+    }
+    const resp = await createConnector({
+      connCode: code, connName: name, connType: 'CHAIN',
+      description: '编排链', spec: spec as unknown as Record<string, unknown>,
+    })
+    message.success('编排链已创建（骨架）——请编辑步骤后发布')
+    const row: ConnSummary = {
+      id: resp.id, connCode: resp.connCode, connName: resp.connName,
+      connType: 'CHAIN', status: resp.status, currentVersion: resp.currentVersion,
+      description: resp.description ?? null, triggerType: resp.triggerType ?? 'NONE',
+      updatedAt: resp.updatedAt ?? null,
+    }
+    setChainConn(row)
+    setChainFlow(chainFlowWithLayout(spec))
+  }
+
+  const saveChain = async () => {
+    if (!chainConn) return
+    let spec: Record<string, unknown>
+    try {
+      spec = flowToChain(chainFlow, chainBranches)
+    } catch (e) {
+      message.warning(e instanceof Error ? e.message : '链结构不合法')
+      return
+    }
+    setChainSaving(true)
+    try {
+      await updateConnector(chainConn.id, {
+        connName: chainConn.connName, connType: 'CHAIN', spec,
+      } as never)
+      message.success('编排链已保存')
+      setChainConn(null)
+      await load(1)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '保存失败')
+    } finally {
+      setChainSaving(false)
+    }
+  }
+
+  const runChainTest = async () => {
+    if (!chainConn) return
+    let params: Record<string, unknown>
+    try {
+      params = chainTestParams.trim() ? JSON.parse(chainTestParams) : {}
+    } catch {
+      message.warning('参数须为合法 JSON')
+      return
+    }
+    setChainTestBusy(true)
+    try {
+      setChainTestResult(await testConnector(chainConn.id, params))
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '试运行失败')
+    } finally {
+      setChainTestBusy(false)
+    }
+  }
+
   const columns = [
     { title: 'Code', dataIndex: 'connCode', width: 150 },
     { title: '名称', dataIndex: 'connName', width: 160 },
@@ -395,8 +511,13 @@ export default function IntegrationPage() {
       title: '操作', width: 340,
       render: (_: unknown, row: ConnSummary) => (
         <Space>
-          {row.status !== 'PUBLISHED' && (
-            <Button size="small" disabled={!canManage} onClick={() => openEdit(row)}>编辑</Button>
+          {row.connType === 'CHAIN' ? (
+            <Button size="small" disabled={!canManage}
+              onClick={() => void openChainEditor(row)}>编排</Button>
+          ) : (
+            row.status !== 'PUBLISHED' && (
+              <Button size="small" disabled={!canManage} onClick={() => openEdit(row)}>编辑</Button>
+            )
           )}
           {row.status !== 'PUBLISHED' && (
             <Popconfirm title="发布该连接器？" description="生成不可变版本快照并开放 invoke 调用。"
@@ -610,7 +731,7 @@ export default function IntegrationPage() {
       <Drawer
         title={editing ? `编辑连接器：${editing.connName}` : '新建连接器'}
         width={760} open={drawerOpen} onClose={() => setDrawerOpen(false)}
-        extra={<Button type="primary" loading={saving} disabled={!canManage} onClick={save}>保存</Button>}
+        extra={<Button type="primary" loading={saving} disabled={!canManage} onClick={saveNew}>保存</Button>}
         destroyOnClose
       >
         <Form form={specForm} layout="vertical">
@@ -630,10 +751,16 @@ export default function IntegrationPage() {
           </Space>
           <Space size="large" style={{ display: 'flex', marginTop: 12 }} wrap>
             <Form.Item label="类型" style={{ marginBottom: 0 }}>
-              <Select style={{ width: 200 }} value={draft.connType} disabled={!!editing}
-                onChange={(t) => setDraft((d) => ({ ...d, connType: t }))}
+              <Select style={{ width: 200 }} value={editing ? draft.connType : newType}
+                disabled={!!editing}
+                onChange={(t) => { setNewType(t); setDraft((d) => ({ ...d, connType: t as ConnType })) }}
                 options={CONN_TYPES} />
             </Form.Item>
+            {newType === 'CHAIN' && !editing && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                保存后将进入编排画布：沿主线添加步骤节点，步骤间以上游输出传参。
+              </Typography.Text>
+            )}
             <Form.Item name="description" label="描述" style={{ marginBottom: 0, minWidth: 320 }}>
               <Input placeholder="用途说明（可选）" />
             </Form.Item>
@@ -740,7 +867,67 @@ export default function IntegrationPage() {
             { title: '行数', dataIndex: 'rowsReturned', width: 70, render: (v: number | null) => v ?? '-' },
             { title: '耗时(ms)', dataIndex: 'durationMs', width: 90 },
             { title: '错误', dataIndex: 'errorMsg', ellipsis: true },
-          ]} />
+          ]}
+          expandable={{
+            rowExpandable: (l) => !!l.stepsJson,
+            expandedRowRender: (l) => (
+              <pre style={{ margin: 0, padding: 8, fontSize: 12, background: token.colorFillQuaternary }}>
+                {l.stepsJson}
+              </pre>
+            ),
+          }} />
+      </Modal>
+
+      <Modal
+        title={chainConn ? `编排：${chainConn.connName}` : '编排'}
+        open={!!chainConn} onCancel={() => setChainConn(null)} width={1100}
+        footer={
+          <Space>
+            <Button onClick={() => setChainConn(null)}>取消</Button>
+            <Button icon={<SendOutlined />} onClick={() => { setChainTestOpen(true); setChainTestResult(null) }}>
+              整链试运行
+            </Button>
+            <Button type="primary" loading={chainSaving} disabled={!canManage} onClick={saveChain}>保存</Button>
+          </Space>
+        }>
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          沿主线连线决定执行顺序；点击步骤节点配置连接参数与入参；上游步骤输出经
+          {'{{steps.步骤key.body.字段}}'} 引用。保存后重新发布生效。
+        </Typography.Text>
+        <FlowDesigner value={chainFlow} onChange={setChainFlow}
+          nodeTypes={ORCHESTRATION_NODE_TYPES} height={430} />
+      </Modal>
+
+      <Modal
+        title={`整链试运行：${chainConn?.connName ?? ''}`}
+        open={chainTestOpen} onCancel={() => setChainTestOpen(false)} footer={null} width={640}>
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          调用入参（JSON 对象；覆盖步骤静态入参）
+        </Typography.Text>
+        <Input.TextArea rows={4} value={chainTestParams} style={{ fontFamily: 'monospace' }}
+          onChange={(e) => setChainTestParams(e.target.value)} />
+        <Button type="primary" icon={<SendOutlined />} loading={chainTestBusy}
+          onClick={runChainTest} style={{ marginTop: 12 }}>执行</Button>
+        {chainTestResult && (
+          <>
+            <Descriptions size="small" column={2} style={{ marginTop: 16 }} bordered>
+              <Descriptions.Item label="状态">
+                <Tag color={chainTestResult.status === 'SUCCESS' ? 'green' : 'red'}>
+                  {chainTestResult.status}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="耗时">{chainTestResult.durationMs}ms</Descriptions.Item>
+              <Descriptions.Item label="HTTP">{chainTestResult.httpStatus ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="错误">{chainTestResult.error ?? '-'}</Descriptions.Item>
+            </Descriptions>
+            {chainTestResult.body && (
+              <pre style={{
+                maxHeight: 220, overflow: 'auto', marginTop: 12, padding: 12, fontSize: 12,
+                background: token.colorFillQuaternary,
+              }}>{chainTestResult.body}</pre>
+            )}
+          </>
+        )}
       </Modal>
 
       <Modal

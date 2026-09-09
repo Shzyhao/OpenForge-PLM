@@ -18,6 +18,9 @@ public class ExecLogResponse {
     private Integer rowsReturned;
     private Long durationMs;
     private String errorMsg;
+
+    /** 链执行步骤摘要（P3 刀1；单步为 null） */
+    private String stepsJson;
     private String traceId;
     private LocalDateTime createdAt;
 
@@ -32,6 +35,7 @@ public class ExecLogResponse {
         response.setRowsReturned(log.getRowsReturned());
         response.setDurationMs(log.getDurationMs());
         response.setErrorMsg(log.getErrorMsg());
+        response.setStepsJson(log.getStepsJson());
         response.setTraceId(log.getTraceId());
         response.setCreatedAt(log.getCreatedAt());
         return response;

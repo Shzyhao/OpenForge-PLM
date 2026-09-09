@@ -466,3 +466,102 @@ serviceUri: 8094
 | R8 | manage 操作（建模/发布/停用/凭据增删）未落操作审计 | **已闭环（v1.15.0）**：auth 新增内部审计端点 `POST /api/v1/internal/audit`（X-Internal-Token，跨服务沿 metadata→auth 权限注册同模式）；connector 侧 `AuthAuditClient` afterCommit 尽力而为上报（失败仅告警不阻断业务）——连接器 CRUD/发布/停用、凭据增删改、AI 供应商增改删全部落 `sys_audit_log`，经既有 `GET /api/v1/security/audit-logs` 统一检索 |
 | R9 | 本机 testcontainers 连不上 Docker 引擎（CLI 可用但 npipe 400），容器测试从未真实执行 | **已闭环（2026-09-07 CI run 34128910566 全绿）**：容器测试在 CI 真实 Docker 首跑即揪出两缺陷（CONN_SPEC 传参错位；多租户拦截器后于分页注册致 count SQL 无租户条件——平台级修复）+ mono 断言 8→9，修复后 Auth/Metadata/Connector 容器测试与 MonoSmoke 9 模块全部真实执行通过 |
 | Q2 | `conn:invoke` 是否要细化到连接器级 ACL | MVP 租户级，P2 评估（§12.3） |
+
+
+---
+
+## 14. P3 多步骤画布编排——Spike 评估（2026-09-09，代码实证）
+
+> 背景：MVP 刀3 spike（R5）判画布复用"泛化成本超阈值"触发降级（列表 + NodeConfigPanel 预留）。
+> 本 spike 以当前代码事实重审三切面：画布复用、数据模型、执行引擎，产出刀排供排期决策。
+
+### 14.1 结论速览
+
+- **画布走"泛化复用"路线**（推翻 R5 的"一次性引入"预设）：域语义集中度比 MVP 时预估的好——
+  流程语义全部集中在 `flow/flowModel.ts`（263 行，4 个纯函数）+ `FlowDesigner.tsx` 约 200 行
+  类型分支；泛化 = 抽"节点类型注册表"协议（渲染模板/连接校验/属性面板插槽），分两步落地
+  （先纯重构 + 流程设计器回归，再接入编排节点类型），估 2.5 天，超 MVP 的 1.5 天阈值但在
+  "双画布维护债"与"一次性复制 ~400 行交互骨架"之间仍值得。
+- **数据模型走 spec_json 内嵌**（schemaVersion=2，steps/branches 与坐标共存）：版本快照/发布
+  缓存/回滚语义全部免费继承，无新表；schemaVersion=1 单步在运行时适配为单步链，零迁移。
+- **执行引擎以现有 `ConnectorRuntime.execute` 为步骤原语**：新增 ChainExecutor 做顺序编排 +
+  上下文点路径取值（TemplateRenderer 嵌套扩展）；分支复用 workflow 的 SpEL 求值语义
+  （`ExpressionEvaluator` 下沉 common，同层不互依）；失败 fail-fast 落既有 `sys_connector_dlq`
+  （重放=整链重跑，副作用幂等性文档标注）。
+- **刀排：4 刀 ≈ 10.5 人日**（§14.5），与 MVP 量级相当。
+
+### 14.2 画布复用再评估（前端代码实证）
+
+| 项 | 事实 | 泛化判定 |
+|----|------|---------|
+| 域语义分布 | `flow/flowModel.ts`（类型 + visualEdges/autoLayout/toDefinitionJson/validateFlow 四纯函数）+ `FlowDesigner.tsx` 约 200 行类型分支（工具栏节点枚举/连线规则/删除清理/属性面板三分支/审批人摘要） | 集中度好，注册表协议可收敛 |
+| 对外依赖 | FlowDesigner 唯一 import 为 flowModel，**无任何 API 调用**，受控组件接口 `{value, onChange, readOnly}` | 复用边界干净 |
+| 纯画布能力 | pointer 事件机（drag/connect/pan）/缩放平移/贝塞尔连线/键盘删除/网格渲染 ≈400 行 | 直接继承 |
+| 自动布局 | 纯函数 `(FlowDef) => FlowDef`，最长路径分层；唯一域耦合是 CONDITION 的 rules[].to 计边 | 泛化为"出边统一取可视边"即可 |
+| JSON 双向 | Tab 切换一次性转换 + 部署前规范化（死边剥离在模型层纯函数） | 模式照搬 |
+
+**泛化协议（节点类型注册表）**：`NodeDescriptor{ type, label, color, 默认属性工厂, 连接规则
+（可入边/可出边/是否条件出边）, 属性面板插槽, 节点摘要渲染 }`——flowModel 与 FlowDesigner
+的全部分支改查注册表；工作流注册 START/APPROVAL/CONDITION/END 四类型，编排注册
+START/STEP/CONDITION/END（STEP 属性面板插槽 = 既有 `ConnectorConfigPanel`，其
+`collect()` 回收模式与受控 spec 天然适配，仅需把 connType 二分支改分派表以支持未来步骤类型）。
+
+**两步落地**：第一步纯重构（协议抽取，行为零变化）+ 流程设计器浏览器级回归（约定 #9）；
+第二步编排节点类型与画布页接入。第一步可独立合并验证，避免生产功能裸奔。
+
+### 14.3 数据模型（推荐 spec_json 内嵌，schemaVersion=2）
+
+```json
+{
+  "schemaVersion": 2,
+  "steps": [
+    {"key": "fetch", "type": "HTTP_REST", "x": 310, "y": 80,
+     "spec": { "同 v1 单步 spec 字段": "..." },
+     "continueOnError": false},
+    {"key": "load", "type": "JDBC_READONLY", "x": 560, "y": 80,
+     "spec": {"sqlTemplate": "SELECT * FROM 目标表 WHERE id = {{steps.fetch.body.id}}"}}
+  ],
+  "branches": [{"from": "fetch", "to": "load", "expr": "#steps.fetch.httpStatus == 200"}]
+}
+```
+
+- v1 单步（`schemaVersion:1` 顶层字段形态）运行时适配为单步链——**存量连接器零迁移**；
+- 发布快照（conn_definition_version.spec_json 整体拷贝）/ PublishedConnCache / 回滚语义全部免费；
+- 分支第一刀仅建模不实现（branches 字段保留、引擎忽略），第二刀启用——避免首刀背上条件求值；
+- 否决"独立 conn_step 表"：快照需按版本复制行、与 specJson 字符串形态的 PublishedConn 缓存冲突，无对应收益。
+
+### 14.4 执行引擎
+
+- **步骤原语**：`ConnectorRuntime.execute(connType, specJson, version, connId, params, triggerType)`
+  原样复用——出站白名单/凭据解密/日志脱敏全部继承；ChainExecutor 只做"链面"：按 steps 顺序
+  取 spec、组装入参（静态 params + 上下文合并）、传递结果。
+- **上下文与取值**：`context = { params: 触发/调用入参, steps: {<key>: {status, httpStatus,
+  rowsReturned, body, error}} }`；TemplateRenderer 占位符正则扩展为嵌套点路径
+  （`{{steps.fetch.body.id}}`——body 为 JSON 时解析后逐段下钻，取不到渲染空串）。渲染仍走
+  既有模板面，无新增注入面。
+- **分支**（第二刀）：`branches[].expr` 用 SpEL（`#steps.fetch.httpStatus == 200`）——workflow
+  的 `ExpressionEvaluator`（SimpleEvaluationContext 只读防越权，~30 行无域依赖）**下沉
+  openforge-common**，workflow/connector 共用（分层规则：同层不互依，能力下沉 common 有先例）。
+- **日志**：conn_exec_log 增 `steps_json` 摘要列（V4 迁移：每步 key/status/duration/error 摘要，
+  脱敏同主日志）；一次链执行一条主日志（trigger_type 沿用 MANUAL/API/EVENT/CRON），不建新表。
+- **失败与死信**：默认 fail-fast；链失败落 `sys_connector_dlq` 既有通道，**重放=整链重跑**
+  （步骤副作用幂等性由连接器作者责任，文档标注；断点续跑/单步重放列开放问题 Q3）。
+
+### 14.5 刀排与工作量（单人不间断）
+
+| 刀 | 内容 | 量 |
+|----|------|----|
+| 刀1 后端链引擎 | **已实施（2026-09-09）**：ChainSpecs（schemaVersion=2 解析/校验/canonical，步数上限 10）+ CHAIN conn_type（v1/v2 互斥校验）+ ChainExecutor（顺序链/调用入参覆盖静态 params/fail-fast + continueOnError/一链一日志 steps_json）+ ExecutionGateway 统一分派（invoke/test/触发三入口；触发自刀1 即作用于整链）+ TemplateRenderer 点路径下钻（body JSON 解析后 Map 取值）+ 设计态 steps./params. 前缀豁免声明；**实施实纱一处平台缺陷**：EgressGuard 哑元 fallback 正则未含点路径（v1.15.0 修复仅覆盖扁平键），已补齐。测试 ChainSpecsTest 4 + TemplateRendererTest 6 + ConnectorChainIntegrationTest 3（两步链上下文传递/fail-fast/continueOnError/EVENT 触发整链/一链一日志）| 3d |
+| 刀2 画布泛化 | 节点类型注册表协议抽取（flowModel + FlowDesigner 行为零变化）+ 流程设计器浏览器级回归 | 2.5d |
+| 刀3 编排画布页 | IntegrationPage 编排编辑视图（画布 + STEP 面板复用 ConnectorConfigPanel + 整链试运行/步骤日志展开） | 2.5d |
+| 刀4 分支与收尾 | **已实施（2026-09-09）**：`ExpressionEvaluator` 下沉 common（`com.openforge.common.spel`，StandardEvaluationContext 显式沙箱：只读 MapAccessor 支持 `#steps.x.y` Map 键点语法下钻 + 禁类型引用/构造器/方法调用；workflow 改引 common 版零行为变化）+ ChainExecutor branches 求值（沿主线遍历，from 完成后按规则序 SpEL 选路，expr 空=默认分支且每 from 至多一个；**选路语义 = 命中候选 to、未命中兄弟支路标记跳过**，被跳过支路不执行主线顺延；防环 = 访问计数超 steps×2 终止报 FAILED）+ 触发链已于刀1 经 ExecutionGateway 生效 + smoke 链断言 2 项。**画布首版不做分支可视化编辑**（既有 branches 保存时原样保留，求值在后端；可视化编排列后续增强）。测试 ConnectorChainBranchIntegrationTest 3（真/假支路选路 steps_json 断言/环路防护/沙箱越权拒绝） | 2.5d |
+
+### 14.6 风险与开放问题
+
+| # | 项 | 应对 |
+|---|----|------|
+| RC1 | 画布泛化回归波及生产流程设计器 | 两步落地 + 第一步独立合并 + 约定 #9 浏览器巡检合并门；纯重构提交不动行为 |
+| RC2 | 整链重放的副作用重复（如重复推 ERP） | 文档标注幂等责任；Q3：断点续跑/单步重放（P3 后期按需） |
+| RC3 | 长链执行占用请求线程（手动/试运行路径） | 链步数上限（建议 ≤10）+ 每步超时沿用 spec timeoutMs；异步化列开放问题 |
+| Q3 | 断点续跑 / 单步重放语义 | 待刀1 落地后按真实使用反馈评估 |
+| Q4 | 步骤类型扩展（内置延迟/脚本步骤） | 注册表协议已留位；脚本步骤涉安全沙箱，单独评估 |

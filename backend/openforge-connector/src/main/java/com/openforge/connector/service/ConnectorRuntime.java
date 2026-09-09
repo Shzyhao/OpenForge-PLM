@@ -66,8 +66,8 @@ public class ConnectorRuntime {
     }
 
     /**
-     * 运行时调用（按 connCode）：仅已发布连接器可调用（停用 6005 / 未发布 6004 / 不存在 6002）。
-     * 缓存命中直接执行；未命中回源并回填。
+     * 单步运行时调用（按 connCode）：缓存命中直接执行；未命中回源并回填。
+     * P3 刀1 起调用方统一走 ExecutionGateway（链分派），此方法保留为单步直呼路径。
      */
     public InvokeResponse invokePublished(String connCode, Map<String, Object> params, String triggerType) {
         PublishedConn published = publishedConnCache.get(connCode);
@@ -81,7 +81,7 @@ public class ConnectorRuntime {
         return InvokeResponse.from(result, System.currentTimeMillis() - start);
     }
 
-    /** 设计态/管理面执行（specJson 来自主档；version 传主档 currentVersion）。 */
+    /** 设计态/管理面执行（specJson 来自主档；version 传主档 currentVersion）。单步：含执行日志。 */
     public ConnectorResult execute(String connType, String specJson, int version,
                                    Long connId, Map<String, Object> params, String triggerType) {
         long start = System.currentTimeMillis();
@@ -89,16 +89,9 @@ public class ConnectorRuntime {
         Integer httpStatus = null;
         Integer rowsReturned = null;
         String error = null;
+        ConnectorResult result;
         try {
-            ParsedSpec parsed = parseSpec(connType, specJson);
-            ConnectorSpecs.checkRequiredParams(parsed.parameterSchema(), params);
-            if (ConnectorSpecs.TYPE_HTTP_REST.equals(connType)) {
-                egressGuard.check(((HttpRestSpec) parsed.spec()).url());
-            }
-            ResolvedCredential resolved = parsed.credentialRef() == null ? null
-                    : toSpiCredential(credentialService.resolveByCode(parsed.credentialRef()));
-            ConnectorResult result = spiOf(connType).execute(new com.openforge.connector.spi.ConnectorExecution(
-                    parsed.httpSpec(), parsed.jdbcSpec(), params, resolved));
+            result = executeCore(connType, specJson, version, connId, params, triggerType);
             status = result.success() ? "SUCCESS" : "FAILED";
             httpStatus = result.httpStatus();
             rowsReturned = result.rowsReturned();
@@ -114,8 +107,40 @@ public class ConnectorRuntime {
             return ConnectorResult.fail(null, error);
         } finally {
             writeLog(connId, version, triggerType, status, httpStatus, rowsReturned, error,
-                    System.currentTimeMillis() - start);
+                    System.currentTimeMillis() - start, null);
         }
+    }
+
+    /**
+     * 无日志执行核心（P3 刀1）：链执行器逐步调用后自行汇总写一条主日志（steps_json），
+     * 避免一步一条日志。语义与单步 execute 一致（调用方错误以 BizException 上抛）。
+     */
+    public ConnectorResult executeCore(String connType, String specJson, int version,
+                                       Long connId, Map<String, Object> params, String triggerType) {
+        try {
+            ParsedSpec parsed = parseSpec(connType, specJson);
+            ConnectorSpecs.checkRequiredParams(parsed.parameterSchema(), params);
+            if (ConnectorSpecs.TYPE_HTTP_REST.equals(connType)) {
+                egressGuard.check(((HttpRestSpec) parsed.spec()).url());
+            }
+            ResolvedCredential resolved = parsed.credentialRef() == null ? null
+                    : toSpiCredential(credentialService.resolveByCode(parsed.credentialRef()));
+            return spiOf(connType).execute(new com.openforge.connector.spi.ConnectorExecution(
+                    parsed.httpSpec(), parsed.jdbcSpec(), params, resolved));
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("连接器执行异常 connId={}", connId, e);
+            return ConnectorResult.fail(null, "连接器执行异常");
+        }
+    }
+
+    /** 链主日志（P3 刀1）：一次链执行一条，stepsJson 为步骤摘要数组。 */
+    public void writeChainLog(Long connId, int version, String triggerType, String status,
+                              Integer httpStatus, Integer rowsReturned, String error, long durationMs,
+                              String stepsJson) {
+        writeLog(connId, version, triggerType, status, httpStatus, rowsReturned, error, durationMs,
+                stepsJson);
     }
 
     private PublishedConn loadPublished(String connCode) {
@@ -153,7 +178,9 @@ public class ConnectorRuntime {
                 JdbcReadonlySpec spec = ConnectorSpecs.parseJdbcReadonly(specMap, objectMapper, true);
                 yield new ParsedSpec(null, spec, spec.passwordRef(), spec.parameterSchema());
             }
-            default -> throw new BizException(ErrorCode.CONN_SPEC_INVALID, "不支持的连接器类型: " + connType);
+            default -> throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                    "不支持的连接器类型: " + connType + (ConnectorSpecs.TYPE_CHAIN.equals(connType)
+                            ? "（链连接器须经链执行入口 ExecutionGateway）" : ""));
         };
     }
 
@@ -168,7 +195,8 @@ public class ConnectorRuntime {
     }
 
     private void writeLog(Long connId, int version, String triggerType, String status,
-                          Integer httpStatus, Integer rowsReturned, String error, long durationMs) {
+                          Integer httpStatus, Integer rowsReturned, String error, long durationMs,
+                          String stepsJson) {
         try {
             ConnExecLog execLog = new ConnExecLog();
             execLog.setConnId(connId);
@@ -179,6 +207,7 @@ public class ConnectorRuntime {
             execLog.setRowsReturned(rowsReturned);
             execLog.setDurationMs(durationMs);
             execLog.setErrorMsg(truncate(error));
+            execLog.setStepsJson(stepsJson == null ? null : truncate(stepsJson));
             execLog.setTraceId(MDC.get(com.openforge.common.trace.TraceIdFilter.MDC_KEY));
             execLogMapper.insert(execLog);
         } catch (Exception e) {

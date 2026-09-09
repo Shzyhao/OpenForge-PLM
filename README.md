@@ -26,6 +26,8 @@
 >
 > v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块静默摘除可观测性——module-routes 端点/健康详情暴露 brokenModules 与原因（依赖未启用: xxx）、auth 守护日志 module broken/recovered 落地；Nacos 回路测试修复——publish 读可见性竞态实锤（退避重试）、复用模式补发布、容器模式固定端口、八服务测试 import 空载消除、镜像 v2.4.3、**CI 常开合并门**；流程设计器只读预览遗留定义坐标兜底（浏览器级冒烟实锤）；全栈冒烟复测 RSS 1.87GB + 网关链路 8/8 域 + 业务服务 CDS A/B 校准（收益 ~2-4%）入册。
 >
+> v1.17.0（多步骤编排）：**集成编排器 P3 旗舰落地**——连接器升级多步骤链（schemaVersion=2，`CHAIN` 类型）：画布可视化编排（节点类型注册表泛化自研 SVG 画布，工作流/编排双域复用）、步骤面板复用连接器配置面板、步骤间上下文传参（`{{steps.x.body.字段}}` 点路径取值）、**分支**（`branches` SpEL 条件选路 + 默认分支 + 环路防护，SpEL 求值器下沉 common 沙箱化）、EVENT/CRON 触发作用于整链、一链一日志（`steps_json` 步骤摘要）；v1 单步连接器零迁移共存（[设计文档 §14](docs/OpenForge-集成编排器MVP设计.md)）。
+>
 > v1.16.0（material 域事件化 + 主密钥轮换）：**B2 P3 落地**——material 状态机 transition 至 RELEASED 即发射 `part.released`/`bom.published`（审批与变更启用双路径覆盖，afterCommit 发送不阻断业务），连接器 EVENT 触发白名单扩至七主题，"物料发布 → 自动推 ERP"事件链路打通；**R1 闭环**——`MASTER_KEY_PREVIOUS` 双密钥读（业务无感）+ 轮换端点跨租户批处理重加密（幂等、损坏行计数跳过）+ 四步轮换操作手册入册二开指南。
 >
 > v1.15.0（AI API 配置器 + 事件/定时触发 + manage 审计）：**P2-1**——`ai_provider` 表（AES-GCM 复用凭据主密钥）+ 管理 API（ai:manage）+ `/internal/ai-provider/chain` 内部降级链 + ai-gateway 30s 轮询热加载（env 兜底零破坏）+ 前端「AI 模型」Tab（key 只写不读）；**P2-2**——连接器 EVENT/CRON 触发（配置随版本快照；EVENT 订阅平台既有主题白名单、FIRST_OFFSET+启动时间闸门防历史回放；CRON Spring 6 段、秒位禁裸 \*）+ `sys_connector_dlq` 应用级死信（失败即落、重放原样重投、终态保留期清理）+ 前端「死信队列」Tab；**R8**——manage 操作跨服务审计（auth `/api/v1/internal/audit` 内部端点 + connector afterCommit 尽力而为上报）；实施实纱修复两处平台缺陷（spec `checkUrl`/EgressGuard 误拒 URL 模板占位符）；冒烟扩至 25 断言（[设计文档](docs/OpenForge-集成编排器MVP设计.md)）。
@@ -42,7 +44,7 @@
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.16.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.17.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -123,6 +125,7 @@
 | 技术债清偿 v1.9.0 | 元数据 TTL 缓存(租户键/30s 可配/500 上界/发布 afterCommit 驱逐) / 登录审计日志保留期(180 天可配/每日调度/分批 500 选删) | ✅ |
 | 瘦身与冒烟修复 v1.10.0 | 本地开发瘦身(JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS 实测 -36%/9 服务 RSS 实测 1.86GB) / **首次真实网关冒烟修复四处交付缺陷**(动态路由 RefreshRoutesEvent/裸端口 URI/KERNEL 自注册豁免/yml 重复键) / 全文档对齐交付态 | ✅ |
 | 可观测性与 Nacos 回路 v1.11.0 | BROKEN 模块可观测性(module-routes/health 暴露 brokenModules 与原因/守护日志落地) / Nacos 回路测试修复+CI 常开(读可见性竞态退避重试/复用模式补发布/固定端口容器/import 空载消除/镜像 v2.4.3) / 设计器预览遗留定义坐标兜底 / CDS 业务服务 A/B 校准(~2-4%) | ✅ |
+| 多步骤编排 v1.17.0 | CHAIN 链引擎（顺序+分支+防环）/ 画布泛化（节点类型注册表）+ 编排画布页 / 步骤上下文传参 / SpEL 求值器下沉 common / 触发作用于整链 / 一链一日志步骤摘要 | ✅ |
 | 物料事件与密钥轮换 v1.16.0 | part.released/bom.published 事件域（B2 P3）/ 连接器触发白名单七主题 / 主密钥轮换（双密钥读 + 批处理重加密 + 操作手册，R1 闭环） | ✅ |
 | AI 配置与触发 v1.15.0 | ai_provider 管理+降级链热加载 / 连接器 EVENT+CRON 触发 / sys_connector_dlq 死信重放 / manage 跨服务审计（R8）/ URL 模板占位符两处平台修复 | ✅ |
 | 集成编排器 MVP v1.14.0 | 新服务 openforge-connector / HTTP+JDBC 只读连接器 / 凭据加密+出站白名单 / 版本化发布+invoke API / 前端设计器 / mono 第 9 模块+冒烟 6 断言 | ✅ |
