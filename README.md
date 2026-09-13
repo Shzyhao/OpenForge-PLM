@@ -49,7 +49,7 @@
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
 [![Status](https://img.shields.io/badge/status-v1.19.0-blue)]()
-[![Docs](https://img.shields.io/badge/docs-11%20documents-green)]()
+[![Docs](https://img.shields.io/badge/docs-14%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
 </div>
@@ -104,9 +104,9 @@
 
 ## 🛠️ 技术栈
 
-**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（9 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project/metadata）+ openforge-common/security 公共库 + openforge-starter-web/data/security 起步依赖三件套 ｜ **AI** Python FastAPI + OpenAI 兼容协议多模型接入（GLM/Qwen/私有化 vLLM，支持全私有化与离线降级） ｜ **存储** PostgreSQL + pgvector / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
+**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（10 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project/metadata/connector，v1.14.0 起含 openforge-connector）+ openforge-common/security 公共库 + openforge-starter-web/data/security 起步依赖三件套 ｜ **AI** Python FastAPI + OpenAI 兼容协议多模型接入（GLM/Qwen/私有化 vLLM，支持全私有化与离线降级） ｜ **存储** PostgreSQL + pgvector / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
 
-## 🗺️ Roadmap（M1~M6 + 权限专项 + 框架化 F1~F3 + v1.4~v1.9.0 全部交付）
+## 🗺️ Roadmap（M1~M6 + 权限专项 + 框架化 F1~F3 + v1.4~v1.19.0 全部交付）
 
 | 里程碑 | 内容 | 状态 |
 |--------|------|------|
@@ -138,7 +138,7 @@
 | mono 单进程模式 v1.12.0 | PROFILE=mono 两进程全栈(auth+7 业务服务聚合 :8090/gateway 独立) / **实测 RSS 405MB(-78%)** / 网关链路 8/8 域等价 / 资源目录化+多 Flyway+模块注册 8 实例 / 刀 2 直调评估判停 | ✅ |
 | 评审与工具 v1.12.2 | **系统代码评审 12 发现修复六项**(生产构建断裂/token 键漂移/死锁窗口/Nacos 残留/定点 UPDATE/中间态原子替换) / 冒烟一键化 smoke.sh 13 断言(负向自检防假绿) / outbox P3 判停 / PR 模板两道门 | ✅ |
 
-**后续路线**：多步骤编排画布（P3）、事件/定时触发连接器、飞书/钉钉/邮件连接器包、AI API 配置器（模型注册表）、出站脱敏代理、行业模板包、Milvus/Neo4j/ES 随规模引入。
+**后续路线**：飞书/钉钉/邮件连接器包、出站脱敏代理（与 AI 外呼合并）、行业模板包、Milvus/Neo4j/ES 随规模引入（多步骤编排画布、事件/定时触发与 AI API 配置器已分别随 v1.17.0/v1.15.0 交付）。
 
 ## 🚀 快速开始
 
@@ -153,7 +153,7 @@
 cd ai && pip install -r requirements.txt && uvicorn gateway.main:app --port 8001
 cd frontend && npm install && npm run dev   # http://localhost:5173
 
-# 网关链路冒烟（工程约定 #8 合并门；登录→注册表自检→8 业务域穿透）
+# 网关链路冒烟（工程约定 #8 合并门；登录→注册表自检→9 业务域穿透 + 连接器/触发/死信/审计断言）
 ./scripts/smoke.sh
 
 # 停止
