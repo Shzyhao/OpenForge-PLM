@@ -26,6 +26,8 @@
 >
 > v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块静默摘除可观测性——module-routes 端点/健康详情暴露 brokenModules 与原因（依赖未启用: xxx）、auth 守护日志 module broken/recovered 落地；Nacos 回路测试修复——publish 读可见性竞态实锤（退避重试）、复用模式补发布、容器模式固定端口、八服务测试 import 空载消除、镜像 v2.4.3、**CI 常开合并门**；流程设计器只读预览遗留定义坐标兜底（浏览器级冒烟实锤）；全栈冒烟复测 RSS 1.87GB + 网关链路 8/8 域 + 业务服务 CDS A/B 校准（收益 ~2-4%）入册。
 >
+> v1.20.0（图纸管理）：**物料/BOM 的图纸域补齐**——新服务 openforge-drawing（:8095，connector 接入范本）：图纸档案（编号引擎 DW-*）/主文件·预览副本·附件三类文件与**流式下载**（平台首个流式端点）/检入检出/状态机（草稿→评审→发布→作废 + 驳回 + 大版本升版，发布固化版本快照）/图纸↔物料多对多关联与按物料反查/PDF·图片副本内嵌预览（DWG/DXF 下载查看，CADConverter 留规划）；drawing.released/obsolete 事件入连接器触发白名单（"图纸发布→自动推 ERP"入口打通）；mono 聚合 10 模块；dev-up 启动期 OOM 根治（AppCDS 仅 gateway + 构建护栏）；冒烟扩至 35 断言（[设计文档](docs/OpenForge-图纸管理设计.md)）。
+>
 > v1.19.0（SSRF 根治 R6）：出站固定解析——出站 HTTP 收编 Apache HttpClient 5（BOM 管版本），连接管理器挂固定解析器：**解析即校验、所解即所连**，消除"校验解析"与"连接解析"之间的 DNS 重绑定（TOCTOU）窗口；连接器 HTTP 与 AI 供应商连通测试两出站路径统一迁移，重定向保持禁用，IP 字面量直写内网同层拦截；出站脱敏代理通道（与 AI 外呼合并）仍列后续。
 >
 > v1.18.0（编排分支可视化编辑）：画布分支可视化——STEP 节点右下橙色锚点拖出条件分支（SpEL 按序求值语境提示，留空 = 默认分支），分支边带表达式标签渲染；连线抽屉直接编辑分支表达式（工作流 CONDITION 规则边同享）；`flowToChain` 镜像后端约束导出（分支只指向步骤节点、默认分支每步骤至多一个、未连入主线步骤拦截），`branches` 存量链画布零迁移回显；浏览器级巡检双路求值（命中跳转 `[s1,s2]` / 默认兜底 `[s1,s3]`）+ 工作流画布回归全绿（设计文档 §14.5）。
@@ -48,7 +50,7 @@
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.19.0-blue)]()
+[![Status](https://img.shields.io/badge/status-v1.20.0-blue)]()
 [![Docs](https://img.shields.io/badge/docs-14%20documents-green)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 
@@ -132,6 +134,7 @@
 | 多步骤编排 v1.17.0 | CHAIN 链引擎（顺序+分支+防环）/ 画布泛化（节点类型注册表）+ 编排画布页 / 步骤上下文传参 / SpEL 求值器下沉 common / 触发作用于整链 / 一链一日志步骤摘要 | ✅ |
 | 编排分支可视化 v1.18.0 | 分支锚点拖拽建边（SpEL 语境提示，留空=默认）/ 分支边表达式标签 / 连线抽屉表达式编辑（工作流同享）/ 导出镜像后端校验 / 存量分支零迁移回显 | ✅ |
 | SSRF 根治 v1.19.0 | 出站固定解析（解析即校验·所解即所连，DnsResolver 扩展点）/ Apache HttpClient 5 收编（BOM 管版本）/ 连接器 HTTP + AI 连通测试统一 / IP 字面量内网拦截 / 重定向禁用保持 | ✅ |
+| 图纸管理 v1.20.0 | openforge-drawing 服务（档案/三类文件/流式下载/检入检出/状态机+驳回+升版/发布快照/物料多对多关联/预览文件内嵌）/ drawing 事件入触发白名单 / mono 10 模块 / dev-up 启动 OOM 根治 / 冒烟 35 断言 | ✅ |
 | 物料事件与密钥轮换 v1.16.0 | part.released/bom.published 事件域（B2 P3）/ 连接器触发白名单七主题 / 主密钥轮换（双密钥读 + 批处理重加密 + 操作手册，R1 闭环） | ✅ |
 | AI 配置与触发 v1.15.0 | ai_provider 管理+降级链热加载 / 连接器 EVENT+CRON 触发 / sys_connector_dlq 死信重放 / manage 跨服务审计（R8）/ URL 模板占位符两处平台修复 | ✅ |
 | 集成编排器 MVP v1.14.0 | 新服务 openforge-connector / HTTP+JDBC 只读连接器 / 凭据加密+出站白名单 / 版本化发布+invoke API / 前端设计器 / mono 第 9 模块+冒烟 6 断言 | ✅ |
