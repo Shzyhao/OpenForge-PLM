@@ -112,7 +112,7 @@
 │  └──────────────────────────────────┘  │  → conn_exec_log 留痕（脱敏）   │ │
 │                                        └────────────┬───────────────────┘ │
 │  ConnectorSpi（接口）：supports(type) / execute(spec, params, cred)        │
-│    ├─ HttpRestConnector   （java.net.http.HttpClient）                     │
+│    ├─ HttpRestConnector   （Apache HttpClient 5 共享出站客户端）           │
 │    └─ JdbcReadonlyConnector（独立只读 DataSource，PG/MySQL 驱动）           │
 └────────────────────────────────────────────────────────────────────────────┘
                      出站                                      出站
@@ -266,7 +266,7 @@ public interface ConnectorSpi {
 
 | 实现 | 要点 |
 |------|------|
-| `HttpRestConnector` | Java 21 内置 `java.net.http.HttpClient`（零新依赖）；认证注入：BASIC/BEARER → Authorization 头，API_KEY_HEADER → `extra_json.headerName` 指定头；仅 `application/json` 与文本响应 MVP 支持；重试仅对 5xx/IO 异常生效（4xx 不重试）；响应体 >1MB 截断存储摘要 |
+| `HttpRestConnector` | 出站走 Apache HttpClient 5 共享客户端（`OutboundHttpConfig`，Spring Boot BOM 管版本；v1.19.0 起替换 JDK HttpClient——其无解析器注入点，连接级 DNS 解析经 `EgressPinningDnsResolver` 固定校验，见 §R6）；认证注入：BASIC/BEARER → Authorization 头，API_KEY_HEADER → `extra_json.headerName` 指定头；仅 `application/json` 与文本响应 MVP 支持；重试仅对 5xx/IO 异常生效（4xx 不重试）；响应体 >1MB 截断存储摘要 |
 | `JdbcReadonlyConnector` | 每连接器独立 `DataSource`（HikariCP，池参数固定小值 max=2，空闲即回收）；启动时懒加载、失败不影响服务；SQL 静态校验：提取表名 ⊆ allowedTables、拒绝写关键字（INSERT/UPDATE/DELETE/DDL/MERGE/CALL 等）+ 连接层 `Connection.setReadOnly(true)` 双保险；行数上限硬截断并标注 `truncated: true` |
 
 **凭据加密**：AES-256-GCM，主密钥环境变量 `OPENFORGE_CONNECTOR_MASTER_KEY`（Base64，32 字节）；未配置时**凭据管理接口直接拒绝创建**（不降级为明文——安全先于易用）。解密只发生在执行瞬间，异常栈与日志禁止携带。
