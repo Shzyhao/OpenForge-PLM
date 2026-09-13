@@ -4,6 +4,7 @@ import com.openforge.auth.AuthApplication;
 import com.openforge.auth.config.WebMvcConfig;
 import com.openforge.change.ChangeApplication;
 import com.openforge.connector.ConnectorApplication;
+import com.openforge.drawing.DrawingApplication;
 import com.openforge.common.module.ModuleRegistrar;
 import com.openforge.doc.DocApplication;
 import com.openforge.auth.interceptor.PermissionInterceptor;
@@ -38,13 +39,14 @@ import org.springframework.context.annotation.FilterType;
                 AuthApplication.class, MaterialApplication.class, DocApplication.class,
                 WorkflowApplication.class, ChangeApplication.class, KnowledgeApplication.class,
                 ProjectApplication.class, MetadataApplication.class, ConnectorApplication.class,
+                DrawingApplication.class,
                 ModuleRegistrar.class, WebMvcConfig.class, PermissionInterceptor.class,
         })})
 @MapperScan({
         "com.openforge.auth.mapper", "com.openforge.material.mapper", "com.openforge.doc.mapper",
         "com.openforge.workflow.mapper", "com.openforge.change.mapper", "com.openforge.knowledge.mapper",
         "com.openforge.project.mapper", "com.openforge.metadata.mapper",
-        "com.openforge.connector.mapper",
+        "com.openforge.connector.mapper", "com.openforge.drawing.mapper",
 })
 public class MonoApplication {
 

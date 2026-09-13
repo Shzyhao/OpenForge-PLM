@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Avatar, Button, Dropdown, Layout, Menu, Result, Spin, Tag, theme, Typography } from 'antd'
 import {
   ApiOutlined, ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined,
-  FileTextOutlined, HomeOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ProjectOutlined,
+  FileImageOutlined, FileTextOutlined, HomeOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ProjectOutlined,
   SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/material', menu: 'menu:material', icon: <AppstoreOutlined />, label: '物料', module: 'material' },
   { key: '/bom', menu: 'menu:bom', icon: <ProjectOutlined />, label: 'BOM', module: 'material' },
   { key: '/doc', menu: 'menu:doc', icon: <FileTextOutlined />, label: '文档', module: 'doc' },
+  { key: '/drawing', menu: 'menu:drawing', icon: <FileImageOutlined />, label: '图纸', module: 'drawing' },
   { key: '/change', menu: 'menu:change', icon: <SwapOutlined />, label: '变更', module: 'change' },
   { key: '/workflow', menu: 'menu:workflow', icon: <ApartmentOutlined />, label: '流程', module: 'workflow' },
   { key: '/knowledge', menu: 'menu:knowledge', icon: <BookOutlined />, label: '知识库', module: 'knowledge' },
@@ -50,7 +51,7 @@ const NAV_ITEMS: NavItem[] = [
 const NAV_GROUP_ORDER = ['概览', '产品数据', '协作', '知识', '低代码', '系统'] as const
 const NAV_GROUP_OF: Record<string, string> = {
   '/': '概览', '/tasks': '概览',
-  '/material': '产品数据', '/bom': '产品数据', '/doc': '产品数据',
+  '/material': '产品数据', '/bom': '产品数据', '/doc': '产品数据', '/drawing': '产品数据',
   '/change': '协作', '/workflow': '协作',
   '/knowledge': '知识', '/project': '知识',
   '/meta/objects': '低代码', '/meta/data': '低代码', '/meta/designer': '低代码',
