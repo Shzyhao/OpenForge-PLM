@@ -1,0 +1,48 @@
+server:
+  port: 8095
+
+spring:
+  application:
+    name: openforge-drawing
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}
+        server-addr: ${NACOS_ADDR:localhost:8848}
+  datasource:
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:openforge}
+    username: ${PG_USER:openforge}
+    password: ${PG_PASSWORD:openforge}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/drawing
+    baseline-on-migrate: true
+    baseline-version: 0
+    table: flyway_drawing_history   # 多服务共享库，独立迁移历史
+  servlet:
+    multipart:
+      # 图纸 CAD 文件（DWG/DXF）可达数十 MB；预览副本（PDF/图片）另计
+      max-file-size: ${OPENFORGE_DRAWING_MAX_UPLOAD:100MB}
+      max-request-size: ${OPENFORGE_DRAWING_MAX_UPLOAD_REQUEST:110MB}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+openforge:
+  security:
+    auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
+    internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
+  module:
+    descriptor: classpath:module/drawing.yml
+  drawing:
+    # 图纸文件存储目录（本地磁盘；key 约定 tenant/{tenantId}/{yyyyMMdd}/{uuid}{ext}，未来 MinIO 沿用同 key）
+    storage-dir: ${OPENFORGE_DRAWING_STORAGE_DIR:./data/drawing-files}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

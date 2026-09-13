@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import MaterialPage from './pages/MaterialPage'
 import BomPage from './pages/BomPage'
 import DocPage from './pages/DocPage'
+import DrawingPage from './pages/DrawingPage'
 import MyTasksPage from './pages/MyTasksPage'
 import WorkflowDefsPage from './pages/WorkflowDefsPage'
 import ChangePage from './pages/ChangePage'
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="material" element={<MaterialPage />} />
         <Route path="bom" element={<BomPage />} />
         <Route path="doc" element={<DocPage />} />
+        <Route path="drawing" element={<DrawingPage />} />
         <Route path="tasks" element={<MyTasksPage />} />
         <Route path="workflow" element={<WorkflowDefsPage />} />
         <Route path="change" element={<ChangePage />} />
