@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # OpenForge 网关链路冒烟（工程约定 #8 合并门工具化，#90/#101 冒烟实践沉淀）
 # 用法：./scripts/smoke.sh [admin密码]（默认 smoke-test-2026；前置：dev-up 已起栈，full/mono 均可）
-# 断言：登录→JWT→module-routes 自检→9 业务域经网关返回业务码 0（动态路由/注册表/信任头链路全穿）
-#       + 连接器域 6 断言（集成编排器：路由注册/凭据加密建连/发布/试运行/白名单拦截/内部令牌门禁）
+# 断言：登录→JWT→module-routes 自检→10 业务域经网关返回业务码 0（动态路由/注册表/信任头链路全穿）
+#       + 连接器域 6 断言（集成编排器）+ 图纸域 4 断言（档案/文件/发布快照/物料关联）
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GW="${GW:-http://localhost:8080}"
@@ -40,9 +40,10 @@ declare -A EPS=(
   [workflow]="/api/v1/workflow/defs"
   [metadata]="/api/v1/meta/objects"
   [connector]="/api/v1/connectors"
+  [drawing]="/api/v1/drawings"
   [auth]="/api/v1/modules"
 )
-for svc in material doc change knowledge project workflow metadata connector auth; do
+for svc in material doc drawing change knowledge project workflow metadata connector auth; do
   ep=${EPS[$svc]}
   resp=$(curl -s -m 5 "$GW$ep" -H "${AUTH[0]}" || true)
   if echo "$resp" | grep -q '"code":0'; then
@@ -167,6 +168,34 @@ curl -s -m 5 -X POST "$GW/api/v1/connectors/$CRON_ID/disable" -H "${AUTH[0]}" >/
 curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$CRON_ID" -H "${AUTH[0]}" >/dev/null || true
 curl -s -m 5 -X POST "$GW/api/v1/connectors/$DLQ_CONN_ID/disable" -H "${AUTH[0]}" >/dev/null || true
 curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$DLQ_CONN_ID" -H "${AUTH[0]}" >/dev/null || true
+
+echo "=== [6/6] 图纸管理（档案→文件→发布快照→物料关联） ==="
+DRW_TITLE="smoke_drw_$(date +%s)"
+printf '{"title":"%s"}' "$DRW_TITLE" > "$TMPJSON"
+DW=$(curl -s -m 5 -X POST "$GW/api/v1/drawings" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+echo "$DW" | grep -q '"drawingNumber":"DW' && ok "图纸建档（编号引擎自动取号 DW-*）" || fail "图纸建档: $(echo $DW | head -c 100)"
+DRW_ID=$(echo "$DW" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+
+printf 'smoke-dwg-bytes' > "$TMPJSON"
+# Git Bash 实纱：curl -F 的 field=@path;filename=x 复合参数不做 MSYS 路径转换（--data-binary @path 可），
+# Windows 版 curl 读不到 POSIX 临时路径 → 统一 cygpath 转换后传 Windows 路径
+TMPWIN=$(cygpath -w "$TMPJSON" 2>/dev/null || echo "$TMPJSON")
+UP=$(curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/files" -H "${AUTH[0]}" -F "file=@${TMPWIN};filename=smoke.dwg" -F "kind=MAIN" || true)
+echo "$UP" | grep -q '"kind":"MAIN"' && ok "主文件上传（SHA256 入库）" || fail "文件上传: $(echo $UP | head -c 100)"
+
+curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/submit" -H "${AUTH[0]}" >/dev/null || true
+AP=$(curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/approve" -H "${AUTH[0]}" || true)
+echo "$AP" | grep -q '"lifecycleState":"RELEASED"' && ok "评审发布（RELEASED）" || fail "发布: $(echo $AP | head -c 100)"
+VS=$(curl -s -m 5 "$GW/api/v1/drawings/$DRW_ID/versions" -H "${AUTH[0]}" || true)
+echo "$VS" | grep -q '"version":"A/0"' && ok "发布版本快照固化（A/0）" || fail "版本快照: $(echo $VS | head -c 100)"
+
+printf '{"partId":999999,"partNumber":"SMOKE-P-1","role":"PART_DRAWING"}' > "$TMPJSON"
+LP=$(curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/parts" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+BP=$(curl -s -m 5 "$GW/api/v1/drawings/by-part/999999" -H "${AUTH[0]}" || true)
+echo "$LP" | grep -q '"code":0' && echo "$BP" | grep -q "$DRW_TITLE" && ok "物料关联 + 按物料反查" || fail "物料关联: $(echo $BP | head -c 100)"
+DRW_FILE_ID=$(echo "$UP" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+DL=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "$GW/api/v1/drawings/$DRW_ID/files/$DRW_FILE_ID/download" -H "${AUTH[0]}" || true)
+[ "$DL" = "200" ] && ok "流式下载主文件（200）" || fail "下载端点: HTTP $DL"
 
 echo ""
 echo "=== 冒烟结果：$PASS 通过 / $FAIL 失败 ==="

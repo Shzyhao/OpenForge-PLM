@@ -52,8 +52,16 @@ echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被�
 export MAVEN_OPTS="${MAVEN_OPTS:--Xmx512m -XX:+UseSerialGC}"
 MARKER_JAR="$ROOT/backend/openforge-gateway/target/openforge-gateway-0.1.0-SNAPSHOT-exec.jar"
 STALE_SRC="$(find "$ROOT/backend" \( -name '*.java' -o -name 'pom.xml' \) -newer "$MARKER_JAR" -print -quit 2>/dev/null)"
+# 构建护栏（v1.20.0 实纱教训）：栈在跑时重打包与运行中 JVM 争内存（宿主机 OOM 闪退），
+# Windows 上还会因 jar 替换击落在跑服务——检测到任一服务健康即跳过构建并提示
+STACK_RUNNING=""
+for p in 8081 8082 8083 8084 8085 8086 8087 8088 8094 8095 8090; do
+  if curl -s -m 1 "http://localhost:$p/actuator/health" 2>/dev/null | grep -q UP; then STACK_RUNNING=1; break; fi
+done
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
   echo "  SKIP_BUILD=1：复用现有 target jar"
+elif [ -n "$STACK_RUNNING" ]; then
+  echo "  警告：检测到运行中的服务，已跳过构建（构建与服务不同时进行）。如需重建：先 dev-down 再 dev-up"
 elif [ ! -f "$MARKER_JAR" ] || [ -n "$STALE_SRC" ]; then
   echo "  源码有更新（${STALE_SRC#$ROOT/}），重新打包…"
   (cd "$ROOT/backend" && mvn -B -ntp -q package -DskipTests)
@@ -72,9 +80,10 @@ declare -A PORTS=(
   [auth]=8081 [material]=8082 [doc]=8083 [workflow]=8084
   [change]=8085 [knowledge]=8086 [project]=8087 [metadata]=8088 [gateway]=8080
   [connector]=8094
+  [drawing]=8095
   [mono]=8090
 )
-SVC_ORDER="auth material doc workflow change knowledge project metadata connector gateway"
+SVC_ORDER="auth material doc workflow change knowledge project metadata connector drawing gateway"
 case "${PROFILE:-full}" in
   core) PRESET="auth metadata doc workflow gateway" ;;
   lite) PRESET="auth gateway" ;;
@@ -101,7 +110,17 @@ run_one() {
   local cds_dir="$jar_dir/cds"
   local run_jar=$jar
   local share=()   # 数组携带 CDS 参数：路径可能含空格（如 Windows 项目目录），标量会被分词拆裂
-  if [ "${CDS:-1}" = "1" ]; then
+  # CDS（AppCDS）默认仅 gateway 开启：业务服务 A/B 校准收益仅 ~2-4%（画像 §8.3），
+  # 而每服务的 onRefresh 训练跑会在启动期瞬时多拉一个全量 JVM（11 服务并发训练 =
+  # 峰值 +10 JVM——低内存宿主机启动期 OOM 闪退主因之一，v1.20.0 实纱）。
+  # CDS=1 强制全服务开启（旧行为）；CDS=0 全关；默认（gw/未设）仅 gateway。
+  cds_enabled=0
+  case "${CDS:-gw}" in
+    1) cds_enabled=1 ;;
+    0) cds_enabled=0 ;;
+    *) [ "$svc" = "gateway" ] && cds_enabled=1 ;;
+  esac
+  if [ "$cds_enabled" = "1" ]; then
     if [ ! -f "$cds_dir/.extracted" ] || [ "$jar" -nt "$cds_dir/.extracted" ]; then
       rm -rf "$cds_dir"
       (cd "$jar_dir" && "$JAVA_HOME/bin/java" -Djarmode=tools \

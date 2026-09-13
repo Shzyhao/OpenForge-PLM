@@ -24,7 +24,7 @@ public final class TriggerSpecs {
     /** 平台既有事件主题（一域一 topic，B2 设计）；可经配置扩展新模块主题。
      *  openforge-material 随 v1.16.0 material 事件化入列（part.released/bom.published）。 */
     public static final String DEFAULT_TOPICS =
-            "openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector,openforge-material";
+            "openforge-meta,openforge-object,openforge-doc,openforge-change,openforge-task,openforge-connector,openforge-material,openforge-drawing";
 
     private TriggerSpecs() {
     }

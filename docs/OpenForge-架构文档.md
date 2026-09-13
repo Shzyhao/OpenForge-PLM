@@ -181,9 +181,9 @@
 
 > 容器级说明：`designer-app` 与业务 SPA 分开打包——设计器仅低代码开发者使用，不进业务用户的首屏负担。
 >
-> **当前实现基线（v1.9.0）**：Java 服务群实际为 9 个进程——gateway / auth / material / doc / workflow /
-> change / knowledge / project / metadata（metadata 一个服务承载上图的元数据中心 + 动态对象运行时；
-> search / notify / preview / connector 未建，为规划）。Python 侧当前为单进程 AI 网关（FastAPI，承载
+> **当前实现基线（v1.20.0）**：Java 服务群实际为 11 个进程——gateway / auth / material / doc / workflow /
+> change / knowledge / project / metadata / connector / drawing（metadata 一个服务承载上图的元数据中心 + 动态对象运行时；
+> connector 为集成编排器服务（v1.14.0），drawing 为图纸管理服务（v1.20.0）；search / notify / preview 未建，为规划）。Python 侧当前为单进程 AI 网关（FastAPI，承载
 > 上图 ai-gateway/ai-agent/ai-pipeline 职责）。跨服务调用为直连 REST + X-Internal-Token（非 OpenFeign）；
 > 事件经 RocketMQ（默认关闭回退同步 HTTP）。模块注册/路由/菜单由 auth 的 sys_module 注册表驱动（A4）。
 

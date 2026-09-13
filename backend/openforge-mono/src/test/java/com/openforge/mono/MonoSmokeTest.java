@@ -45,7 +45,7 @@ class MonoSmokeTest {
     }
 
     @Test
-    @DisplayName("9 模块描述符注册齐（多 Registrar 实例 + 回环上报生效；connector 自 v1.14.0 入聚合）")
+    @DisplayName("10 模块描述符注册齐（多 Registrar 实例 + 回环上报生效；drawing 自 v1.20.0 入聚合）")
     void allEightModulesRegistered() {
         ResponseEntity<Map> resp = rest.exchange("/api/v1/internal/modules", HttpMethod.GET,
                 new HttpEntity<>(trustHeaders()), Map.class);
@@ -60,7 +60,7 @@ class MonoSmokeTest {
                 .toList();
         assertThat(keys).containsExactlyInAnyOrder(
                 "auth", "material", "doc", "workflow", "change", "knowledge", "project", "metadata",
-                "connector");
+                "connector", "drawing");
         // mono 单 upstream：所有模块 serviceUri 一致（= 本进程端口；网关多前缀→单 upstream 的依据）
         var uris = rows.stream()
                 .map(r -> String.valueOf(((Map<?, ?>) r).get("serviceUri")))

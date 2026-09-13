@@ -1,0 +1,13 @@
+# 业务模块：图纸管理（v1.20.0；物料/BOM 的图纸域——档案/版本/关联/预览）
+moduleKey: drawing
+moduleType: BUSINESS
+displayName: 图纸管理
+version: 0.1.0
+routes:
+  - /api/v1/drawings
+dependencies: [auth]
+menu:
+  - { path: /drawing, title: 图纸, icon: FileImageOutlined }
+flyway:
+  historyTable: flyway_drawing_history
+serviceUri: 8095
