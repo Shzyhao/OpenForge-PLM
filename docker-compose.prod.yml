@@ -124,6 +124,17 @@ services:
       OPENFORGE_CONNECTOR_EGRESS_WHITELIST: ${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:-}
     depends_on: [auth]
 
+  drawing:
+    build: { <<: *java-build, args: { MODULE: openforge-drawing, PORT: "8095" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://drawing:8095
+      # 图纸文件存储卷（本地磁盘；MinIO 切换前生产须挂载持久卷）
+      OPENFORGE_DRAWING_STORAGE_DIR: /data/drawing-files
+    volumes:
+      - drawing-files:/data/drawing-files
+    depends_on: [auth]
+
   gateway:
     build: { <<: *java-build, args: { MODULE: openforge-gateway, PORT: "8080" } }
     environment:
@@ -151,5 +162,6 @@ services:
 volumes:
   pg_data:
   doc_data:
+  drawing_files:
   redis_data:
   minio_data:
