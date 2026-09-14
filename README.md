@@ -1,194 +1,269 @@
-# 🔨 OpenForge PLM
-
 <div align="center">
 
-**Open source PLM, forged with AI.**
+# 🔨 OpenForge PLM
 
-> v1.1.0 新增：完整权限体系——固定 admin 账号、角色自定义与界面级增删改查权限矩阵、密码半年过期强制重置、登录锁定与安全审计。
->
-> v1.2.0（框架化 F1）：OpenAPI 全服务文档、Testcontainers 真实 PG 测试矩阵、Nacos 服务发现（默认关闭）。
->
-> v1.3.0（框架化 F2~F3 + 尾项）：动态对象运行时与建模→DDL→AI 闭环、模块注册机制（部署即注册/停用即摘除/启动自检）、多租户全链路、表单/列表设计器、Starter 三件套与 `openforge-cli` 脚手架、Prometheus+TraceId 可观测、生产 compose 与 Helm 骨架、[二次开发指南](docs/OpenForge-二开指南.md)（详见[框架化路线](docs/OpenForge-框架化路线.md)）。
->
-> v1.4.0（B2 事件总线）：RocketMQ 事件驱动跨域协作——发布/记录/文档/变更/任务五域事件、knowledge 知识自动沉淀、幂等消费+死信、默认关闭回退同步 HTTP（[设计文档](docs/OpenForge-B2事件总线设计.md)）。
->
-> v1.5.0（B1 配置中心）：九服务接入 Nacos 配置中心——远程 `openforge-<svc>.yml` 覆盖本地、optional import 断连安全、默认关闭（NACOS_CONFIG_ENABLED），dev `NACOS=1` 一键启用 discovery+config。
->
-> v1.6.0（体验与可靠性）：前端深度主题化——品牌 token 体系、暗色模式、品牌化分栏登录页、工作台仪表盘；事件总线 outbox 可靠性补齐——事务内原子落库 + relay 补发，丢失窗口消除。
->
-> v1.7.0（向量存储演进）：pgvector 可插拔切换——VectorStore 租户感知接口、SQL 级租户过滤 + 行级拦截器双重隔离、HNSW 余弦检索，compose PG 镜像换 pgvector/pgvector:pg16。
->
-> v1.8.0（可视化流程设计器）：自研 SVG 画布零依赖——节点拖拽/连线/属性面板/分层自动布局，可视化与 JSON 双向同步部署、既有定义只读预览；条件分支语义与引擎 rules[].to 路由严格对齐（bpmn-js 评估后否决）。
->
-> v1.9.0（性能与运维双技术债）：发布元数据 TTL 缓存——动态 CRUD 每请求 2 次元数据查询清偿（租户键/30s 可配/500 上界/发布事务 afterCommit 驱逐）；登录与审计日志保留期清理——无界增长清偿（180 天可配/每日调度/分批选删）。
->
-> v1.10.0（瘦身与冒烟修复）：本地开发瘦身两刀——9 服务稳态内存实测 1.86GB、启动 ~4 分钟→~2 分钟（JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS/Nacos 空载跳过/分批并行）；**首次真实全链路冒烟修复四处交付缺陷**——网关动态路由自此真实生效、auth 自注册解锁（对象建模域修复）；全文档对齐 v1.9.0 交付态。
->
-> v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块静默摘除可观测性——module-routes 端点/健康详情暴露 brokenModules 与原因（依赖未启用: xxx）、auth 守护日志 module broken/recovered 落地；Nacos 回路测试修复——publish 读可见性竞态实锤（退避重试）、复用模式补发布、容器模式固定端口、八服务测试 import 空载消除、镜像 v2.4.3、**CI 常开合并门**；流程设计器只读预览遗留定义坐标兜底（浏览器级冒烟实锤）；全栈冒烟复测 RSS 1.87GB + 网关链路 8/8 域 + 业务服务 CDS A/B 校准（收益 ~2-4%）入册。
->
-> v1.20.0（图纸管理）：**物料/BOM 的图纸域补齐**——新服务 openforge-drawing（:8095，connector 接入范本）：图纸档案（编号引擎 DW-*）/主文件·预览副本·附件三类文件与**流式下载**（平台首个流式端点）/检入检出/状态机（草稿→评审→发布→作废 + 驳回 + 大版本升版，发布固化版本快照）/图纸↔物料多对多关联与按物料反查/PDF·图片副本内嵌预览（DWG/DXF 下载查看，CADConverter 留规划）；drawing.released/obsolete 事件入连接器触发白名单（"图纸发布→自动推 ERP"入口打通）；mono 聚合 10 模块；dev-up 启动期 OOM 根治（AppCDS 仅 gateway + 构建护栏）；冒烟扩至 35 断言（[设计文档](docs/OpenForge-图纸管理设计.md)）。
->
-> v1.19.0（SSRF 根治 R6）：出站固定解析——出站 HTTP 收编 Apache HttpClient 5（BOM 管版本），连接管理器挂固定解析器：**解析即校验、所解即所连**，消除"校验解析"与"连接解析"之间的 DNS 重绑定（TOCTOU）窗口；连接器 HTTP 与 AI 供应商连通测试两出站路径统一迁移，重定向保持禁用，IP 字面量直写内网同层拦截；出站脱敏代理通道（与 AI 外呼合并）仍列后续。
->
-> v1.18.0（编排分支可视化编辑）：画布分支可视化——STEP 节点右下橙色锚点拖出条件分支（SpEL 按序求值语境提示，留空 = 默认分支），分支边带表达式标签渲染；连线抽屉直接编辑分支表达式（工作流 CONDITION 规则边同享）；`flowToChain` 镜像后端约束导出（分支只指向步骤节点、默认分支每步骤至多一个、未连入主线步骤拦截），`branches` 存量链画布零迁移回显；浏览器级巡检双路求值（命中跳转 `[s1,s2]` / 默认兜底 `[s1,s3]`）+ 工作流画布回归全绿（设计文档 §14.5）。
->
-> v1.17.0（多步骤编排）：**集成编排器 P3 旗舰落地**——连接器升级多步骤链（schemaVersion=2，`CHAIN` 类型）：画布可视化编排（节点类型注册表泛化自研 SVG 画布，工作流/编排双域复用）、步骤面板复用连接器配置面板、步骤间上下文传参（`{{steps.x.body.字段}}` 点路径取值）、**分支**（`branches` SpEL 条件选路 + 默认分支 + 环路防护，SpEL 求值器下沉 common 沙箱化）、EVENT/CRON 触发作用于整链、一链一日志（`steps_json` 步骤摘要）；v1 单步连接器零迁移共存（[设计文档 §14](docs/OpenForge-集成编排器MVP设计.md)）。
->
-> v1.16.0（material 域事件化 + 主密钥轮换）：**B2 P3 落地**——material 状态机 transition 至 RELEASED 即发射 `part.released`/`bom.published`（审批与变更启用双路径覆盖，afterCommit 发送不阻断业务），连接器 EVENT 触发白名单扩至七主题，"物料发布 → 自动推 ERP"事件链路打通；**R1 闭环**——`MASTER_KEY_PREVIOUS` 双密钥读（业务无感）+ 轮换端点跨租户批处理重加密（幂等、损坏行计数跳过）+ 四步轮换操作手册入册二开指南。
->
-> v1.15.0（AI API 配置器 + 事件/定时触发 + manage 审计）：**P2-1**——`ai_provider` 表（AES-GCM 复用凭据主密钥）+ 管理 API（ai:manage）+ `/internal/ai-provider/chain` 内部降级链 + ai-gateway 30s 轮询热加载（env 兜底零破坏）+ 前端「AI 模型」Tab（key 只写不读）；**P2-2**——连接器 EVENT/CRON 触发（配置随版本快照；EVENT 订阅平台既有主题白名单、FIRST_OFFSET+启动时间闸门防历史回放；CRON Spring 6 段、秒位禁裸 \*）+ `sys_connector_dlq` 应用级死信（失败即落、重放原样重投、终态保留期清理）+ 前端「死信队列」Tab；**R8**——manage 操作跨服务审计（auth `/api/v1/internal/audit` 内部端点 + connector afterCommit 尽力而为上报）；实施实纱修复两处平台缺陷（spec `checkUrl`/EgressGuard 误拒 URL 模板占位符）；冒烟扩至 25 断言（[设计文档](docs/OpenForge-集成编排器MVP设计.md)）。
->
-> v1.14.0（集成编排器 MVP）：**低代码第七设计器落地**——新服务 \`openforge-connector\`（EXTENSION，部署即注册）承载连接器定义/凭据/运行时；HTTP/REST 与 JDBC 只读两类内置连接器（认证注入/模板渲染/表白名单/命名参数绑定/行数上限/只读双保险）；凭据 AES-256-GCM 加密落库（主密钥未配置=功能拒绝）；出站域白名单 + 私网 SSRF 拦截（未配置=全拒）；版本化发布（不可变快照 + 缓存 + connector.published 事件）+ 运行时 invoke API（网关 conn:invoke / 服务间 internal 直调）；执行日志留痕（脱敏）+ 180 天保留期清理；前端集成设计器（连接器/凭据两 Tab + 试运行面板 + 日志，NodeConfigPanel 组件化预留 P3 画布编排）；mono 聚合第 9 模块 + 生产 compose + smoke.sh 9 业务域 19+ 断言（[设计文档](docs/OpenForge-集成编排器MVP设计.md)）。
->
-> v1.12.2（patch）：**系统代码评审**（子代理全量 diff 审查，12 发现）修复六项——生产镜像构建断裂（Dockerfile 通配符自 v1.12.0 起，P1）、INTERNAL_TOKEN 双键漂移（轮换即全 401）、mono 回环死锁窗口（Tomcat 40）、Nacos 测试残留清理、守护求值定点 UPDATE、自检列表原子替换；网关链路冒烟工具化 \`./scripts/smoke.sh\` 13 项断言（约定 #8 合并门一键化）；outbox P3 Schema 治理评估判停（触发条件入册）；PR 模板同步两道门。
->
-> v1.12.1（patch）：安全日志分页结构回归修复——登录日志/操作审计接口直返 MyBatis-Plus Page（records/size）致前端列表空白而总数正常（全页面浏览器级巡检实锤，约定 #9）；修统一 PageResponse{list,total,page,pageSize} + 回归测试；README/二开指南补 PROFILE=mono 用法。
->
-> v1.12.0（mono 单进程模式）：**PROFILE=mono 一键 2 进程跑全栈**——auth+7 业务服务聚合为单 servlet 上下文（:8090），gateway 独立；**实测 RSS 405MB（9 进程 1872MB → -78%）**、网关链路冒烟 8/8 域等价（module-routes/DEGRADED/心跳摘除/信任头模型原样）；资源目录化（db/migration/<svc>/ + module/<svc>.yml）解 8 组同名根资源遮蔽、多 Flyway 实例（历史表与独立部署一致）、模块注册 8 实例多心跳；刀 2 进程内直调经评估判停（回环均有缓存/低频，收益≈零）。
+**Open source PLM, forged with AI.**
 
 **开源 · AI 原生 · 产品全生命周期管理平台**
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/status-v1.20.0-blue)]()
-[![Docs](https://img.shields.io/badge/docs-14%20documents-green)]()
+[![Status](https://img.shields.io/badge/release-v1.20.0-blue)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
+[![Backend](https://img.shields.io/badge/Java%2021-Spring%20Boot%203.3-orange)]()
+[![Frontend](https://img.shields.io/badge/React%2018-TypeScript-61dafb)]()
+[![AI](https://img.shields.io/badge/AI-FastAPI%20·%20GLM%2FQwen%2FvLLM-8b5cf6)]()
+[![CI](https://github.com/Shzyhao/OpenForge-PLM/actions/workflows/ci.yml/badge.svg)]()
+
+**中文** — 面向现代制造业的开源产品全生命周期管理系统。AI 不是外挂，而是平台基础设施：自然语言直接查询与操作业务数据、随业务使用持续进化的自适应知识库、业务人员可自行搭建的流程与表单。核心域用专业代码保证深度与性能，长尾需求用低代码配置实现天级交付。
+
+**English** — An open-source, AI-native PLM platform for modern manufacturing: built-in AI agents operating your data via natural language, a self-adaptive knowledge base, and a low-code engine for objects, forms and workflows — all forged in one open platform.
+
+**⭐ 如果这个项目对你有价值，欢迎 Star 关注进展**
 
 </div>
 
 ---
 
-**English** — OpenForge PLM is an open-source, AI-native Product Lifecycle Management platform for modern manufacturing: built-in AI agents that can query and operate your data through natural language, a self-adaptive knowledge base that learns from your business, and a low-code customization engine for objects, forms and workflows — all forged in one open platform.
+## 🖥️ 界面一览
 
-**中文** — OpenForge PLM 是一套面向现代制造业的开源网页端产品生命周期管理系统。它不只是把 AI 外挂在传统 PLM 旁边，而是让 AI 成为平台基础设施：自然语言直接查询与操作业务数据、随业务使用持续进化的自适应知识库、业务人员可自行搭建的流程与表单。核心域用专业代码保证深度与性能，长尾需求用低代码配置实现天级交付。
+真实环境截图（本地 dev 栈，中文界面开箱即用）：
+
+| 工作台（业务总览仪表盘） | 物料主数据（分类树 + 列表） |
+|:---:|:---:|
+| ![工作台](docs/screenshots/02-dashboard.png) | ![物料](docs/screenshots/03-material.png) |
+
+| 图纸管理（文件 + PDF 内嵌预览 + 物料关联） | 可视化流程设计器（自研 SVG 画布，零依赖） |
+|:---:|:---:|
+| ![图纸](docs/screenshots/05-drawing.png) | ![流程设计器](docs/screenshots/06-workflow-designer.png) |
+
+| 集成编排链画布（多步骤 + 条件分支） | 品牌化登录页（暗色模式支持） |
+|:---:|:---:|
+| ![编排链](docs/screenshots/07-integration-chain.png) | ![登录](docs/screenshots/01-login.png) |
+
+<details>
+<summary>📚 更多界面（BOM / 知识库 / AI 助手）</summary>
+
+| BOM 多视图管理 | 知识库（混合语义搜索） | AI 助手（对话式操作） |
+|:---:|:---:|:---:|
+| ![BOM](docs/screenshots/04-bom.png) | ![知识库](docs/screenshots/08-knowledge.png) | ![AI 助手](docs/screenshots/09-ai-assistant.png) |
+
+</details>
 
 ---
 
 ## ✨ 核心特性
 
-| 特性 | 说明 |
-|------|------|
-| 🔧 **通用 PLM 内核** | 物料与多视图 BOM（EBOM/PBOM/MBOM）、文档版本与检入检出、三级变更管理（ECR→ECO→ECN）、项目管理、CAD 集成、ERP/MES 集成 |
-| 🤖 **内置 AI（非外挂）** | AI 中台统一接入多模型（GLM/Qwen/私有化 vLLM）：文档智能解析、BOM 智能清洗、变更影响分析、混合语义搜索、对话式 AI 助手 |
-| 💬 **AI 数据操作** | 自然语言 → 数据操作："帮我新增一个 45# 钢的法兰盘"。API 通道优先 + SQL 安全网关五层校验 + L1~L4 分级确认，AI 权限永远是用户权限的子集 |
-| 🧠 **自适应知识库** | 三层知识（系统元数据 / 业务知识 / 使用行为）：数据库结构变更自动同步为 AI 的"系统地图"；变更案例、项目复盘自动沉淀；反馈回流驱动检索与推荐持续进化 |
-| ⚙️ **流程定制化** | 自研 SVG 画布可视化流程设计器（零依赖）+ 低代码表单/列表设计器；会签/加签/驳回策略、超时处理、审批代理；流程包版本化 + 在途实例快照 + 灰度发布 |
-| 🧱 **低代码平台** | 元数据驱动内核：七大设计器（对象/表单/列表/流程/规则/报表/集成）+ 动态对象运行时。新对象建模发布后，零代码获得 CRUD API 与可配置界面，AI 立即可查 |
-| 🤝 **多智能体 + Loop Engineering** | 开发平面（Agent 团队开发本系统）与运行平面（AI 功能 MAS 化）同构；所有智能体产出必须通过"生成→验证→修正"闭环，确定性验证优先，LLM 永不终审 |
+| | 特性 | 说明 |
+|---|------|------|
+| 🔧 | **通用 PLM 内核** | 物料与多视图 BOM（EBOM/PBOM/MBOM、替代组、where-used 反查）、图纸管理（版本/审签/物料关联/预览）、文档版本与检入检出、三级变更管理（ECR→ECO→ECN）、项目管理 |
+| 🤖 | **内置 AI（非外挂）** | AI 中台统一接入多模型（GLM/Qwen/私有化 vLLM）：文档智能解析、BOM 智能清洗、变更影响分析、混合语义搜索、对话式 AI 助手 |
+| 💬 | **AI 数据操作** | 自然语言 → 数据操作："帮我新增一个 45# 钢的法兰盘"。API 通道优先 + SQL 安全网关五层校验 + L1~L4 分级确认，AI 权限永远是用户权限的子集 |
+| 🧠 | **自适应知识库** | 三层知识（系统元数据/业务知识/使用行为）：数据库结构变更自动同步为 AI 的"系统地图"；变更案例自动沉淀；反馈回流驱动检索持续进化 |
+| ⚙️ | **流程定制化** | 自研 SVG 画布可视化流程设计器（零依赖）+ 低代码表单/列表设计器；会签/或签/驳回回退；流程包版本化 + 在途实例快照 + 灰度发布 |
+| 🧱 | **低代码平台** | 元数据驱动内核：七大设计器（对象/表单/列表/流程/规则/报表/集成）+ 动态对象运行时。新对象建模发布后，零代码获得 CRUD API 与可配置界面，AI 立即可查 |
+| 🔌 | **集成编排器** | HTTP/JDBC 连接器 + 多步骤编排链（画布可视化、步骤上下文传参、SpEL 条件分支）+ EVENT/CRON 触发 + 应用级死信队列——"物料发布 → 自动推 ERP"开箱即用 |
+| 🛡️ | **企业级安全** | 多租户全链路隔离（JWT/网关/SQL 行级）、凭据 AES-256-GCM 加密 + 主密钥轮换、出站白名单 + SSRF 固定解析（R6 已闭环）、界面级 RBAC 权限矩阵、跨服务操作审计 |
+| 🤝 | **多智能体 + Loop Engineering** | 开发平面（Agent 团队开发本系统）与运行平面（AI 功能 MAS 化）同构；所有智能体产出必须通过"生成→验证→修正"闭环，确定性验证优先，LLM 永不终审 |
 
-## 🏗️ 架构一览
+---
 
+## 🏗️ 系统架构
+
+**11 个微服务**（Java 21 / Spring Boot 3）+ AI 网关（Python FastAPI）+ React 18 SPA，模块注册表驱动——部署即注册、停用即摘除：
+
+```mermaid
+flowchart TB
+    subgraph client["用户层"]
+        WEB["Web SPA（React 18 + AntD）"]
+        OPENAPI["OpenAPI 调用方"]
+    end
+
+    GW["API Gateway :8080<br/>JWT 校验 · 租户头 · 动态路由 · 模块自检"]
+
+    subgraph business["业务域服务（一域一服务一事件主题）"]
+        MAT["material :8082<br/>物料·BOM"]
+        DOC["doc :8083<br/>文档"]
+        DRW["drawing :8095<br/>图纸"]
+        WF["workflow :8084<br/>流程引擎"]
+        CHG["change :8085<br/>变更 ECR/ECO/ECN"]
+        PRJ["project :8087<br/>项目·报表"]
+        KNW["knowledge :8086<br/>自适应知识库"]
+    end
+
+    subgraph platform["平台域"]
+        AUTH["auth :8081<br/>RBAC · 租户 · 编号引擎<br/>模块注册中心 · 审计"]
+        META["metadata :8088<br/>元数据内核 · 动态对象运行时<br/>表单/列表/界面设计器"]
+        CONN["connector :8094<br/>集成编排器 · 连接器运行时<br/>EVENT/CRON 触发 · 死信队列"]
+    end
+
+    AI["AI 中台 :8001（FastAPI）<br/>模型网关 · 降级链 · SQL 安全网关<br/>文档解析 · NL2SQL · AI 助手"]
+
+    subgraph infra["数据与基础设施"]
+        PG[("PostgreSQL<br/>+ pgvector")]
+        MQ{{"RocketMQ<br/>事件总线（默认关闭）"}}
+        MINIO["MinIO<br/>对象存储"]
+        OBS["Prometheus + Grafana<br/>TraceId 链路"]
+    end
+
+    WEB --> GW
+    OPENAPI --> GW
+    GW <--> AUTH
+    GW <--> business
+    GW <--> platform
+    GW <--> AI
+    business <--> PG
+    platform <--> PG
+    AI <-.-> |"知识检索"| KNW
+    business & platform -.-> |"域事件 afterCommit"| MQ
+    CONN -.-> |"EVENT/CRON 触发出站"| ERP["ERP / MES / Webhook"]
 ```
-┌─────────────────── 用户层：Web SPA / 移动H5 / OpenAPI ──────────────────┐
-├─────────────────── 接入层：API Gateway(认证/限流/灰度/审计) ─────────────┤
-├─────────────────── 应用层：物料BOM │ 文档 │ 变更 │ 项目 │ 搜索 ────────────┤
-├──────────────────────────── 平台层 ────────────────────────────────────┤
-│  低代码平台域                    │  AI 中台域                            │
-│  元数据内核 · 设计器集群           │  模型网关 · Agent编排                  │
-│  动态对象运行时 · 流程/规则引擎    │  Text-to-SQL安全网关 · 知识加工管道     │
-│  连接器运行时                    │  Schema元数据同步                      │
-├──────────────────────────── 数据层 ────────────────────────────────────┤
-│  PostgreSQL │ Redis │ Milvus │ Neo4j │ ES │ MinIO │ RocketMQ           │
-└────────────────────────────────────────────────────────────────────────┘
-```
 
-## 📚 文档导航
+<details>
+<summary><b>📐 架构要点（点击展开）</b></summary>
 
-| 文档 | 内容 | 适合谁 |
-|------|------|--------|
-| [OpenForge-开发文档](docs/OpenForge-开发文档.md) | 功能规格、数据库设计、API 规范、里程碑 | 全体开发/QA |
-| [OpenForge-架构文档](docs/OpenForge-架构文档.md) | 分层架构、C4 视图、低代码平台架构、ADR、部署 | 架构师/DevOps |
-| [OpenForge-多智能体与LoopEngineering](docs/OpenForge-多智能体与LoopEngineering.md) | 双平面 MAS、四层循环验证体系、Agent 基础设施 | AI 工程师 |
-| [OpenForge-权限体系完善方案](docs/OpenForge-权限体系完善方案.md) | 固定 admin、双层权限、密码时效与登录安全（P1~P6 已交付） | 后端/前端 |
-| [OpenForge-框架化路线](docs/OpenForge-框架化路线.md) | 从应用到框架的差距分析与实施计划（F1~F3 已完成） | 全体开发/架构师 |
-| [OpenForge-F2动态对象运行时设计](docs/OpenForge-F2动态对象运行时设计.md) | 动态对象建模→DDL→AI 闭环实施蓝图（已交付） | 后端/前端 |
-| [OpenForge-F2模块注册机制设计](docs/OpenForge-F2模块注册机制设计.md) | 部署即注册/停用即摘除的模块化机制设计（已交付） | 后端/架构师 |
+- **模块注册表驱动**：各服务持自描述 `module/<svc>.yml`，启动时向 auth 注册中心上报（60s 心跳）；网关 30s 轮询生成动态路由，模块停用即摘除、依赖未启用标 BROKEN 并暴露原因（`/actuator/module-routes` 可观测）。
+- **事件总线（B2）**：RocketMQ 一域一 topic + outbox 事务内原子落库 + relay 补发 + 幂等消费 + 应用级死信；`EVENT_ENABLED=false` 自动回退同步 HTTP（本地/CI 零依赖）。
+- **mono 单进程模式**：`PROFILE=mono` 两进程跑全栈（11 模块聚合单上下文 + 独立 gateway），实测 RSS **405MB（较 11 服务独立部署 -78%）**。
+- **多租户**：JWT 租户声明 → 网关信任头 → MyBatis-Plus 行级拦截器全表自动过滤；文件按 `tenant/{id}/` 前缀隔离。
+- **低代码闭环**：对象建模 → 发布（DDL 生成 + 权限点注册 + AI 登记）→ 动态 CRUD → 表单/列表/界面设计器，全程零重启。
+</details>
+
+---
 
 ## 🛠️ 技术栈
 
-**前端** React 18 + TypeScript + Ant Design + ECharts ｜ **后端** Java 21 + Spring Boot 3（10 个微服务：gateway/auth/material/doc/workflow/change/knowledge/project/metadata/connector，v1.14.0 起含 openforge-connector）+ openforge-common/security 公共库 + openforge-starter-web/data/security 起步依赖三件套 ｜ **AI** Python FastAPI + OpenAI 兼容协议多模型接入（GLM/Qwen/私有化 vLLM，支持全私有化与离线降级） ｜ **存储** PostgreSQL + pgvector / Milvus(路线) / Neo4j(路线) / MinIO ｜ **基础设施** Kubernetes(路线) + Flyway 多服务迁移 + GitHub Actions 三语言 CI
+| 层 | 技术 |
+|----|------|
+| **前端** | React 18 · TypeScript · Ant Design 5 · ECharts · Vite（自研 SVG 画布流程/编排设计器，零画布库依赖） |
+| **后端** | Java 21 · Spring Boot 3.3 · Spring Cloud（Nacos 可选）· MyBatis-Plus · Flyway 多服务迁移 · 11 微服务 + starter 三件套 |
+| **AI** | Python FastAPI · OpenAI 兼容协议 · GLM/Qwen/私有化 vLLM 多模型降级链 · 支持全私有化与离线降级 |
+| **存储** | PostgreSQL 16 + pgvector（HNSW 混合检索）· MinIO · RocketMQ（可选）· Redis（可选） |
+| **工程** | GitHub Actions 三语言 CI · Testcontainers 真实 PG 测试矩阵 · 一键 dev-up/smoke.sh 35 断言冒烟 · Prometheus + Grafana 模板 |
 
-## 🗺️ Roadmap（M1~M6 + 权限专项 + 框架化 F1~F3 + v1.4~v1.19.0 全部交付）
-
-| 里程碑 | 内容 | 状态 |
-|--------|------|------|
-| M1 v0.1.0 | 基础平台：认证 / RBAC + 注解式权限 / 组织树(物化路径) / 编号规则引擎(并发防重号) / 前端框架 | ✅ |
-| M2 v0.2.0 | 核心 PLM：物料分类树 / 属性模板校验 / 物料状态机+版本快照 / BOM(展开·环检测·反查·对比) / 文档检入检出 | ✅ |
-| M3 v0.3.0 | 流程引擎：定义版本化+定义快照 / 会签·或签·驳回回退 / 任务中心 / ECR 变更闭环 | ✅ |
-| M4 v0.4.0 | AI 中台：统一 LLM 接入+离线降级 / 文档解析管道 / SQL 安全网关(AST 五重校验) / AI 助手 | ✅ |
-| M5 v0.5.0 | 自适应知识库：向量检索(可插拔) / 反馈闭环质量分 / 自然语言→SQL(Schema 注入+安全网关兜底) | ✅ |
-| M6 v1.0.0 | 项目与任务管理 / 跨服务统计报表(ECharts) / 一键启动脚本 | ✅ |
-| 权限专项 v1.1.0 | 固定admin / 双层权限(菜单+每界面增删改查) / ADMINS次级管理员 / 用户管理 / 密码半年过期强制重置 / 登录锁定 / 密码历史 / 登录日志与审计 / 前端权限联动 | ✅ |
-| 框架化 F1 v1.2.0 | OpenAPI 全服务文档 / Testcontainers 真实 PG 测试矩阵 / Nacos 服务发现(默认关闭) | ✅ |
-| 框架化 F2 v1.3.0 | 动态对象运行时(建模→发布→DDL/权限点/AI 登记→动态 CRUD→界面) / 模块注册机制(部署即注册·停用即摘除·启动自检·依赖守护·EXTENSION 同构) | ✅ |
-| 框架化 F3 v1.3.0 | 多租户全链路(JWT/网关/SQL 行级隔离/租户管理) / 表单列表设计器 / Starter 三件套 / openforge-cli 脚手架 | ✅ |
-| 尾项 v1.3.0 | Prometheus+TraceId 可观测+监控栈 / 文件租户隔离 / 生产 compose 全栈 + Helm 骨架 / 二开指南 | ✅ |
-| 事件总线 v1.4.0 | RocketMQ 事件驱动：信封(eventId 幂等/租户/traceId) / 一域一 topic / 知识自动沉淀 / 幂等消费+死信 / 熔断+HTTP 回退(默认关闭) | ✅ |
-| 配置中心 v1.5.0 | Nacos config 九服务接入(远程覆盖本地) / optional import 断连安全 / 默认关闭 + NACOS=1 一键启用 | ✅ |
-| 体验与可靠性 v1.6.0 | UI 深度主题化(品牌 token/暗色模式/品牌化登录页/工作台仪表盘/分组菜单) / 事件 outbox 原子落库 + relay 补发(丢失窗口消除) / Grafana 看板模板 | ✅ |
-| 向量存储 v1.7.0 | pgvector 切换(VectorStore 租户感知接口 / SQL 级租户过滤 + 行级拦截器双重隔离 / HNSW 余弦检索 / 程序化建表) / compose pgvector 镜像 / Testcontainers 租户隔离回路 | ✅ |
-| 可视化设计器 v1.8.0 | 流程可视化设计器(自研 SVG 画布零依赖：拖拽/连线/属性面板/自动布局/JSON 双向同步/只读预览/客户端校验镜像引擎) / 节点坐标随定义 JSON 持久化 | ✅ |
-| 技术债清偿 v1.9.0 | 元数据 TTL 缓存(租户键/30s 可配/500 上界/发布 afterCommit 驱逐) / 登录审计日志保留期(180 天可配/每日调度/分批 500 选删) | ✅ |
-| 瘦身与冒烟修复 v1.10.0 | 本地开发瘦身(JVM 调优实装/构建智能跳过/PROFILE 预设/AppCDS 实测 -36%/9 服务 RSS 实测 1.86GB) / **首次真实网关冒烟修复四处交付缺陷**(动态路由 RefreshRoutesEvent/裸端口 URI/KERNEL 自注册豁免/yml 重复键) / 全文档对齐交付态 | ✅ |
-| 可观测性与 Nacos 回路 v1.11.0 | BROKEN 模块可观测性(module-routes/health 暴露 brokenModules 与原因/守护日志落地) / Nacos 回路测试修复+CI 常开(读可见性竞态退避重试/复用模式补发布/固定端口容器/import 空载消除/镜像 v2.4.3) / 设计器预览遗留定义坐标兜底 / CDS 业务服务 A/B 校准(~2-4%) | ✅ |
-| 多步骤编排 v1.17.0 | CHAIN 链引擎（顺序+分支+防环）/ 画布泛化（节点类型注册表）+ 编排画布页 / 步骤上下文传参 / SpEL 求值器下沉 common / 触发作用于整链 / 一链一日志步骤摘要 | ✅ |
-| 编排分支可视化 v1.18.0 | 分支锚点拖拽建边（SpEL 语境提示，留空=默认）/ 分支边表达式标签 / 连线抽屉表达式编辑（工作流同享）/ 导出镜像后端校验 / 存量分支零迁移回显 | ✅ |
-| SSRF 根治 v1.19.0 | 出站固定解析（解析即校验·所解即所连，DnsResolver 扩展点）/ Apache HttpClient 5 收编（BOM 管版本）/ 连接器 HTTP + AI 连通测试统一 / IP 字面量内网拦截 / 重定向禁用保持 | ✅ |
-| 图纸管理 v1.20.0 | openforge-drawing 服务（档案/三类文件/流式下载/检入检出/状态机+驳回+升版/发布快照/物料多对多关联/预览文件内嵌）/ drawing 事件入触发白名单 / mono 10 模块 / dev-up 启动 OOM 根治 / 冒烟 35 断言 | ✅ |
-| 物料事件与密钥轮换 v1.16.0 | part.released/bom.published 事件域（B2 P3）/ 连接器触发白名单七主题 / 主密钥轮换（双密钥读 + 批处理重加密 + 操作手册，R1 闭环） | ✅ |
-| AI 配置与触发 v1.15.0 | ai_provider 管理+降级链热加载 / 连接器 EVENT+CRON 触发 / sys_connector_dlq 死信重放 / manage 跨服务审计（R8）/ URL 模板占位符两处平台修复 | ✅ |
-| 集成编排器 MVP v1.14.0 | 新服务 openforge-connector / HTTP+JDBC 只读连接器 / 凭据加密+出站白名单 / 版本化发布+invoke API / 前端设计器 / mono 第 9 模块+冒烟 6 断言 | ✅ |
-| mono 单进程模式 v1.12.0 | PROFILE=mono 两进程全栈(auth+7 业务服务聚合 :8090/gateway 独立) / **实测 RSS 405MB(-78%)** / 网关链路 8/8 域等价 / 资源目录化+多 Flyway+模块注册 8 实例 / 刀 2 直调评估判停 | ✅ |
-| 评审与工具 v1.12.2 | **系统代码评审 12 发现修复六项**(生产构建断裂/token 键漂移/死锁窗口/Nacos 残留/定点 UPDATE/中间态原子替换) / 冒烟一键化 smoke.sh 13 断言(负向自检防假绿) / outbox P3 判停 / PR 模板两道门 | ✅ |
-
-**后续路线**：飞书/钉钉/邮件连接器包、出站脱敏代理（与 AI 外呼合并）、行业模板包、Milvus/Neo4j/ES 随规模引入（多步骤编排画布、事件/定时触发与 AI API 配置器已分别随 v1.17.0/v1.15.0 交付）。
+---
 
 ## 🚀 快速开始
 
 ```bash
-# 一键启动（依赖 + 9 个 Java 服务；无源码改动自动跳过构建）
+git clone https://github.com/Shzyhao/OpenForge-PLM.git
+cd OpenForge-PLM
+
+# 一键启动（PG 容器 + 11 个 Java 服务；无源码改动自动跳过构建）
 ./scripts/dev-up.sh
-# PROFILE=mono ./scripts/dev-up.sh     # 最省：mono+gateway 两进程（实测 RSS 405MB，v1.12.0）
-# PROFILE=core ./scripts/dev-up.sh     # 瘦身：仅主链路 5 服务（16GB 开发机推荐）
-# NACOS=1 ./scripts/dev-up.sh          # 可选：启用 Nacos 服务注册+配置中心（默认关闭）
+# PROFILE=mono ./scripts/dev-up.sh     # 最省：mono+gateway 两进程（实测 RSS 405MB）
+# PROFILE=core ./scripts/dev-up.sh     # 瘦身：仅主链路（16GB 开发机推荐）
+# NACOS=1 ./scripts/dev-up.sh          # 可选：Nacos 服务注册+配置中心
 
 # AI 网关与前端（另开终端）
 cd ai && pip install -r requirements.txt && uvicorn gateway.main:app --port 8001
 cd frontend && npm install && npm run dev   # http://localhost:5173
 
-# 网关链路冒烟（工程约定 #8 合并门；登录→注册表自检→9 业务域穿透 + 连接器/触发/死信/审计断言）
+# 网关链路冒烟（登录→注册表自检→10 业务域穿透 + 连接器/触发/死信/审计/图纸 35 断言）
 ./scripts/smoke.sh
 
 # 停止
 ./scripts/dev-down.sh
 ```
 
-## 🎨 品牌指南
+> 首登：`admin`，初始密码打印在 auth 启动日志（`/tmp/openforge-auth.log`），首登强制改密。
 
-- **命名寓意**：`Forge`（锻造熔炉）——制造业的锻造传统 + 开源社区的协作熔炉（SourceForge/Electron Forge 一脉）+ AI 像炉火一样重塑产品研发生命周期；
-- **Slogan**：*Open source PLM, forged with AI.*（开源锻造，智造产品全生命周期）
-- **Logo 概念**：铁砧上的产品轮廓/齿轮 + 智能火花，或锻炉火焰构成的闭环箭头；
-- **品牌色**：锻炉橙 `#F25C05`（主）+ 钢铁灰 `#4A5568`（辅）；
-- **仓库命名**：GitHub 组织 `openforge-plm`，域名 `openforgeplm.com`（待查重注册）。
+---
+
+## 📚 文档导航
+
+| 文档 | 内容 |
+|------|------|
+| [开发文档](docs/OpenForge-开发文档.md) | 功能规格、数据库设计、API 规范、里程碑 |
+| [架构文档](docs/OpenForge-架构文档.md) | 分层架构、C4 视图、低代码平台架构、ADR、部署 |
+| [多智能体与 Loop Engineering](docs/OpenForge-多智能体与LoopEngineering.md) | 双平面 MAS、四层循环验证体系、Agent 基础设施 |
+| [集成编排器 MVP 设计](docs/OpenForge-集成编排器MVP设计.md) | 连接器/凭据/链编排/触发/死信/SSRF 根治全记录 |
+| [图纸管理设计](docs/OpenForge-图纸管理设计.md) | 图纸域档案/版本/审签/物料关联/预览 |
+| [B2 事件总线设计](docs/OpenForge-B2事件总线设计.md) | 信封/拓扑/幂等/outbox 分期 |
+| [F2 动态对象运行时](docs/OpenForge-F2动态对象运行时设计.md) ｜ [F2 模块注册机制](docs/OpenForge-F2模块注册机制设计.md) | 低代码内核与模块化机制 |
+| [mono 单进程设计](docs/OpenForge-mono单进程设计.md) | 11 模块聚合、-78% 内存实测 |
+| [性能与容量画像](docs/OpenForge-性能与容量画像.md) | JVM/池/缓存调优与自检清单 |
+| [二次开发指南](docs/OpenForge-二开指南.md) | 新服务接入/密钥轮换/扩展开发 |
+| [权限体系完善方案](docs/OpenForge-权限体系完善方案.md) ｜ [框架化路线](docs/OpenForge-框架化路线.md) ｜ [替代件与变更设计](docs/OpenForge-替代件与主数据变更设计.md) | 专项设计全集 |
+
+---
+
+## 🗺️ Roadmap
+
+**M1~M6 产品主线 + 权限专项 + 框架化 F1~F3 + v1.4~v1.20.0 全部交付** ✅
+
+| 阶段 | 交付内容 |
+|------|---------|
+| **M1~M6 产品主线** | 认证/RBAC/组织/编号引擎 → 物料·BOM·文档 → 流程引擎·ECR 闭环 → AI 中台 → 自适应知识库 → 项目报表 |
+| **v1.1~v1.3 平台化** | 权限专项（界面级 RBAC/密码时效/审计）· OpenAPI/Testcontainers/Nacos · 动态对象运行时 · 模块注册 · 多租户 · 表单/列表设计器 · starter 三件套 |
+| **v1.4~v1.9 事件与体验** | RocketMQ 事件总线（outbox 可靠性）· Nacos 配置中心 · UI 深度主题化/暗色模式 · pgvector 向量租户隔离 · **自研 SVG 流程设计器** · 元数据 TTL 缓存/日志保留期 |
+| **v1.10~v1.13 工程治理** | 本地瘦身（RSS 1.86GB/启动 -50%）· 真实网关冒烟修复 · 模块可观测性 · **mono 单进程（RSS 405MB，-78%）** · 替代件与统一变更中心 |
+| **v1.14~v1.16 集成编排器 MVP** | openforge-connector 服务 · HTTP/JDBC 连接器 · 凭据加密+SSRF 防护 · 版本化发布 · AI API 配置器 · EVENT/CRON 触发+死信 · manage 审计 · material 域事件化+主密钥轮换 |
+| **v1.17~v1.20 编排与图纸** | 多步骤链引擎（画布/上下文传参/SpEL 分支）· 分支可视化编辑 · SSRF 根治（出站固定解析）· **图纸管理 openforge-drawing**（档案/版本/审签/物料关联/预览） |
+
+<details>
+<summary><b>📜 完整版本历史（v1.1.0 → v1.20.0）</b></summary>
+
+> v1.20.0（图纸管理）：物料/BOM 的图纸域补齐——新服务 openforge-drawing（:8095）：图纸档案（DW-*）/三类文件与流式下载/检入检出/状态机（草稿→评审→发布→作废+驳回+大版本升版，发布固化版本快照）/物料多对多关联与反查/PDF·图片内嵌预览；drawing 事件入连接器触发白名单；mono 聚合 10 模块；dev-up 启动期 OOM 根治（[设计文档](docs/OpenForge-图纸管理设计.md)）。
+>
+> v1.19.0（SSRF 根治 R6）：出站固定解析——解析即校验、所解即所连（httpclient5 DnsResolver 扩展点），消除 DNS 重绑定 TOCTOU 窗口；两出站路径统一迁移。
+>
+> v1.18.0（编排分支可视化编辑）：STEP 节点橙色锚点拖出条件分支，分支边表达式标签；连线抽屉直接编辑（工作流同享）；导出镜像后端校验。
+>
+> v1.17.0（多步骤编排）：CHAIN 链引擎——画布可视化编排（节点类型注册表泛化双域复用）、步骤上下文传参 `{{steps.x.body.字段}}`、branches SpEL 选路+防环、触发作用于整链、一链一日志（[设计文档 §14](docs/OpenForge-集成编排器MVP设计.md)）。
+>
+> v1.16.0（material 域事件化 + 主密钥轮换）：part.released/bom.published 事件域落地，"物料发布→自动推 ERP"打通；双密钥读+批处理重加密（R1 闭环）。
+>
+> v1.15.0（AI API 配置器 + 事件/定时触发 + manage 审计）：ai_provider 表+降级链热加载；连接器 EVENT/CRON 触发+sys_connector_dlq 死信；manage 操作跨服务审计（R8）。
+>
+> v1.14.0（集成编排器 MVP）：低代码第七设计器——openforge-connector 服务、HTTP/JDBC 只读连接器、凭据 AES-256-GCM、出站白名单+私网拦截、版本化发布+invoke API。
+>
+> v1.12.x（mono 单进程 + 治理）：PROFILE=mono 两进程全栈（RSS 405MB，-78%）；系统代码评审 12 发现修复六项；冒烟一键化。
+>
+> v1.11.0（可观测性与 Nacos 回路）：BROKEN 模块可观测性；Nacos 回路测试修复+CI 常开。
+>
+> v1.10.0（瘦身与冒烟修复）：本地开发瘦身（JVM 调优/构建智能跳过/PROFILE 预设/AppCDS）；首次真实网关冒烟修复四处交付缺陷。
+>
+> v1.9.0（性能与运维双技术债）：发布元数据 TTL 缓存；登录与审计日志保留期清理。
+>
+> v1.8.0（可视化流程设计器）：自研 SVG 画布零依赖；条件分支语义与引擎严格对齐（bpmn-js 评估后否决）。
+>
+> v1.7.0（向量存储演进）：pgvector 可插拔切换，SQL 级+行级双重租户隔离，HNSW 余弦检索。
+>
+> v1.6.0（体验与可靠性）：前端深度主题化（品牌 token/暗色模式/品牌化登录页/工作台）；outbox 原子落库+relay 补发。
+>
+> v1.5.0（B1 配置中心）：九服务接入 Nacos 配置中心，optional import 断连安全，默认关闭。
+>
+> v1.4.0（B2 事件总线）：RocketMQ 事件驱动跨域协作，幂等消费+死信，默认关闭回退同步 HTTP。
+>
+> v1.3.0（框架化 F2~F3）：动态对象运行时（建模→DDL→AI 闭环）、模块注册机制、多租户全链路、表单/列表设计器、starter 三件套、openforge-cli、可观测、生产 compose+Helm 骨架、二开指南。
+>
+> v1.2.0（框架化 F1）：OpenAPI 全服务文档、Testcontainers 真实 PG 测试矩阵、Nacos 服务发现。
+>
+> v1.1.0（权限体系）：固定 admin、角色自定义与界面级权限矩阵、密码半年过期强制重置、登录锁定与安全审计。
+
+</details>
+
+**后续路线**：飞书/钉钉/邮件连接器包、出站脱敏代理（与 AI 外呼合并）、行业模板包、Milvus/Neo4j/ES 随规模引入、ECO 自动升版联动（drawing 事件口已留）、CADConverter 服务端转换预览。
+
+---
 
 ## 🤝 参与贡献
 
-应用主体、框架化路线与本地体验优化（瘦身/mono 单进程）截至 v1.12.1 的各版均已交付（见上方 Roadmap），欢迎在以下方向参与：
+- **方向讨论**：后续路线（向量库演进、行业模板包）欢迎提 Issue 讨论；
+- **早期共建**：ERP/MES 连接器、连接器与插件生态、安装初始化向导、i18n、文档站与在线 Demo；
+- **场景输入**：分享你所在行业的 PLM 痛点与流程样本，帮助打磨低代码模板库。
 
-- 方向讨论：后续路线（Milvus 向量库、行业模板包）提出 Issue 讨论；
-- 早期共建：ERP/MES 连接器、连接器与插件生态、安装初始化向导、i18n、文档站与在线 Demo；
-- 场景输入：分享你所在行业的 PLM 痛点与流程样本，帮助打磨低代码模板库。
+贡献流程见 [CONTRIBUTING](CONTRIBUTING.md)（性能自检合并门 + 冒烟合并门 + 浏览器级巡检门）。
 
 ## 📄 License
 
-采用 **Apache-2.0**（完整许可证文本见仓库根目录 [LICENSE](LICENSE)）：与主流生态兼容、含明确专利授权、对企业用户友好，同时保留双重许可（开源版 + 商业版增值模块）的演进空间。
+采用 **Apache-2.0**（完整许可证文本见 [LICENSE](LICENSE)）：与主流生态兼容、含明确专利授权、对企业用户友好，同时保留双重许可（开源版 + 商业版增值模块）的演进空间。
 
 ---
 
 <div align="center">
 
 **OpenForge PLM** — *Open source PLM, forged with AI.*
-
-⭐ 如果这个项目对你有价值，欢迎 Star 关注进展
 
 </div>
