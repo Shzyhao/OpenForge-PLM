@@ -184,4 +184,15 @@ class DrawingIntegrationTest {
         assertThatThrownBy(() -> drawingService.download(drawing.getId(), 99999L))
                 .isInstanceOf(BizException.class);
     }
+
+    @Test
+    @DisplayName("超长文件名在源头拒绝（R11：此前 varchar 溢出落 5000+ERROR 堆栈，输入错误族）")
+    void overlongFileNameRejected() throws Exception {
+        DrawingInfo drawing = drawingService.create("超长文件名校验图", 1L);
+        String longName = "L".repeat(300) + ".dwg";
+        assertThatThrownBy(() -> drawingService.uploadFile(drawing.getId(), longName,
+                new ByteArrayInputStream(content("x")), "ATTACHMENT"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("文件名过长");
+    }
 }
