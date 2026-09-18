@@ -38,6 +38,9 @@ public class WorkflowInstance {
 
     private Long initiatorId;
 
+    /** 租户归属（R10）：实例全局表按 ID 寻址，读取以本字段校验同租户；GLOBAL_TABLES 免拦截器故服务层自守 */
+    private Long tenantId;
+
     private LocalDateTime startedAt;
 
     private LocalDateTime endedAt;

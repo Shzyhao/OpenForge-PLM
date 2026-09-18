@@ -124,6 +124,10 @@ public class DrawingService {
     public DrawingFile uploadFile(Long id, String fileName, InputStream content, String kind) throws Exception {
         DrawingInfo drawing = requireDrawing(id);
         requireDraft(drawing, "上传文件");
+        // 文件名长度在源头收口（R11）：DB file_name varchar(255)，超长此前落 5000+ERROR 堆栈（输入错误族）
+        if (fileName != null && fileName.length() > 255) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "文件名过长（上限 255 字符）");
+        }
         String normalizedKind = kind == null || kind.isBlank() ? "ATTACHMENT" : kind.trim();
         if (!FILE_KINDS.contains(normalizedKind)) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "文件类型须为 MAIN/PREVIEW/ATTACHMENT");

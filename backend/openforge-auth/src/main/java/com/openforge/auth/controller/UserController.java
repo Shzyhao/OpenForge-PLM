@@ -83,6 +83,7 @@ public class UserController {
     }
 
     @org.springframework.web.bind.annotation.GetMapping("")
+    @RequirePermission("user:manage")
     public ApiResponse<com.openforge.auth.dto.PageResponse<SysUser>> page(
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") long page,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") long pageSize,

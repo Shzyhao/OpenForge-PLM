@@ -17,9 +17,12 @@ def test_chat_offline_degrades_gracefully():
     resp = client.post("/api/v1/ai/chat", json={"messages": [{"role": "user", "content": "你好"}]})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["mode"] in ("online", "offline")
-    if body["mode"] == "offline":
-        assert "离线" in body["reply"]
+    # R12 包络统一：与 Java 后端一致，业务体在 data 内（前端 request() 按 code==0 解包）
+    assert body["code"] == 0
+    payload = body["data"]
+    assert payload["mode"] in ("online", "offline")
+    if payload["mode"] == "offline":
+        assert "离线" in payload["reply"]
 
 
 def test_doc_parse_endpoint():
