@@ -40,7 +40,7 @@ public class DrawingController {
 
     @PostMapping
     @RequirePermission("drawing:manage")
-    public ApiResponse<DrawingInfo> create(@RequestBody CreateDrawingRequest request,
+    public ApiResponse<DrawingInfo> create(@jakarta.validation.Valid @RequestBody CreateDrawingRequest request,
                                            HttpServletRequest httpRequest) {
         return ApiResponse.ok(drawingService.create(request.getTitle(), currentUserId(httpRequest)));
     }
@@ -187,6 +187,7 @@ public class DrawingController {
     @Data
     public static class CreateDrawingRequest {
         @NotBlank
+        @jakarta.validation.constraints.Size(max = 255, message = "标题最长 255 字符")
         private String title;
     }
 
