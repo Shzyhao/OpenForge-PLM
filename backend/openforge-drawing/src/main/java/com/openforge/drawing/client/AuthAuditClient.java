@@ -13,9 +13,10 @@ import java.util.Map;
  * 跨服务操作审计客户端（R8 模式，v1.20.0 五轮体检补齐——图纸域 manage 操作此前未落审计）：
  * manage 操作经 auth 内部端点落 sys_audit_log，与 metadata→auth 权限注册同一内部令牌直连模式。
  * 尽力而为语义：事务提交后发送，失败仅告警不阻断（对齐 connector 域 AuthAuditClient 先例）。
+ * bean 名显式区分：connector 域同名类在 mono 单 classpath 下冲突（LocalDiskStorage 同例）。
  */
 @Slf4j
-@Component
+@Component("drawingAuthAuditClient")
 public class AuthAuditClient {
 
     private final RestClient authClient;
