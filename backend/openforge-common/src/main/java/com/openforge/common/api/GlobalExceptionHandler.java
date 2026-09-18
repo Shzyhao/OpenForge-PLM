@@ -5,8 +5,10 @@ import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -61,6 +63,20 @@ public class GlobalExceptionHandler {
         log.debug("method not supported: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(ApiResponse.fail(ErrorCode.INVALID_ARGUMENT, "请求方法不支持: " + e.getMethod()));
+    }
+
+    /** 请求体畸形/类型不符（JSON parse error）→ 1000，非系统错误（不刷 ERROR 堆栈）。 */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException e) {
+        log.debug("unreadable request body: {}", e.getMessage());
+        return ResponseEntity.ok(ApiResponse.fail(ErrorCode.INVALID_ARGUMENT, "请求体 JSON 不合法"));
+    }
+
+    /** 缺少必填请求参数 → 1000，非系统错误。 */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException e) {
+        return ResponseEntity.ok(ApiResponse.fail(ErrorCode.INVALID_ARGUMENT,
+                "缺少必填参数: " + e.getParameterName()));
     }
 
     @ExceptionHandler(Exception.class)
