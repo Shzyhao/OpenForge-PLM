@@ -149,6 +149,12 @@ public class WorkflowEngine {
         if (task == null || !task.isOpen()) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");
         }
+        // 动作归一化 + 校验（v1.20.0 体检修复）：此前大小写敏感——小写 "approve" 会让
+        // 会签判定 "APPROVE".equals(action) 恒 false，实例在当前节点静默挂起（无任何报错）
+        String normalized = action == null ? "" : action.trim().toUpperCase();
+        if (!"APPROVE".equals(normalized) && !"REJECT".equals(normalized)) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "action 须为 APPROVE/REJECT: " + action);
+        }
         boolean assignedToMe = userId.equals(task.getAssigneeId());
         boolean myRole = task.getCandidateRole() != null
                 && permissionQueryClient.fetch(userId).roles().contains(task.getCandidateRole());
@@ -157,7 +163,7 @@ public class WorkflowEngine {
         }
 
         WorkflowInstance inst = instance(task.getInstanceId());
-        task.setAction(action);
+        task.setAction(normalized);
         task.setComment(comment);
         task.setAssigneeId(userId); // 角色任务认领后记录办理人
         task.setActedAt(LocalDateTime.now());
@@ -173,7 +179,7 @@ public class WorkflowEngine {
         boolean allApproved = openTasks.isEmpty()
                 && nodeTasks.stream().allMatch(t -> "APPROVE".equals(t.getAction()));
 
-        if ("REJECT".equals(action)) {
+        if ("REJECT".equals(normalized)) {
             cancelOpenTasks(openTasks);
             if (node.rejectTo() != null) {
                 return fallBack(inst, node.rejectTo());

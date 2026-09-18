@@ -5,6 +5,7 @@ import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -52,6 +53,14 @@ public class GlobalExceptionHandler {
         log.debug("no resource: {}", e.getResourcePath());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.fail(ErrorCode.RESOURCE_NOT_FOUND, "接口不存在"));
+    }
+
+    /** 方法不支持（GET-only 路径打 POST 等）→ HTTP 405 + 1000，非系统错误。 */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        log.debug("method not supported: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.fail(ErrorCode.INVALID_ARGUMENT, "请求方法不支持: " + e.getMethod()));
     }
 
     @ExceptionHandler(Exception.class)
