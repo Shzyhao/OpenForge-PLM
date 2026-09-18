@@ -79,6 +79,13 @@ public class GlobalExceptionHandler {
                 "缺少必填参数: " + e.getParameterName()));
     }
 
+    /** 数据完整性冲突（字段超长/唯一约束等）→ 1000：DTO 校验漏网时的兜底，不落 5000。 */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException e) {
+        log.warn("数据完整性冲突: {}", e.getMessage());
+        return ResponseEntity.ok(ApiResponse.fail(ErrorCode.INVALID_ARGUMENT, "数据不合法（超长或违反唯一约束）"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e) {
         if (isDbUnreachable(e)) {
