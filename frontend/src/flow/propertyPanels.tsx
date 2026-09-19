@@ -8,7 +8,7 @@ import { Button, Input, Select, Space, Typography } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { NODE_TYPE_META, nodeLabel, type FlowDef, type FlowNode, type RuleDef } from './flowModel'
 import ConnectorConfigPanel, { type ConnectorConfigPanelHandle } from '../components/ConnectorConfigPanel'
-import { fetchCredentials, type Credential } from '../api/connector'
+import { fetchCredentials, type ConnType, type Credential } from '../api/connector'
 
 export interface NodePanelProps {
   node: FlowNode
@@ -159,6 +159,9 @@ const StepPanel = ({ node, readOnly, patch }: NodePanelProps) => {
           options={[
             { value: 'HTTP_REST', label: 'HTTP/REST 接口' },
             { value: 'JDBC_READONLY', label: '数据库直连（只读）' },
+            { value: 'SMTP_EMAIL', label: '邮件通知（SMTP）' },
+            { value: 'DINGTALK_BOT', label: '钉钉机器人' },
+            { value: 'FEISHU_BOT', label: '飞书机器人' },
           ]} />
       </label>
       {Object.keys(node.stepSpec ?? {}).length === 0 && (
@@ -167,7 +170,7 @@ const StepPanel = ({ node, readOnly, patch }: NodePanelProps) => {
         </Typography.Text>
       )}
       <ConnectorConfigPanelLazy
-        ref={panelRef} connType={stepType as 'HTTP_REST' | 'JDBC_READONLY'}
+        ref={panelRef} connType={stepType as ConnType}
         spec={(node.stepSpec ?? {}) as Record<string, unknown>} credentials={credentials} />
       <Button type="primary" size="small" loading={applying} disabled={readOnly} onClick={applySpec}>
         应用到步骤

@@ -67,6 +67,26 @@ public class EgressGuard {
     }
 
     /**
+     * 校验非 HTTP 出站目标 host（v1.22 连接器扩展包：SMTP 等）：
+     * 白名单匹配 + 私网校验，语义与 check(url) 对等（SMTP 无 URL 形态，host/port 显式传入）。
+     */
+    public void checkHost(String host, int port) {
+        if (host == null || host.isBlank()) {
+            throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "目标地址缺少 host");
+        }
+        if (whitelist.isEmpty()) {
+            throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED,
+                    "出站白名单未配置，已拦截（OPENFORGE_CONNECTOR_EGRESS_WHITELIST）");
+        }
+        if (!matches(host.toLowerCase(Locale.ROOT), port, "smtp")) {
+            throw new BizException(ErrorCode.CONN_EGRESS_BLOCKED, "目标 host 不在出站白名单内");
+        }
+        if (!allowPrivate) {
+            checkNotPrivate(host);
+        }
+    }
+
+    /**
      * 解析 URL：占位符 {{param}}（路径/查询模板）替换哑元后再解析——运行时先渲染再请求，
      * 校验时同样容忍模板。host 位占位符替换后为哑元 host，无法命中白名单（安全语义不变）。
      */

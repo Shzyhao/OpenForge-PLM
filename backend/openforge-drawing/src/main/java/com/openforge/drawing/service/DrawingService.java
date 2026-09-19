@@ -58,6 +58,7 @@ public class DrawingService {
     private final EventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final com.openforge.drawing.client.AuthAuditClient auditClient;
+    private final com.openforge.drawing.client.ChangeNotifyClient changeNotifier;
 
     // ===== 档案 =====
 
@@ -229,11 +230,23 @@ public class DrawingService {
         saveSnapshot(drawing, operatorId);
         auditClient.record(operatorId, "DRW_PUBLISH", "DRAWING", drawing.getDrawingNumber(),
                 "发布版本 " + drawing.version());
-        publishAfterCommit("drawing.released", Map.of(
+        // 关联物料随事件下发（v1.22 ECO 联动）：change 侧消费后自动创建联动变更单
+        List<Map<String, Object>> linkedParts = partMapper.selectList(new LambdaQueryWrapper<DrawingPart>()
+                        .eq(DrawingPart::getDrawingId, id).orderByAsc(DrawingPart::getId))
+                .stream().map(l -> Map.<String, Object>of(
+                        "partId", l.getPartId(), "partNumber", l.getPartNumber(), "role", l.getRole()))
+                .toList();
+        Map<String, Object> payload = Map.of(
                 "drawingId", drawing.getId(),
                 "drawingNumber", drawing.getDrawingNumber(),
-                "title", drawing.getTitle(),
-                "version", drawing.version()));
+                "title", drawing.getTitle() == null ? "" : drawing.getTitle(),
+                "version", drawing.version(),
+                "linkedParts", linkedParts);
+        boolean viaBus = publishAfterCommit("drawing.released", payload,
+                p -> changeNotifier.notifyDrawingReleased(p));
+        if (!viaBus && !linkedParts.isEmpty()) {
+            changeNotifier.notifyDrawingReleased(payload);
+        }
         return drawing;
     }
 
@@ -260,7 +273,7 @@ public class DrawingService {
         publishAfterCommit("drawing.obsolete", Map.of(
                 "drawingId", drawing.getId(),
                 "drawingNumber", drawing.getDrawingNumber(),
-                "version", drawing.version()));
+                "version", drawing.version()), p -> { });
         return drawing;
     }
 
@@ -392,19 +405,30 @@ public class DrawingService {
         }
     }
 
-    private void publishAfterCommit(String event, Map<String, Object> payload) {
-        Runnable emit = () -> eventPublisher.publish(TOPIC, event, payload);
+    /**
+     * 事务提交后发事件；返回 false 表示总线关闭（v1.22 ECO 联动回退语义）：
+     * 有事务时回退在 afterCommit 内执行（此时必为 false——enabled=false publish 恒 false），
+     * 无事务时由调用方按返回值回退。
+     */
+    private boolean publishAfterCommit(String event, Map<String, Object> payload,
+                                       java.util.function.Consumer<Map<String, Object>> fallback) {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
                     new org.springframework.transaction.support.TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            emit.run();
+                            if (!eventPublisher.publish(TOPIC, event, payload)) {
+                                fallback.accept(payload);
+                            }
                         }
                     });
-        } else {
-            emit.run();
+            return true;
         }
+        boolean sent = eventPublisher.publish(TOPIC, event, payload);
+        if (!sent) {
+            fallback.accept(payload);
+        }
+        return sent;
     }
 
     private String sha256(byte[] bytes) {

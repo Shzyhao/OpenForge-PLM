@@ -353,6 +353,9 @@ public class ConnectorDefinitionService {
                     specMap.get("credentialRef") == null ? null : String.valueOf(specMap.get("credentialRef"));
             case ConnectorSpecs.TYPE_JDBC_READONLY ->
                     specMap.get("passwordRef") == null ? null : String.valueOf(specMap.get("passwordRef"));
+            case ConnectorSpecs.TYPE_SMTP_EMAIL, ConnectorSpecs.TYPE_DINGTALK_BOT,
+                    ConnectorSpecs.TYPE_FEISHU_BOT ->
+                    specMap.get("credentialRef") == null ? null : String.valueOf(specMap.get("credentialRef"));
             default -> null;
         };
         boolean credExists = true;
@@ -371,6 +374,12 @@ public class ConnectorDefinitionService {
                     ConnectorSpecs.parseHttpRest(specMap, objectMapper, credExists);
             case ConnectorSpecs.TYPE_JDBC_READONLY ->
                     ConnectorSpecs.parseJdbcReadonly(specMap, objectMapper, credExists);
+            case ConnectorSpecs.TYPE_SMTP_EMAIL ->
+                    ConnectorSpecs.parseSmtpEmail(specMap, objectMapper, credExists);
+            case ConnectorSpecs.TYPE_DINGTALK_BOT ->
+                    ConnectorSpecs.parseDingTalkBot(specMap, objectMapper, credExists);
+            case ConnectorSpecs.TYPE_FEISHU_BOT ->
+                    ConnectorSpecs.parseFeishuBot(specMap, objectMapper, credExists);
             default -> throw new BizException(ErrorCode.CONN_SPEC_INVALID, "不支持的连接器类型: " + connType);
         }
     }

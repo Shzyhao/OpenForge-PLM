@@ -998,6 +998,8 @@ export default function IntegrationPage() {
               { value: 'BASIC', label: 'Basic（填 user:password）' },
               { value: 'API_KEY_HEADER', label: 'API Key（自定义头）' },
               { value: 'JDBC_PASSWORD', label: '数据库密码（JDBC 连接器用）' },
+              { value: 'SMTP', label: 'SMTP 密码（邮件连接器用）' },
+              { value: 'WEBHOOK_SECRET', label: 'Webhook 加签密钥（钉钉/飞书机器人）' },
             ]} />
           </Form.Item>
           <Form.Item name="secret" label="凭据值（保存后不可查看，仅可覆盖）"
