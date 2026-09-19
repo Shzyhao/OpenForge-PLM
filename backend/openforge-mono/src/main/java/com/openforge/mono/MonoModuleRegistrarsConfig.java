@@ -21,7 +21,15 @@ public class MonoModuleRegistrarsConfig {
     private ModuleRegistrar registrar(String descriptor, Environment env,
                                       String authBaseUrl, String internalToken) {
         return new ModuleRegistrar(authBaseUrl, internalToken, descriptor,
-                () -> env.getProperty("local.server.port", env.getProperty("server.port", "8090")));
+                () -> {
+                    // 容器编排覆盖优先（R15 实纱：mono 容器形态下网关按注册表 serviceUri 寻址，
+                    // 进程内端口 localhost 对 gateway 容器不可达——须上报 http://mono:8090）；
+                    // 无覆盖（dev 宿主机形态）回落本进程端口，语义不变。
+                    String override = env.getProperty("MODULE_SERVICE_URI", "");
+                    return override.isBlank()
+                            ? env.getProperty("local.server.port", env.getProperty("server.port", "8090"))
+                            : override;
+                });
     }
 
     @Bean
