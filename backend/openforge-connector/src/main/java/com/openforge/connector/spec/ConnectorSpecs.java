@@ -25,7 +25,8 @@ public final class ConnectorSpecs {
     public static final String TYPE_JDBC_READONLY = "JDBC_READONLY";
     /** P3 刀1：多步骤链（spec schemaVersion=2），执行走 ChainExecutor，无对应 ConnectorSpi。 */
     public static final String TYPE_CHAIN = "CHAIN";
-    private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_HTTP_REST, TYPE_JDBC_READONLY, TYPE_CHAIN);
+    public static final String TYPE_SMTP_EMAIL = "SMTP_EMAIL";
+    private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_HTTP_REST, TYPE_JDBC_READONLY, TYPE_CHAIN, TYPE_SMTP_EMAIL);
 
     /** JDBC 数据源仅放行两种驱动（连接器 MVP 设计 §5）；更多方言按需追加。 */
     private static final Set<String> JDBC_URL_PREFIXES = Set.of("jdbc:postgresql://", "jdbc:mysql://");
@@ -129,6 +130,66 @@ public final class ConnectorSpecs {
         checkPlaceholders(url, headers, requestTemplate, parameterSchema);
         return new HttpRestSpec(schemaVersion, method, url, headers, timeoutMs,
                 credentialRef, parameterSchema, requestTemplate, new HttpRestSpec.Retry(maxAttempts, backoffMs));
+    }
+
+    /** 邮箱格式宽松校验（本地@域名，不做 TLD 深校验——企业内网域名合法）。 */
+    static boolean isEmail(String value) {
+        return value != null && value.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    }
+
+    /** 解析并校验 SMTP 邮件 spec（v1.22 连接器扩展包①）；任何非法输入抛 CONN_SPEC_INVALID。 */
+    public static SmtpEmailSpec parseSmtpEmail(Object specNode, ObjectMapper mapper,
+                                               boolean credentialRefExists) {
+        Map<String, Object> root = asMap(specNode, "spec");
+        int schemaVersion = intOf(root.get("schemaVersion"), 0, "schemaVersion");
+        if (schemaVersion != 1) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "schemaVersion 仅支持 1");
+        }
+        String host = strOf(root.get("host"), "host");
+        int port = intOf(root.get("port"), 25, "port");
+        if (port < 1 || port > 65535) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "port 须在 1~65535: " + port);
+        }
+        boolean starttls = Boolean.TRUE.equals(root.get("starttls"));
+        String from = strOf(root.get("from"), "from");
+        if (!isEmail(from)) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "from 邮箱格式非法: " + from);
+        }
+        String to = strOf(root.get("to"), "to");
+        for (String addr : to.split(",")) {
+            if (!isEmail(addr.trim())) {
+                throw new BizException(ErrorCode.CONN_SPEC_INVALID, "to 收件人邮箱格式非法: " + addr.trim());
+            }
+        }
+        String subject = strOf(root.get("subject"), "subject");
+        String bodyText = root.get("bodyText") == null ? ""
+                : strOf(root.get("bodyText"), "bodyText");
+        int timeoutMs = intOf(root.get("timeoutMs"), 10000, "timeoutMs");
+        if (timeoutMs < TIMEOUT_MIN || timeoutMs > TIMEOUT_MAX) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                    "timeoutMs 须在 " + TIMEOUT_MIN + "~" + TIMEOUT_MAX + ": " + timeoutMs);
+        }
+        String credentialRef = root.get("credentialRef") == null ? null
+                : strOf(root.get("credentialRef"), "credentialRef");
+        if (credentialRef != null && !credentialRefExists) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "credentialRef 引用的凭据不存在: " + credentialRef);
+        }
+        // 占位符校验：subject/bodyText/to 的 {{param}} 须在 parameterSchema 声明（复用 usedPlaceholders 面）
+        Map<String, Object> parameterSchema = root.get("parameterSchema") == null ? Map.of()
+                : asMap(root.get("parameterSchema"), "parameterSchema");
+        Set<String> used = java.util.stream.Stream.of(subject, to, bodyText)
+                .flatMap(text -> usedPlaceholders(text, Map.of(), Map.of()).stream())
+                .collect(java.util.stream.Collectors.toSet());
+        if (!used.isEmpty()) {
+            Set<String> declared = declaredParams(parameterSchema);
+            List<String> undeclared = used.stream().filter(p -> !declared.contains(p)).sorted().toList();
+            if (!undeclared.isEmpty()) {
+                throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                        "占位符未在 parameterSchema.properties 中声明: " + undeclared);
+            }
+        }
+        return new SmtpEmailSpec(schemaVersion, host, port, starttls, from, to,
+                subject, bodyText, timeoutMs, credentialRef, parameterSchema);
     }
 
     /** 解析并校验 JDBC 只读 spec；任何非法输入抛 CONN_SPEC_INVALID。 */

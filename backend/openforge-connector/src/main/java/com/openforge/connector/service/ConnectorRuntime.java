@@ -123,10 +123,13 @@ public class ConnectorRuntime {
             if (ConnectorSpecs.TYPE_HTTP_REST.equals(connType)) {
                 egressGuard.check(((HttpRestSpec) parsed.spec()).url());
             }
+            if (ConnectorSpecs.TYPE_SMTP_EMAIL.equals(connType) && parsed.smtpSpec() != null) {
+                egressGuard.checkHost(parsed.smtpSpec().host(), parsed.smtpSpec().port());
+            }
             ResolvedCredential resolved = parsed.credentialRef() == null ? null
                     : toSpiCredential(credentialService.resolveByCode(parsed.credentialRef()));
             return spiOf(connType).execute(new com.openforge.connector.spi.ConnectorExecution(
-                    parsed.httpSpec(), parsed.jdbcSpec(), params, resolved));
+                    parsed.httpSpec(), parsed.jdbcSpec(), parsed.smtpSpec(), params, resolved));
         } catch (BizException e) {
             throw e;
         } catch (Exception e) {
@@ -172,11 +175,16 @@ public class ConnectorRuntime {
         return switch (connType) {
             case ConnectorSpecs.TYPE_HTTP_REST -> {
                 HttpRestSpec spec = ConnectorSpecs.parseHttpRest(specMap, objectMapper, true);
-                yield new ParsedSpec(spec, null, spec.credentialRef(), spec.parameterSchema());
+                yield new ParsedSpec(spec, null, null, spec.credentialRef(), spec.parameterSchema());
             }
             case ConnectorSpecs.TYPE_JDBC_READONLY -> {
                 JdbcReadonlySpec spec = ConnectorSpecs.parseJdbcReadonly(specMap, objectMapper, true);
-                yield new ParsedSpec(null, spec, spec.passwordRef(), spec.parameterSchema());
+                yield new ParsedSpec(null, spec, null, spec.passwordRef(), spec.parameterSchema());
+            }
+            case ConnectorSpecs.TYPE_SMTP_EMAIL -> {
+                com.openforge.connector.spec.SmtpEmailSpec spec =
+                        ConnectorSpecs.parseSmtpEmail(specMap, objectMapper, true);
+                yield new ParsedSpec(null, null, spec, spec.credentialRef(), spec.parameterSchema());
             }
             default -> throw new BizException(ErrorCode.CONN_SPEC_INVALID,
                     "不支持的连接器类型: " + connType + (ConnectorSpecs.TYPE_CHAIN.equals(connType)
@@ -224,6 +232,7 @@ public class ConnectorRuntime {
 
     /** 解析产物：typed spec + 凭据引用 + 参数 schema（运行时共用）。 */
     private record ParsedSpec(HttpRestSpec httpSpec, JdbcReadonlySpec jdbcSpec,
+                              com.openforge.connector.spec.SmtpEmailSpec smtpSpec,
                               String credentialRef, Map<String, Object> parameterSchema) {
 
         Object spec() {
