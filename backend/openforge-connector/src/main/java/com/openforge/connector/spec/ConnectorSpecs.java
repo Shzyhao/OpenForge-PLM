@@ -26,7 +26,10 @@ public final class ConnectorSpecs {
     /** P3 刀1：多步骤链（spec schemaVersion=2），执行走 ChainExecutor，无对应 ConnectorSpi。 */
     public static final String TYPE_CHAIN = "CHAIN";
     public static final String TYPE_SMTP_EMAIL = "SMTP_EMAIL";
-    private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_HTTP_REST, TYPE_JDBC_READONLY, TYPE_CHAIN, TYPE_SMTP_EMAIL);
+    public static final String TYPE_DINGTALK_BOT = "DINGTALK_BOT";
+    public static final String TYPE_FEISHU_BOT = "FEISHU_BOT";
+    private static final Set<String> SUPPORTED_TYPES = Set.of(
+            TYPE_HTTP_REST, TYPE_JDBC_READONLY, TYPE_CHAIN, TYPE_SMTP_EMAIL, TYPE_DINGTALK_BOT, TYPE_FEISHU_BOT);
 
     /** JDBC 数据源仅放行两种驱动（连接器 MVP 设计 §5）；更多方言按需追加。 */
     private static final Set<String> JDBC_URL_PREFIXES = Set.of("jdbc:postgresql://", "jdbc:mysql://");
@@ -130,6 +133,87 @@ public final class ConnectorSpecs {
         checkPlaceholders(url, headers, requestTemplate, parameterSchema);
         return new HttpRestSpec(schemaVersion, method, url, headers, timeoutMs,
                 credentialRef, parameterSchema, requestTemplate, new HttpRestSpec.Retry(maxAttempts, backoffMs));
+    }
+
+    /** 解析并校验钉钉机器人 spec（v1.22 扩展包②）；webhookUrl 走既有 checkUrl（http/https + 占位容忍）。 */
+    public static DingTalkBotSpec parseDingTalkBot(Object specNode, ObjectMapper mapper,
+                                                   boolean credentialRefExists) {
+        Map<String, Object> root = asMap(specNode, "spec");
+        int schemaVersion = intOf(root.get("schemaVersion"), 0, "schemaVersion");
+        if (schemaVersion != 1) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "schemaVersion 仅支持 1");
+        }
+        String webhookUrl = strOf(root.get("webhookUrl"), "webhookUrl");
+        checkUrl(webhookUrl);
+        String msgtype = root.get("msgtype") == null ? "text"
+                : strOf(root.get("msgtype"), "msgtype");
+        if (!Set.of("text", "markdown").contains(msgtype)) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "msgtype 仅支持 text/markdown: " + msgtype);
+        }
+        String title = root.get("title") == null ? null : strOf(root.get("title"), "title");
+        String textTemplate = strOf(root.get("textTemplate"), "textTemplate");
+        String atMobiles = root.get("atMobiles") == null ? null : strOf(root.get("atMobiles"), "atMobiles");
+        int timeoutMs = intOf(root.get("timeoutMs"), 5000, "timeoutMs");
+        if (timeoutMs < TIMEOUT_MIN || timeoutMs > TIMEOUT_MAX) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                    "timeoutMs 须在 " + TIMEOUT_MIN + "~" + TIMEOUT_MAX + ": " + timeoutMs);
+        }
+        String credentialRef = root.get("credentialRef") == null ? null
+                : strOf(root.get("credentialRef"), "credentialRef");
+        if (credentialRef != null && !credentialRefExists) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "credentialRef 引用的凭据不存在: " + credentialRef);
+        }
+        Map<String, Object> parameterSchema = root.get("parameterSchema") == null ? Map.of()
+                : asMap(root.get("parameterSchema"), "parameterSchema");
+        checkTextPlaceholders(String.join(" ", textTemplate, title, atMobiles), parameterSchema);
+        return new DingTalkBotSpec(schemaVersion, webhookUrl, msgtype, title, textTemplate,
+                atMobiles, timeoutMs, credentialRef, parameterSchema);
+    }
+
+    /** 解析并校验飞书机器人 spec（v1.22 扩展包③）。 */
+    public static FeishuBotSpec parseFeishuBot(Object specNode, ObjectMapper mapper,
+                                               boolean credentialRefExists) {
+        Map<String, Object> root = asMap(specNode, "spec");
+        int schemaVersion = intOf(root.get("schemaVersion"), 0, "schemaVersion");
+        if (schemaVersion != 1) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "schemaVersion 仅支持 1");
+        }
+        String webhookUrl = strOf(root.get("webhookUrl"), "webhookUrl");
+        checkUrl(webhookUrl);
+        String msgType = root.get("msgType") == null ? "text" : strOf(root.get("msgType"), "msgType");
+        if (!Set.of("text", "interactive").contains(msgType)) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "msgType 仅支持 text/interactive: " + msgType);
+        }
+        String textTemplate = strOf(root.get("textTemplate"), "textTemplate");
+        int timeoutMs = intOf(root.get("timeoutMs"), 5000, "timeoutMs");
+        if (timeoutMs < TIMEOUT_MIN || timeoutMs > TIMEOUT_MAX) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                    "timeoutMs 须在 " + TIMEOUT_MIN + "~" + TIMEOUT_MAX + ": " + timeoutMs);
+        }
+        String credentialRef = root.get("credentialRef") == null ? null
+                : strOf(root.get("credentialRef"), "credentialRef");
+        if (credentialRef != null && !credentialRefExists) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "credentialRef 引用的凭据不存在: " + credentialRef);
+        }
+        Map<String, Object> parameterSchema = root.get("parameterSchema") == null ? Map.of()
+                : asMap(root.get("parameterSchema"), "parameterSchema");
+        checkTextPlaceholders(textTemplate, parameterSchema);
+        return new FeishuBotSpec(schemaVersion, webhookUrl, msgType, textTemplate,
+                timeoutMs, credentialRef, parameterSchema);
+    }
+
+    /** 通知类 spec 的占位符闭包校验（模板串拼接后统一收集）。 */
+    private static void checkTextPlaceholders(String texts, Map<String, Object> parameterSchema) {
+        Set<String> used = usedPlaceholders(texts == null ? "" : texts, Map.of(), Map.of());
+        if (used.isEmpty()) {
+            return;
+        }
+        Set<String> declared = declaredParams(parameterSchema);
+        List<String> undeclared = used.stream().filter(p -> !declared.contains(p)).sorted().toList();
+        if (!undeclared.isEmpty()) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                    "占位符未在 parameterSchema.properties 中声明: " + undeclared);
+        }
     }
 
     /** 邮箱格式宽松校验（本地@域名，不做 TLD 深校验——企业内网域名合法）。 */

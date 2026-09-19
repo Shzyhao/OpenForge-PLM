@@ -71,6 +71,15 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
       smtpSubject: (spec.subject as string) ?? '',
       smtpBodyText: (spec.bodyText as string) ?? '',
       smtpTimeoutMs: (spec.timeoutMs as number) ?? 10000,
+      ddWebhookUrl: (spec.webhookUrl as string) ?? '',
+      ddMsgtype: (spec.msgtype as string) ?? 'text',
+      ddTitle: (spec.title as string) ?? '',
+      ddTextTemplate: (spec.textTemplate as string) ?? '',
+      ddAtMobiles: (spec.atMobiles as string) ?? '',
+      fsWebhookUrl: (spec.webhookUrl as string) ?? '',
+      fsMsgType: (spec.msgType as string) ?? 'text',
+      fsTextTemplate: (spec.textTemplate as string) ?? '',
+      notifyTimeoutMs: (spec.timeoutMs as number) ?? 5000,
       params: paramsOf(spec),
     }), [spec])
 
@@ -112,6 +121,30 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
             parameterSchema: params,
           } as unknown as Record<string, unknown>
         }
+        if (connType === 'DINGTALK_BOT') {
+          return {
+            schemaVersion: 1,
+            webhookUrl: values.ddWebhookUrl.trim(),
+            msgtype: values.ddMsgtype,
+            ...(values.ddTitle ? { title: values.ddTitle } : {}),
+            textTemplate: values.ddTextTemplate,
+            ...(values.ddAtMobiles ? { atMobiles: values.ddAtMobiles } : {}),
+            timeoutMs: values.notifyTimeoutMs,
+            ...(values.credentialRef ? { credentialRef: values.credentialRef } : {}),
+            parameterSchema: params,
+          } as unknown as Record<string, unknown>
+        }
+        if (connType === 'FEISHU_BOT') {
+          return {
+            schemaVersion: 1,
+            webhookUrl: values.fsWebhookUrl.trim(),
+            msgType: values.fsMsgType,
+            textTemplate: values.fsTextTemplate,
+            timeoutMs: values.notifyTimeoutMs,
+            ...(values.credentialRef ? { credentialRef: values.credentialRef } : {}),
+            parameterSchema: params,
+          } as unknown as Record<string, unknown>
+        }
         if (connType === 'HTTP_REST') {
           const headers = parseJsonText(values.headersText, '请求头') as Record<string, unknown>
           const body = parseJsonText(values.bodyText, '请求体模板') as Record<string, unknown>
@@ -146,6 +179,7 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
 
     const httpCreds = credentials.filter((c) => c.authType !== 'JDBC_PASSWORD')
     const jdbcCreds = credentials.filter((c) => c.authType === 'JDBC_PASSWORD')
+    const webhookCreds = credentials.filter((c) => c.authType === 'WEBHOOK_SECRET')
 
     return (
       <Form form={form} layout="vertical">
@@ -172,7 +206,59 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
           )}
         </Form.List>
 
-        {connType === 'SMTP_EMAIL' ? (
+        {connType === 'DINGTALK_BOT' || connType === 'FEISHU_BOT' ? (
+          <>
+            <Typography.Text type="secondary" style={{ display: 'block', margin: '16px 0 12px' }}>
+              {connType === 'DINGTALK_BOT'
+                ? '钉钉机器人（text/markdown；加签密钥走 WEBHOOK_SECRET 凭据引用，自动追加 timestamp/sign）'
+                : '飞书机器人（签名在 payload 内携带，密钥走 WEBHOOK_SECRET 凭据引用）'}
+            </Typography.Text>
+            <Form.Item name={connType === 'DINGTALK_BOT' ? 'ddWebhookUrl' : 'fsWebhookUrl'}
+              label="Webhook URL" rules={[{ required: true, message: '必填' }]}>
+              <Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=..."
+                style={{ fontFamily: 'monospace' }} />
+            </Form.Item>
+            {connType === 'DINGTALK_BOT' && (
+              <Space size="large" style={{ display: 'flex' }} wrap>
+                <Form.Item name="ddMsgtype" label="消息类型" style={{ marginBottom: 0 }}>
+                  <Select style={{ width: 130 }} options={[
+                    { value: 'text', label: 'text' },
+                    { value: 'markdown', label: 'markdown（需标题）' },
+                  ]} />
+                </Form.Item>
+                <Form.Item name="ddTitle" label="标题（markdown 用）" style={{ marginBottom: 0 }}>
+                  <Input placeholder="如 库存预警" style={{ width: 200 }} />
+                </Form.Item>
+                <Form.Item name="ddAtMobiles" label="@手机号（逗号分隔，可选）" style={{ marginBottom: 0 }}>
+                  <Input placeholder="13800000000,13900000000" style={{ width: 240 }} />
+                </Form.Item>
+              </Space>
+            )}
+            {connType === 'FEISHU_BOT' && (
+              <Form.Item name="fsMsgType" label="消息类型" style={{ marginTop: 12 }}>
+                <Select style={{ width: 130 }} options={[
+                  { value: 'text', label: 'text' },
+                  { value: 'interactive', label: 'interactive（降级文本）' },
+                ]} />
+              </Form.Item>
+            )}
+            <Form.Item name={connType === 'DINGTALK_BOT' ? 'ddTextTemplate' : 'fsTextTemplate'}
+              label={'消息模板（可用 {{参数名}} 占位）'} rules={[{ required: true, message: '必填' }]}
+              style={{ marginTop: 12 }}>
+              <Input.TextArea rows={3}
+                placeholder={'物料 {{partNumber}} 已发布，请关注'} />
+            </Form.Item>
+            <Space size="large" style={{ display: 'flex' }} wrap>
+              <Form.Item name="credentialRef" label="加签密钥凭据（可选）" style={{ minWidth: 220, marginBottom: 0 }}>
+                <Select allowClear placeholder="无加签"
+                  options={webhookCreds.map((c) => ({ value: c.credCode, label: `${c.credName}（${c.credCode}）` }))} />
+              </Form.Item>
+              <Form.Item name="notifyTimeoutMs" label="超时(ms)" style={{ marginBottom: 0 }}>
+                <InputNumber min={1000} max={30000} style={{ width: 120 }} />
+              </Form.Item>
+            </Space>
+          </>
+        ) : connType === 'SMTP_EMAIL' ? (
           <>
             <Typography.Text type="secondary" style={{ display: 'block', margin: '16px 0 12px' }}>
               SMTP 邮件出站（主题/正文/收件人可用 {'{{参数名}}'} 占位；认证密码走 SMTP 凭据引用）

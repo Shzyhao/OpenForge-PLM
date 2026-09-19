@@ -129,7 +129,8 @@ public class ConnectorRuntime {
             ResolvedCredential resolved = parsed.credentialRef() == null ? null
                     : toSpiCredential(credentialService.resolveByCode(parsed.credentialRef()));
             return spiOf(connType).execute(new com.openforge.connector.spi.ConnectorExecution(
-                    parsed.httpSpec(), parsed.jdbcSpec(), parsed.smtpSpec(), params, resolved));
+                    parsed.httpSpec(), parsed.jdbcSpec(), parsed.smtpSpec(),
+                    parsed.dingtalkSpec(), parsed.feishuSpec(), params, resolved));
         } catch (BizException e) {
             throw e;
         } catch (Exception e) {
@@ -175,16 +176,26 @@ public class ConnectorRuntime {
         return switch (connType) {
             case ConnectorSpecs.TYPE_HTTP_REST -> {
                 HttpRestSpec spec = ConnectorSpecs.parseHttpRest(specMap, objectMapper, true);
-                yield new ParsedSpec(spec, null, null, spec.credentialRef(), spec.parameterSchema());
+                yield new ParsedSpec(spec, null, null, null, null, spec.credentialRef(), spec.parameterSchema());
             }
             case ConnectorSpecs.TYPE_JDBC_READONLY -> {
                 JdbcReadonlySpec spec = ConnectorSpecs.parseJdbcReadonly(specMap, objectMapper, true);
-                yield new ParsedSpec(null, spec, null, spec.passwordRef(), spec.parameterSchema());
+                yield new ParsedSpec(null, spec, null, null, null, spec.passwordRef(), spec.parameterSchema());
             }
             case ConnectorSpecs.TYPE_SMTP_EMAIL -> {
                 com.openforge.connector.spec.SmtpEmailSpec spec =
                         ConnectorSpecs.parseSmtpEmail(specMap, objectMapper, true);
-                yield new ParsedSpec(null, null, spec, spec.credentialRef(), spec.parameterSchema());
+                yield new ParsedSpec(null, null, spec, null, null, spec.credentialRef(), spec.parameterSchema());
+            }
+            case ConnectorSpecs.TYPE_DINGTALK_BOT -> {
+                com.openforge.connector.spec.DingTalkBotSpec spec =
+                        ConnectorSpecs.parseDingTalkBot(specMap, objectMapper, true);
+                yield new ParsedSpec(null, null, null, spec, null, spec.credentialRef(), spec.parameterSchema());
+            }
+            case ConnectorSpecs.TYPE_FEISHU_BOT -> {
+                com.openforge.connector.spec.FeishuBotSpec spec =
+                        ConnectorSpecs.parseFeishuBot(specMap, objectMapper, true);
+                yield new ParsedSpec(null, null, null, null, spec, spec.credentialRef(), spec.parameterSchema());
             }
             default -> throw new BizException(ErrorCode.CONN_SPEC_INVALID,
                     "不支持的连接器类型: " + connType + (ConnectorSpecs.TYPE_CHAIN.equals(connType)
@@ -233,6 +244,8 @@ public class ConnectorRuntime {
     /** 解析产物：typed spec + 凭据引用 + 参数 schema（运行时共用）。 */
     private record ParsedSpec(HttpRestSpec httpSpec, JdbcReadonlySpec jdbcSpec,
                               com.openforge.connector.spec.SmtpEmailSpec smtpSpec,
+                              com.openforge.connector.spec.DingTalkBotSpec dingtalkSpec,
+                              com.openforge.connector.spec.FeishuBotSpec feishuSpec,
                               String credentialRef, Map<String, Object> parameterSchema) {
 
         Object spec() {
