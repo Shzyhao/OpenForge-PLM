@@ -112,6 +112,7 @@
 8. GitHub 间歇 502/startup_failure：空提交重触发 / close+reopen / 等待平台恢复；stacked PR 基分支被删连坐关闭 → rebase + 重建 PR
 9.5. **Git Bash curl 实纱**：`-F "file=@/tmp/x;filename=y"` 复合参数不做 MSYS 路径转换（Windows curl 读不到 POSIX 临时路径，静默空响应）；`--data-binary @/tmp/x` 纯路径形态可以。multipart 上传统一 `cygpath -w` 转换后传 Windows 路径（smoke.sh 图纸节先例）
 9. **前端交付合并门 = 浏览器级真实打开**（#94 教训：设计器只读预览自 #82 交付以来从未被真实打开——构建绿 + locator 断言测不出"节点全叠原点"这类视觉缺陷；自动化时 React 合成事件对 locator/CUA click 无响应，用 `evaluate` 程序化 `.click()`）；#101 扩展：**新页面交付走全页面巡检**（15 界面逐页，检查错误提示/表格渲染/空态一致性）——实锤了分页结构这类"构建绿但用户可见坏"的接口契约缺陷
+10. **大版本测试/更新收尾必做 Docker 资产盘点**：`./scripts/docker-audit.sh` 分析 + `clean` 清理（十二轮实测 12.7GB→1.8GB：失败构建缓存 6.3GB/判停路线 ES 2GB/废弃选型 rabbitmq/悬空层/孤儿卷）。判定锚点已脚本化——保留=运行中容器引用 + `openforge*` 自建产物，其余（含 compose 有定义但零运行的 extras 镜像）一律清掉，需要时重拉分钟级；**先分析后 clean，clean 前过目孤儿卷清单**
 
 ## 已知技术债 / 遗留
 
