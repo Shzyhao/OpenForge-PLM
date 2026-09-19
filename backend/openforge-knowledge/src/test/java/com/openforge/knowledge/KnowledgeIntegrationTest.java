@@ -52,6 +52,9 @@ class KnowledgeIntegrationTest {
 
         assertThatThrownBy(() -> knowledgeService.feedback("q", item.getId(), "BAD_ACTION", 1L))
                 .isInstanceOf(BizException.class);
+        // T12-1 扫描实锤：action=null 此前 List.of.contains(null) 抛 NPE 落 5000（输入错误族第七类）
+        assertThatThrownBy(() -> knowledgeService.feedback("q", item.getId(), null, 1L))
+                .isInstanceOf(BizException.class);
 
         // DISMISS 大量负反馈不会跌破 0
         for (int i = 0; i < 30; i++) {
