@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # OpenForge PLM 一键开发环境启动（Git Bash / Linux / macOS）
 # 真实环境冒烟经验：16GB 宿主机需小内存参数 + 串行启动，避免 JVM 峰值叠加崩溃
-# 用法：./scripts/dev-up.sh                    # 全部 9 服务
+# 用法：./scripts/dev-up.sh                    # 全部 11 服务
 #       PROFILE=core ./scripts/dev-up.sh       # 预设子集（见下）——机器吃紧时优先
 #       SERVICES="auth metadata gateway" ...   # 自定义子集
 #       SKIP_BUILD=1 ...                       # 强制复用现有 jar（默认已按源码新旧自动判断）
@@ -13,7 +13,7 @@ export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(which java
 # 小内存画像（性能画像 §2.1）：SerialGC（每服务省 G1 线程/卡表原生开销 50~150MB）+
 # 512k 线程栈（默认 1MB × 每服务数十线程）+ 元空间/代码缓存/直接内存显式上限
 JVM_OPTS="-Xms48m -Xmx160m -Xss512k -XX:MaxMetaspaceSize=200m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
-# dev 收紧线程/连接池（yml 已环境变量化，默认值不变；9×2=18 PG 连接，单人开发足够）
+# dev 收紧线程/连接池（yml 已环境变量化，默认值不变；11×2=22 PG 连接，单人开发足够）
 export TOMCAT_MAX_THREADS="${TOMCAT_MAX_THREADS:-10}" TOMCAT_MIN_SPARE="${TOMCAT_MIN_SPARE:-2}"
 # 集成编排器开发态默认：白名单放行本机（冒烟自测目标），生产环境不注入此变量 = 全拒语义
 export OPENFORGE_CONNECTOR_EGRESS_WHITELIST="${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:-localhost,127.0.0.1}"
@@ -74,8 +74,8 @@ echo "=== [3/4] 启动 Java 服务（auth 先行 → 业务服务 ${START_PARALL
 # PROFILE 预设（机器吃紧时的瘦身入口，A4 模块注册：不启动的服务不注册/不路由）：
 #   core = auth gateway metadata doc workflow  （主链路：登录/动态建模/文档/审批）
 #   lite = auth gateway                        （前端联调骨架）
-#   mono = mono gateway                        （mono-8 单进程 + 网关，见 docs/OpenForge-mono单进程设计.md）
-#   full = 全部 9 服务（默认）；SERVICES 显式指定时优先于 PROFILE
+#   mono = mono gateway                        （mono 单进程聚合 10 模块 + 网关，见 docs/OpenForge-mono单进程设计.md）
+#   full = 全部 11 服务（默认）；SERVICES 显式指定时优先于 PROFILE
 declare -A PORTS=(
   [auth]=8081 [material]=8082 [doc]=8083 [workflow]=8084
   [change]=8085 [knowledge]=8086 [project]=8087 [metadata]=8088 [gateway]=8080
@@ -91,7 +91,7 @@ case "${PROFILE:-full}" in
   *)    PRESET="$SVC_ORDER" ;;
 esac
 SVC_LIST=${SERVICES:-$PRESET}
-# mono 模式：gateway 路由/注册中心拉取指向 mono(:8090)；其余 8 服务不启动
+# mono 模式：gateway 路由/注册中心拉取指向 mono(:8090)；其余 10 服务不启动
 if [ "${PROFILE:-full}" = "mono" ]; then
   export AUTH_SERVICE_URI="${AUTH_SERVICE_URI:-http://localhost:8090}"
 fi

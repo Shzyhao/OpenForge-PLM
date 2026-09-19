@@ -2,7 +2,8 @@
 # OpenForge 网关链路冒烟（工程约定 #8 合并门工具化，#90/#101 冒烟实践沉淀）
 # 用法：./scripts/smoke.sh [admin密码]（默认 smoke-test-2026；前置：dev-up 已起栈，full/mono 均可）
 # 断言：登录→JWT→module-routes 自检→10 业务域经网关返回业务码 0（动态路由/注册表/信任头链路全穿）
-#       + 连接器域 6 断言（集成编排器）+ 图纸域 4 断言（档案/文件/发布快照/物料关联）
+#       + 连接器域 6 断言（集成编排器）+ 触发/死信/链/审计 8 断言（P2-2/R8）
+#       + 图纸域 6 断言（档案/文件/发布/快照/物料关联/下载）——共 35 项
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GW="${GW:-http://localhost:8080}"
@@ -29,7 +30,7 @@ echo "$ROUTES" | grep -q '"registryReachable":true' && ok "注册中心可达" |
 echo "$ROUTES" | grep -q '"routeMissing":\[\]' && ok "routeMissing 空" || fail "routeMissing 非空: $ROUTES"
 echo "$ROUTES" | grep -q '"brokenModules":\[\]' && ok "brokenModules 空" || fail "brokenModules 非空: $ROUTES"
 
-echo "=== [3/3] 9 业务域网关穿透（动态路由→单/多 upstream→业务码 0） ==="
+echo "=== [3/3] 10 业务域网关穿透（动态路由→单/多 upstream→业务码 0） ==="
 # 端点为各域真实 GET 列表/统计端点（#90 教训：裸前缀无控制器会 500，非路由缺陷）
 declare -A EPS=(
   [material]="/api/v1/parts"
