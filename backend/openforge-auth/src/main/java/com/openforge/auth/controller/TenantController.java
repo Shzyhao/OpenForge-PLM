@@ -38,6 +38,15 @@ public class TenantController {
         return ApiResponse.ok(tenantService.create(request.getTenantCode(), request.getTenantName(), request.getRemark()));
     }
 
+    /** 开通流水线（十轮改进）：建租户 + 初始管理员（绑定 ADMINS，首登强制改密），单事务。 */
+    @PostMapping("/onboard")
+    @RequirePermission("tenant:manage")
+    public ApiResponse<java.util.Map<String, Object>> onboard(@Valid @RequestBody OnboardTenantRequest request) {
+        return ApiResponse.ok(tenantService.onboard(request.getTenantCode(), request.getTenantName(),
+                request.getRemark(), request.getAdminUsername(), request.getAdminPassword(),
+                request.getAdminDisplayName()));
+    }
+
     @PostMapping("/{id}/disable")
     @RequirePermission("tenant:manage")
     public ApiResponse<Void> disable(@PathVariable Long id) {
@@ -67,5 +76,19 @@ public class TenantController {
         @NotBlank
         private String tenantName;
         private String remark;
+    }
+
+    @Data
+    public static class OnboardTenantRequest {
+        @NotBlank
+        private String tenantCode;
+        @NotBlank
+        private String tenantName;
+        private String remark;
+        @NotBlank
+        private String adminUsername;
+        @NotBlank
+        private String adminPassword;
+        private String adminDisplayName;
     }
 }

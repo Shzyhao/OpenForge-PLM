@@ -46,6 +46,13 @@ public class NumberRuleService {
         return ruleMapper.selectList(null);
     }
 
+    /** 取号计数器水位（十轮改进：管理面可见，此前只能 SQL 手查）。 */
+    public List<com.openforge.auth.entity.SysNumberCounter> listCounters() {
+        return counterMapper.selectList(new LambdaQueryWrapper<com.openforge.auth.entity.SysNumberCounter>()
+                .orderByAsc(com.openforge.auth.entity.SysNumberCounter::getRuleKey)
+                .orderByAsc(com.openforge.auth.entity.SysNumberCounter::getPeriod));
+    }
+
     public SysNumberRule createRule(String ruleKey, String ruleName,
                                     List<Segment> segments, String resetPolicy) {
         Long existing = ruleMapper.selectCount(

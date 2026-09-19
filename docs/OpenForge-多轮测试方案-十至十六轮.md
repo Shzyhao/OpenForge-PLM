@@ -256,3 +256,38 @@
 - **R11 残留**：T11-7/8 备份恢复演练（pg_dump→恢复→对账）未执行（需停栈窗口，见 §七 占位）
 - **R12 残留**：metadata 模块 PageResponse 用 `items` 偏离全局 `list` 约定（前端已适配，建议后续统一，技术债级）
 - **R14/R15/R16 未执行**：前端四态深化巡检、prod compose/helm/监控告警面、收敛轮+v1.21.0 发版预演（一~十轮全部"未发版"修复随版带上）
+
+---
+
+## 九、十一轮执行记录（2026-09-19，十轮建议项全部落地）
+
+### 9.1 排查直出四项（全部实现+实测）
+
+| # | 功能 | 实现 | 验证 |
+|---|------|------|------|
+| F1' | 网关剥除 X-Internal-Token | AuthGlobalFilter ingress 剥除（与 X-User-* 同列） | 认证用户携默认令牌打 workflow internal → 2001（此前可达） |
+| F2' | doc 文件回读 | GET /docs/{id}/files/{fileId}/download 流式下载+归属校验（此前上传后无法取回）；DocPage 文件抽屉（上传/预览/下载） | sha256 字节级往返一致；跨文档文件 4001；H2 集成测试钉住 |
+| F3' | 连接器级 ACL | conn_definition.acl_roles（connector V5）+ invoke 前角色交集校验（空白名单=不限，内部调用不受限）+ conn:view 读权限（auth V30，绑定 ADMINS/ENGINEER/VIEWER）+ 列表/详情补注解 + 前端表单白名单字段 | 白名单内 invoke SUCCESS；白名单外 2004；空白名单不限；ConnectorAclIntegrationTest 3 项 |
+| F4' | 备份恢复演练 | scripts/backup.sh（backup：pg_dump+data/ 打包；verify：临时库恢复+关键表行数对账+取号水位） | 11 表行数对账一致+水位一致；高频审计日志表不入严格对账（在线备份窗口漂移实测 3 行，已注释） |
+
+### 9.2 半建成收口四项（闲置后端全量点亮）
+
+| # | 功能 | 实现 | 验证 |
+|---|------|------|------|
+| F5' | 组织架构管理 | OrgAdminPage（树/子组织/重命名/删除/成员挂入移出/含下级）；GET tree/users 补 org:manage | 浏览器级验收：树渲染真实数据、点击加载成员 |
+| F6' | 租户管理+开通流水线 | TenantAdminPage（列表/启停/开通）；POST /tenants/onboard：建租户+初始管理员绑 ADMINS+首登强制改密单事务；**TenantService 全端点补平台租户(0)守卫**（收口 F12：tenant:manage 持有者跨租户搬人/读全租户的洞） | onboard API 成功+初始管理员登录 FORCE_CHANGE；非平台租户 list/onboard/assignUser 全拒；TenantOnboardServiceTest 3 项 |
+| F7' | 用户管理批量操作 | UserAdminPage：批量启用/停用（batch-status 接线）+ 所属组织 Select（assignUserOrg 接线）+ 租户列 | 浏览器级验收四元素 |
+| F8' | 编号规则管理 | NumberRuleAdminPage（规则表/段定义人性化渲染/计数器水位/取号预览/新建规则）；GET /numbers/counters 新端点+list 补 number:manage | 浏览器级验收：六规则+水位真实渲染 |
+
+### 9.3 验证汇总
+
+- 构建：mvn verify（gateway/doc/connector/auth 四模块）BUILD SUCCESS，新增测试 3 文件 7 用例；npm run build 绿
+- 回归：smoke 35/35、authz-probe 13/13、十轮全部修复不受影响
+- 新功能 e2e 探针 13/13（doc 往返/网关剥头/ACL 三态/租户开通端到端/编号/组织）
+- 浏览器级 DOM 验收（约定 #9）：六个页面/抽屉真实打开+真实数据断言，零控制台异常
+- 性能：0 ERROR、hs_err 零新增、RSS 2305MB（基线 2292/2304 持平）、connector invoke 压测 100 次 p50=23ms/p95=30ms/p99=33ms（完整网关链路+ACL+权限查询，无退化）
+
+### 9.4 遗留
+
+- R14（前端四态深化）/R15（prod 部署面+告警规则）/R16（收敛+v1.21.0 发版预演）未执行——一~十一轮全部修复仍"未发版"
+- metadata PageResponse `items` 统一（技术债级）

@@ -74,6 +74,20 @@ public class DocController {
         return ApiResponse.ok(docService.files(id));
     }
 
+    /** 下载/预览源（流式；前端经 fetch+blob 内嵌预览 PDF/图片，与图纸域同款）。 */
+    @org.springframework.web.bind.annotation.GetMapping("/{id}/files/{fileId}/download")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.InputStreamResource> download(
+            @PathVariable Long id, @PathVariable Long fileId) {
+        DocService.DownloadPayload payload = docService.download(id, fileId);
+        String encoded = java.net.URLEncoder.encode(payload.file().getFileName(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''" + encoded)
+                .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+                .body(new org.springframework.core.io.InputStreamResource(payload.stream()));
+    }
+
     private Long currentUserId(HttpServletRequest request) {
         String header = request.getHeader("X-User-Id");
         if (header == null) {

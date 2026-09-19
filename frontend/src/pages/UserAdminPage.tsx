@@ -3,16 +3,24 @@ import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography
 import type { ColumnsType } from 'antd/es/table'
 import { KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import {
-  createUser, deleteUser, disableUser, enableUser, fetchRoles, fetchUsers, resetUserPassword,
-  type AdminUser, type Role,
+  assignUserOrg, batchUserStatus, createUser, deleteUser, disableUser, enableUser, fetchRoles, fetchUsers,
+  resetUserPassword, type AdminUser, type Role,
 } from '../api/user'
+import { fetchOrgTree, type OrgNode } from '../api/org'
 import { usePerm } from '../perm/PermContext'
 
 function randomPassword(): string {
   return 'Of@' + Math.random().toString(36).slice(2, 10) + Math.floor(Math.random() * 90 + 10)
 }
 
-/** 用户管理页（方案 D 组） */
+function flattenOrgs(nodes: OrgNode[], depth = 0): { value: number; label: string }[] {
+  return nodes.flatMap((n) => [
+    { value: n.id, label: `${'　'.repeat(depth)}${n.orgName}` },
+    ...flattenOrgs(n.children ?? [], depth + 1),
+  ])
+}
+
+/** 用户管理页（方案 D 组；十轮补批量启停 + 组织挂接 + 租户可见性） */
 export default function UserAdminPage() {
   const { user: me } = usePerm()
   const [data, setData] = useState<AdminUser[]>([])
@@ -21,6 +29,8 @@ export default function UserAdminPage() {
   const [loading, setLoading] = useState(false)
   const [username, setUsername] = useState('')
   const [roles, setRoles] = useState<Role[]>([])
+  const [orgOptions, setOrgOptions] = useState<{ value: number; label: string }[]>([])
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [form] = Form.useForm()
 
@@ -30,6 +40,7 @@ export default function UserAdminPage() {
       const result = await fetchUsers({ page, pageSize: 10, username })
       setData(result.list)
       setTotal(result.total)
+      setSelectedRowKeys([])
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败')
     } finally {
@@ -39,13 +50,29 @@ export default function UserAdminPage() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { fetchRoles().then(setRoles).catch(() => undefined) }, [])
+  useEffect(() => { fetchOrgTree().then((t) => setOrgOptions(flattenOrgs(t))).catch(() => undefined) }, [])
+
+  const act = async (fn: () => Promise<unknown>) => {
+    try { await fn(); message.success('操作成功'); load() }
+    catch (e) { message.error(e instanceof Error ? e.message : '操作失败') }
+  }
+
+  const batch = async (enable: boolean) => {
+    const ids = selectedRowKeys as number[]
+    if (!ids.length) return
+    act(async () => {
+      await batchUserStatus(ids, enable)
+      message.success(`已批量${enable ? '启用' : '停用'} ${ids.length} 个用户`)
+    })
+  }
 
   const columns: ColumnsType<AdminUser> = [
-    { title: '用户名', dataIndex: 'username', width: 130 },
-    { title: '姓名', dataIndex: 'displayName', width: 110 },
-    { title: '邮箱', dataIndex: 'email' },
+    { title: '用户名', dataIndex: 'username', width: 120 },
+    { title: '姓名', dataIndex: 'displayName', width: 100 },
+    { title: '邮箱', dataIndex: 'email', ellipsis: true },
+    { title: '租户', dataIndex: 'tenantId', width: 60, render: (t: number) => <Tag>{t}</Tag> },
     {
-      title: '类型', dataIndex: 'userType', width: 90,
+      title: '类型', dataIndex: 'userType', width: 80,
       render: (t: string) => t === 'SUPER' ? <Tag color="red">admin</Tag> : <Tag>普通</Tag>,
     },
     {
@@ -53,7 +80,16 @@ export default function UserAdminPage() {
       render: (s: string) => <Tag color={s === 'ACTIVE' ? 'green' : 'default'}>{s === 'ACTIVE' ? '启用' : '停用'}</Tag>,
     },
     {
-      title: '操作', width: 230,
+      title: '所属组织', dataIndex: 'orgId', width: 170,
+      render: (orgId: number | null, u) => (
+        <Select size="small" allowClear placeholder="未分配" style={{ width: 150 }}
+          value={orgId ?? undefined} options={orgOptions}
+          disabled={u.userType === 'SUPER'}
+          onChange={(v) => act(() => assignUserOrg(u.id, (v as number) ?? null))} />
+      ),
+    },
+    {
+      title: '操作', width: 220,
       render: (_, u) => {
         const isSuper = u.userType === 'SUPER'
         return (
@@ -73,11 +109,6 @@ export default function UserAdminPage() {
       },
     },
   ]
-
-  const act = async (fn: () => Promise<unknown>) => {
-    try { await fn(); message.success('操作成功'); load() }
-    catch (e) { message.error(e instanceof Error ? e.message : '操作失败') }
-  }
 
   const resetPwd = async (u: AdminUser) => {
     const pwd = randomPassword()
@@ -102,11 +133,15 @@ export default function UserAdminPage() {
           <Input.Search placeholder="按用户名搜索" allowClear style={{ width: 180 }}
             onSearch={(v) => { setPage(1); setUsername(v) }} />
           <Button icon={<ReloadOutlined />} onClick={load} />
+          <Button disabled={!selectedRowKeys.length} onClick={() => batch(true)}>批量启用</Button>
+          <Button danger disabled={!selectedRowKeys.length} onClick={() => batch(false)}>批量停用</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建用户</Button>
         </Space>
       }
     >
       <Table<AdminUser> rowKey="id" columns={columns} dataSource={data} loading={loading} size="middle"
+        rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys),
+          getCheckboxProps: (u) => ({ disabled: u.userType === 'SUPER' }) }}
         pagination={{ current: page, total, pageSize: 10, onChange: setPage, showTotal: (t) => `共 ${t} 条` }} />
       <Modal
         title="新建用户" open={createOpen} destroyOnClose

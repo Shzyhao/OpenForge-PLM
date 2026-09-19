@@ -61,6 +61,8 @@ export interface ConnDetail extends ConnSummary {
   spec: Record<string, unknown>
   trigger: TriggerForm
   versions: ConnVersionItem[]
+  /** 调用白名单角色代码（ACL）；null/undefined = 未限制 */
+  aclRoles?: string[] | null
 }
 
 export interface PageData<T> {
@@ -138,14 +140,14 @@ export function fetchConnector(id: number): Promise<ConnDetail> {
 
 export function createConnector(body: {
   connCode: string; connName: string; connType: ConnType; description?: string; spec: Record<string, unknown>
-  triggerType?: TriggerType; trigger?: TriggerForm
+  triggerType?: TriggerType; trigger?: TriggerForm; aclRoles?: string[] | null
 }): Promise<ConnDetail> {
   return post('/api/v1/connectors', body)
 }
 
 export function updateConnector(id: number, body: {
   connName: string; connType: ConnType; description?: string; spec: Record<string, unknown>
-  triggerType?: TriggerType; trigger?: TriggerForm
+  triggerType?: TriggerType; trigger?: TriggerForm; aclRoles?: string[] | null
 }): Promise<ConnDetail> {
   return put(`/api/v1/connectors/${id}`, body)
 }

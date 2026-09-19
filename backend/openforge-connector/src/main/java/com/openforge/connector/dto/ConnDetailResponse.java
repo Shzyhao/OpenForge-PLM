@@ -22,6 +22,8 @@ public class ConnDetailResponse {
     /** 触发配置（P2-2）：NONE 时 trigger 为空对象 */
     private String triggerType;
     private Map<String, Object> trigger;
+    /** 调用白名单角色代码（ACL）；null = 未限制 */
+    private List<String> aclRoles;
     private List<VersionItem> versions;
 
     @Data

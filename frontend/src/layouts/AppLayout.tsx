@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Avatar, Button, Dropdown, Layout, Menu, Result, Spin, Tag, theme, Typography } from 'antd'
 import {
   ApiOutlined, ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined,
-  FileImageOutlined, FileTextOutlined, HomeOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ProjectOutlined,
-  SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
+  CloudOutlined, FileImageOutlined, FileTextOutlined, NumberOutlined, HomeOutlined, KeyOutlined,
+  LogoutOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearToken, getPasswordStatus } from '../api/client'
@@ -43,6 +43,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: '/integration', menu: 'menu:connector', icon: <ApiOutlined />, label: '集成编排器', module: 'connector' },
   { key: '/system/users', menu: 'menu:system', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/system/roles', menu: 'menu:system', icon: <TeamOutlined />, label: '角色权限' },
+  { key: '/system/orgs', menu: 'menu:system', icon: <ApartmentOutlined />, label: '组织架构' },
+  { key: '/system/tenants', menu: 'menu:system', icon: <CloudOutlined />, label: '租户管理' },
+  { key: '/system/numbers', menu: 'menu:system', icon: <NumberOutlined />, label: '编号规则' },
   { key: '/system/logs', menu: 'menu:system', icon: <FileTextOutlined />, label: '安全日志' },
   { key: '/system/modules', menu: 'menu:system', icon: <BlockOutlined />, label: '模块管理' },
 ]
@@ -57,6 +60,7 @@ const NAV_GROUP_OF: Record<string, string> = {
   '/meta/objects': '低代码', '/meta/data': '低代码', '/meta/designer': '低代码',
   '/integration': '低代码',
   '/system/users': '系统', '/system/roles': '系统', '/system/logs': '系统', '/system/modules': '系统',
+  '/system/orgs': '系统', '/system/tenants': '系统', '/system/numbers': '系统',
 }
 
 const ROLE_COLORS: Record<string, string> = { ADMINS: 'volcano', ENGINEER: 'geekblue', VIEWER: 'default' }

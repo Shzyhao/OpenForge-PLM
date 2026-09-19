@@ -30,4 +30,7 @@ public class SaveConnRequest {
 
     /** 触发配置：EVENT={topic,tag,params?}；CRON={cron,params?} */
     private Map<String, Object> trigger;
+
+    /** 调用白名单角色代码（ACL，十轮改进）：空/null = 租户内持 conn:invoke 者皆可调用 */
+    private java.util.List<String> aclRoles;
 }
