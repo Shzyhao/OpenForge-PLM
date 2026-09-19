@@ -63,6 +63,23 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
       tablesText: ((spec.allowedTables as string[]) ?? []).join(','),
       sqlTemplate: (spec.sqlTemplate as string) ?? '',
       maxRows: (spec.maxRows as number) ?? 200,
+      smtpHost: (spec.host as string) ?? '',
+      smtpPort: (spec.port as number) ?? 587,
+      smtpStarttls: (spec.starttls as boolean) ?? true,
+      smtpFrom: (spec.from as string) ?? '',
+      smtpTo: (spec.to as string) ?? '',
+      smtpSubject: (spec.subject as string) ?? '',
+      smtpBodyText: (spec.bodyText as string) ?? '',
+      smtpTimeoutMs: (spec.timeoutMs as number) ?? 10000,
+      ddWebhookUrl: (spec.webhookUrl as string) ?? '',
+      ddMsgtype: (spec.msgtype as string) ?? 'text',
+      ddTitle: (spec.title as string) ?? '',
+      ddTextTemplate: (spec.textTemplate as string) ?? '',
+      ddAtMobiles: (spec.atMobiles as string) ?? '',
+      fsWebhookUrl: (spec.webhookUrl as string) ?? '',
+      fsMsgType: (spec.msgType as string) ?? 'text',
+      fsTextTemplate: (spec.textTemplate as string) ?? '',
+      notifyTimeoutMs: (spec.timeoutMs as number) ?? 5000,
       params: paramsOf(spec),
     }), [spec])
 
@@ -89,6 +106,45 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
       }
       const params = buildParams(values.params as ParamDef[])
       try {
+        if (connType === 'SMTP_EMAIL') {
+          return {
+            schemaVersion: 1,
+            host: values.smtpHost.trim(),
+            port: values.smtpPort,
+            starttls: values.smtpStarttls,
+            from: values.smtpFrom.trim(),
+            to: values.smtpTo.trim(),
+            subject: values.smtpSubject,
+            bodyText: values.smtpBodyText,
+            timeoutMs: values.smtpTimeoutMs,
+            ...(values.credentialRef ? { credentialRef: values.credentialRef } : {}),
+            parameterSchema: params,
+          } as unknown as Record<string, unknown>
+        }
+        if (connType === 'DINGTALK_BOT') {
+          return {
+            schemaVersion: 1,
+            webhookUrl: values.ddWebhookUrl.trim(),
+            msgtype: values.ddMsgtype,
+            ...(values.ddTitle ? { title: values.ddTitle } : {}),
+            textTemplate: values.ddTextTemplate,
+            ...(values.ddAtMobiles ? { atMobiles: values.ddAtMobiles } : {}),
+            timeoutMs: values.notifyTimeoutMs,
+            ...(values.credentialRef ? { credentialRef: values.credentialRef } : {}),
+            parameterSchema: params,
+          } as unknown as Record<string, unknown>
+        }
+        if (connType === 'FEISHU_BOT') {
+          return {
+            schemaVersion: 1,
+            webhookUrl: values.fsWebhookUrl.trim(),
+            msgType: values.fsMsgType,
+            textTemplate: values.fsTextTemplate,
+            timeoutMs: values.notifyTimeoutMs,
+            ...(values.credentialRef ? { credentialRef: values.credentialRef } : {}),
+            parameterSchema: params,
+          } as unknown as Record<string, unknown>
+        }
         if (connType === 'HTTP_REST') {
           const headers = parseJsonText(values.headersText, '请求头') as Record<string, unknown>
           const body = parseJsonText(values.bodyText, '请求体模板') as Record<string, unknown>
@@ -123,6 +179,7 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
 
     const httpCreds = credentials.filter((c) => c.authType !== 'JDBC_PASSWORD')
     const jdbcCreds = credentials.filter((c) => c.authType === 'JDBC_PASSWORD')
+    const webhookCreds = credentials.filter((c) => c.authType === 'WEBHOOK_SECRET')
 
     return (
       <Form form={form} layout="vertical">
@@ -149,7 +206,103 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
           )}
         </Form.List>
 
-        {connType === 'HTTP_REST' ? (
+        {connType === 'DINGTALK_BOT' || connType === 'FEISHU_BOT' ? (
+          <>
+            <Typography.Text type="secondary" style={{ display: 'block', margin: '16px 0 12px' }}>
+              {connType === 'DINGTALK_BOT'
+                ? '钉钉机器人（text/markdown；加签密钥走 WEBHOOK_SECRET 凭据引用，自动追加 timestamp/sign）'
+                : '飞书机器人（签名在 payload 内携带，密钥走 WEBHOOK_SECRET 凭据引用）'}
+            </Typography.Text>
+            <Form.Item name={connType === 'DINGTALK_BOT' ? 'ddWebhookUrl' : 'fsWebhookUrl'}
+              label="Webhook URL" rules={[{ required: true, message: '必填' }]}>
+              <Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=..."
+                style={{ fontFamily: 'monospace' }} />
+            </Form.Item>
+            {connType === 'DINGTALK_BOT' && (
+              <Space size="large" style={{ display: 'flex' }} wrap>
+                <Form.Item name="ddMsgtype" label="消息类型" style={{ marginBottom: 0 }}>
+                  <Select style={{ width: 130 }} options={[
+                    { value: 'text', label: 'text' },
+                    { value: 'markdown', label: 'markdown（需标题）' },
+                  ]} />
+                </Form.Item>
+                <Form.Item name="ddTitle" label="标题（markdown 用）" style={{ marginBottom: 0 }}>
+                  <Input placeholder="如 库存预警" style={{ width: 200 }} />
+                </Form.Item>
+                <Form.Item name="ddAtMobiles" label="@手机号（逗号分隔，可选）" style={{ marginBottom: 0 }}>
+                  <Input placeholder="13800000000,13900000000" style={{ width: 240 }} />
+                </Form.Item>
+              </Space>
+            )}
+            {connType === 'FEISHU_BOT' && (
+              <Form.Item name="fsMsgType" label="消息类型" style={{ marginTop: 12 }}>
+                <Select style={{ width: 130 }} options={[
+                  { value: 'text', label: 'text' },
+                  { value: 'interactive', label: 'interactive（降级文本）' },
+                ]} />
+              </Form.Item>
+            )}
+            <Form.Item name={connType === 'DINGTALK_BOT' ? 'ddTextTemplate' : 'fsTextTemplate'}
+              label={'消息模板（可用 {{参数名}} 占位）'} rules={[{ required: true, message: '必填' }]}
+              style={{ marginTop: 12 }}>
+              <Input.TextArea rows={3}
+                placeholder={'物料 {{partNumber}} 已发布，请关注'} />
+            </Form.Item>
+            <Space size="large" style={{ display: 'flex' }} wrap>
+              <Form.Item name="credentialRef" label="加签密钥凭据（可选）" style={{ minWidth: 220, marginBottom: 0 }}>
+                <Select allowClear placeholder="无加签"
+                  options={webhookCreds.map((c) => ({ value: c.credCode, label: `${c.credName}（${c.credCode}）` }))} />
+              </Form.Item>
+              <Form.Item name="notifyTimeoutMs" label="超时(ms)" style={{ marginBottom: 0 }}>
+                <InputNumber min={1000} max={30000} style={{ width: 120 }} />
+              </Form.Item>
+            </Space>
+          </>
+        ) : connType === 'SMTP_EMAIL' ? (
+          <>
+            <Typography.Text type="secondary" style={{ display: 'block', margin: '16px 0 12px' }}>
+              SMTP 邮件出站（主题/正文/收件人可用 {'{{参数名}}'} 占位；认证密码走 SMTP 凭据引用）
+            </Typography.Text>
+            <Space size="large" style={{ display: 'flex', marginBottom: 0 }} wrap>
+              <Form.Item name="smtpHost" label="SMTP 服务器" rules={[{ required: true, message: '必填' }]}
+                style={{ marginBottom: 0 }}>
+                <Input placeholder="smtp.example.com" style={{ width: 200 }} />
+              </Form.Item>
+              <Form.Item name="smtpPort" label="端口" style={{ marginBottom: 0 }}>
+                <InputNumber min={1} max={65535} style={{ width: 90 }} />
+              </Form.Item>
+              <Form.Item name="smtpStarttls" label="STARTTLS" valuePropName="checked" style={{ marginBottom: 0 }}>
+                <Switch checkedChildren="开" unCheckedChildren="关" defaultChecked />
+              </Form.Item>
+            </Space>
+            <Space size="large" style={{ display: 'flex', marginTop: 12 }} wrap>
+              <Form.Item name="smtpFrom" label="发件人" rules={[{ required: true, message: '必填' }]}
+                style={{ marginBottom: 0 }}>
+                <Input placeholder="plm@example.com" style={{ width: 200 }} />
+              </Form.Item>
+              <Form.Item name="smtpTo" label="收件人（逗号分隔多个）"
+                rules={[{ required: true, message: '必填' }]} style={{ minWidth: 300, marginBottom: 0 }}>
+                <Input placeholder="buyer@example.com,plm@example.com" />
+              </Form.Item>
+            </Space>
+            <Form.Item name="smtpSubject" label="邮件主题（可用 {{参数名}} 占位）"
+              rules={[{ required: true, message: '必填' }]} style={{ marginTop: 12 }}>
+              <Input placeholder="【PLM】{{event}} 通知" />
+            </Form.Item>
+            <Form.Item name="smtpBodyText" label="邮件正文（可用 {{参数名}} 占位）">
+              <Input.TextArea rows={4} placeholder={'物料 {{partNumber}} 已发布'} />
+            </Form.Item>
+            <Space size="large" style={{ display: 'flex' }} wrap>
+              <Form.Item name="credentialRef" label="SMTP 凭据（可选，认证密码）" style={{ minWidth: 220, marginBottom: 0 }}>
+                <Select allowClear placeholder="匿名发送"
+                  options={httpCreds.map((c) => ({ value: c.credCode, label: `${c.credName}（${c.credCode}）` }))} />
+              </Form.Item>
+              <Form.Item name="smtpTimeoutMs" label="超时(ms)" style={{ marginBottom: 0 }}>
+                <InputNumber min={1000} max={60000} style={{ width: 120 }} />
+              </Form.Item>
+            </Space>
+          </>
+        ) : connType === 'HTTP_REST' ? (
           <>
             <Typography.Text type="secondary" style={{ display: 'block', margin: '16px 0 12px' }}>
               连接配置（认证经凭据引用注入 Authorization / 自定义头）

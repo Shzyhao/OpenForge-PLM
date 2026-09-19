@@ -2,13 +2,16 @@ import { get, post, put, del } from './client'
 
 /** 集成编排器 API（集成编排器 MVP 设计 §6） */
 
-export type ConnType = 'HTTP_REST' | 'JDBC_READONLY' | 'CHAIN'
+export type ConnType = 'HTTP_REST' | 'JDBC_READONLY' | 'CHAIN' | 'SMTP_EMAIL' | 'DINGTALK_BOT' | 'FEISHU_BOT'
 export type ConnStatus = 'DRAFT' | 'PUBLISHED' | 'DISABLED'
 
 export const CONN_TYPES: { value: ConnType; label: string }[] = [
   { value: 'HTTP_REST', label: 'HTTP/REST 接口' },
   { value: 'JDBC_READONLY', label: '数据库直连（只读）' },
   { value: 'CHAIN', label: '编排链（多步骤）' },
+  { value: 'SMTP_EMAIL', label: '邮件通知（SMTP）' },
+  { value: 'DINGTALK_BOT', label: '钉钉机器人' },
+  { value: 'FEISHU_BOT', label: '飞书机器人' },
 ]
 
 export interface ConnSummary {
@@ -110,7 +113,7 @@ export interface Credential {
   id: number
   credCode: string
   credName: string
-  authType: 'BASIC' | 'BEARER' | 'API_KEY_HEADER' | 'JDBC_PASSWORD'
+  authType: 'BASIC' | 'BEARER' | 'API_KEY_HEADER' | 'JDBC_PASSWORD' | 'SMTP' | 'WEBHOOK_SECRET'
   extra: string | null
 }
 

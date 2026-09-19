@@ -81,6 +81,49 @@ public class EcrService {
         return ecr;
     }
 
+    /**
+     * 图纸发布自动联动（v1.22）：drawing.released 事件 → 自动创建 GENERIC 变更单（走正常审批流，
+     * 升版决策留给评审——遵循"审批与执行分离"）。幂等键 = drawingNumber@version（同版本重复事件只建一单）。
+     * payload: {drawingId, drawingNumber, title, version, linkedParts:[{partId,partNumber,role}]}
+     */
+    @Transactional
+    public Map<String, Object> autoCreateFromDrawing(Map<String, Object> payload) {
+        String drawingNumber = String.valueOf(payload.getOrDefault("drawingNumber", ""));
+        String version = String.valueOf(payload.getOrDefault("version", ""));
+        // 无关联物料的图纸不空建联动单（联动语义仅在有物料关联时成立）
+        Object parts = payload.get("linkedParts");
+        if (!(parts instanceof List<?> list) || list.isEmpty()) {
+            log.info("drawing released 无关联物料，跳过联动: {}", drawingNumber);
+            return Map.of("created", false, "title", drawingNumber);
+        }
+        String title = "图纸发布联动：" + drawingNumber + "@" + version;
+        // 幂等：同图纸同版本的联动单只建一次（含非终态判定——被驳回回 SUBMITTED 也算存在）
+        Long existed = mapper.selectCount(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ChangeRequest>()
+                .eq(ChangeRequest::getTitle, title));
+        if (existed != null && existed > 0) {
+            log.info("drawing released 联动单已存在，跳过: {}", title);
+            return Map.of("created", false, "title", title);
+        }
+        EcrRequest request = new EcrRequest();
+        request.setTitle(title);
+        request.setReason("图纸 " + drawingNumber + " 发布 " + version
+                + "（" + payload.getOrDefault("title", "") + "），自动联动变更评审");
+        request.setUrgency("NORMAL");
+        request.setChangeType(TYPE_GENERIC);
+        request.setAffectedItems(toJson(payload.getOrDefault("linkedParts", List.of())));
+        ChangeRequest ecr = create(request, null); // initiatorId=null：系统自动发起
+        log.info("drawing released 联动单已创建: {} ← {}", ecr.getEcrNumber(), drawingNumber);
+        return Map.of("created", true, "title", title, "ecrId", ecr.getId(), "ecrNumber", ecr.getEcrNumber());
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
     /** 详情：实时关联流程实例状态（流程服务不可用时降级仅展示 ECR 状态）。 */
     public EcrDetailResponse detail(Long id) {
         ChangeRequest ecr = require(id);

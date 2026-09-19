@@ -23,7 +23,8 @@ import java.util.Set;
 @Service
 public class CredentialService {
 
-    private static final Set<String> MVP_AUTH_TYPES = Set.of("BASIC", "BEARER", "API_KEY_HEADER", "JDBC_PASSWORD");
+    private static final Set<String> MVP_AUTH_TYPES =
+            Set.of("BASIC", "BEARER", "API_KEY_HEADER", "JDBC_PASSWORD", "SMTP", "WEBHOOK_SECRET");
 
     private final ConnCredentialMapper credentialMapper;
     private final AesGcmCipher cipher;
