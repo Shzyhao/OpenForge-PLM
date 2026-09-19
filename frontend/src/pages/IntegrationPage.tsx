@@ -20,6 +20,7 @@ import { ORCHESTRATION_NODE_TYPES } from '../flow/nodeTypes'
 import { chainFlowWithLayout, emptyChainFlow, flowToChain } from '../flow/orchestration'
 import type { FlowDef } from '../flow/flowModel'
 import { usePerm } from '../perm/PermContext'
+import { fetchRoles } from '../api/user'
 
 /** 连接器状态标签色（集成编排器 MVP 设计 §8） */
 const STATUS_COLORS: Record<string, string> = {
@@ -60,7 +61,9 @@ export default function IntegrationPage() {
   const [triggerParamsText, setTriggerParamsText] = useState('{}')
   const [saving, setSaving] = useState(false)
   const panelRef = useRef<ConnectorConfigPanelHandle>(null)
-  const [specForm] = Form.useForm<{ connCode: string; connName: string; description: string }>()
+  const [specForm] = Form.useForm<{ connCode: string; connName: string; description: string; aclRoles?: string[] }>()
+  // ACL 白名单角色候选（十轮改进：连接器级调用白名单）
+  const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([])
 
   // 触发死信（P2-2 §12.2）
   const [dlq, setDlq] = useState<DlqRecord[]>([])
@@ -146,6 +149,10 @@ export default function IntegrationPage() {
 
   useEffect(() => { void load(1) /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
   useEffect(() => { void loadCredentials() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
+  useEffect(() => {
+    fetchRoles().then((roles) => setRoleOptions(roles.map((r) => ({ value: r.roleCode, label: r.roleCode }))))
+      .catch(() => undefined)
+  }, [])
 
   const loadProviders = useCallback(async () => {
     try {
@@ -199,6 +206,7 @@ export default function IntegrationPage() {
       })
       specForm.setFieldsValue({
         connCode: detail.connCode, connName: detail.connName, description: detail.description ?? '',
+        aclRoles: detail.aclRoles ?? [],
       })
       setTriggerParamsText(detail.trigger?.params && Object.keys(detail.trigger.params).length
         ? JSON.stringify(detail.trigger.params, null, 2) : '{}')
@@ -233,6 +241,7 @@ export default function IntegrationPage() {
           connName: basic.connName, connType: draft.connType,
           description: basic.description, spec,
           triggerType: draft.triggerType, trigger,
+          aclRoles: basic.aclRoles?.length ? basic.aclRoles : null,
         })
         message.success('已保存')
       } else {
@@ -240,6 +249,7 @@ export default function IntegrationPage() {
           connCode: basic.connCode, connName: basic.connName, connType: draft.connType,
           description: basic.description, spec,
           triggerType: draft.triggerType, trigger,
+          aclRoles: basic.aclRoles?.length ? basic.aclRoles : null,
         })
         message.success('连接器已创建（草稿）')
       }
@@ -760,6 +770,12 @@ export default function IntegrationPage() {
             )}
             <Form.Item name="description" label="描述" style={{ marginBottom: 0, minWidth: 320 }}>
               <Input placeholder="用途说明（可选）" />
+            </Form.Item>
+            <Form.Item name="aclRoles" label="调用白名单角色"
+              tooltip="留空=租户内所有持有调用权限的用户可运行时 invoke；填写角色代码（如 ADMINS）后仅命中角色可调用"
+              style={{ marginBottom: 0, minWidth: 260 }}>
+              <Select mode="tags" placeholder="留空=不限制" tokenSeparators={[',']}
+                options={roleOptions} />
             </Form.Item>
           </Space>
         </Form>

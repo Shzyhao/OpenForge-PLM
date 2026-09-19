@@ -52,6 +52,7 @@ public class ConnectorDefinitionService {
     private final ObjectMapper objectMapper;
     private final com.openforge.common.event.EventPublisher eventPublisher;
     private final com.openforge.connector.client.AuthAuditClient auditClient;
+    private final com.openforge.security.PermissionQueryClient permissionQueryClient;
     private final java.util.Set<String> allowedTopics;
 
     public ConnectorDefinitionService(
@@ -65,6 +66,7 @@ public class ConnectorDefinitionService {
             ObjectMapper objectMapper,
             com.openforge.common.event.EventPublisher eventPublisher,
             com.openforge.connector.client.AuthAuditClient auditClient,
+            com.openforge.security.PermissionQueryClient permissionQueryClient,
             @org.springframework.beans.factory.annotation.Value(
                     "${openforge.connector.trigger.allowed-topics:" + TriggerSpecs.DEFAULT_TOPICS + "}")
             String allowedTopics) {
@@ -78,6 +80,7 @@ public class ConnectorDefinitionService {
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.auditClient = auditClient;
+        this.permissionQueryClient = permissionQueryClient;
         this.allowedTopics = java.util.Arrays.stream(allowedTopics.split(","))
                 .map(String::trim).filter(s -> !s.isEmpty()).collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
@@ -100,6 +103,7 @@ public class ConnectorDefinitionService {
         def.setCurrentVersion(0);
         def.setSpecJson(normalizeAndValidate(request));
         applyTrigger(def, request);
+        def.setAclRoles(toJsonList(request.getAclRoles()));
         def.setTenantId(TenantContext.getTenantId());
         def.setCreatedBy(userId);
         definitionMapper.insert(def);
@@ -121,6 +125,7 @@ public class ConnectorDefinitionService {
         def.setDescription(request.getDescription());
         def.setSpecJson(normalizeAndValidate(request));
         applyTrigger(def, request);
+        def.setAclRoles(toJsonList(request.getAclRoles()));
         def.setUpdatedBy(userId);
         definitionMapper.updateById(def);
         auditClient.record(userId, "CONN_UPDATE", "CONNECTOR", def.getConnCode(),
@@ -148,6 +153,7 @@ public class ConnectorDefinitionService {
         response.setTriggerType(def.getTriggerType() == null ? "NONE" : def.getTriggerType());
         response.setTrigger(def.getTriggerJson() == null || def.getTriggerJson().isBlank()
                 ? Map.of() : fromJson(def.getTriggerJson()));
+        response.setAclRoles(parseList(def.getAclRoles()));
         response.setVersions(versionMapper.selectList(new LambdaQueryWrapper<ConnDefinitionVersion>()
                         .eq(ConnDefinitionVersion::getConnId, id)
                         .orderByDesc(ConnDefinitionVersion::getVersion))
@@ -233,8 +239,13 @@ public class ConnectorDefinitionService {
                 request.getParams() == null ? Map.of() : request.getParams(), "MANUAL");
     }
 
-    /** 运行时调用入口（仅已发布；trigger=API），经网关分派单步/链。 */
-    public InvokeResponse invoke(String connCode, Map<String, Object> params) {
+    /** 运行时调用入口（仅已发布；trigger=API），经网关分派单步/链。调用前过连接器级 ACL 白名单。 */
+    public InvokeResponse invoke(String connCode, Map<String, Object> params, Long userId) {
+        ConnDefinition def = definitionMapper.selectOne(new LambdaQueryWrapper<ConnDefinition>()
+                .eq(ConnDefinition::getConnCode, connCode));
+        if (def != null) {
+            assertInvokeAllowed(def, userId);
+        }
         return executionGateway.invokePublished(connCode, params, "API");
     }
 
@@ -249,6 +260,44 @@ public class ConnectorDefinitionService {
     }
 
     // ===== 内部 =====
+
+    /** 连接器级 ACL（十轮改进）：acl_roles 非空时，调用者角色须与之有交集；空 = 不限（权限门禁交由 conn:invoke）。 */
+    private void assertInvokeAllowed(ConnDefinition def, Long userId) {
+        List<String> allowed = parseList(def.getAclRoles());
+        if (allowed.isEmpty() || userId == null) {
+            return;
+        }
+        List<String> roles = permissionQueryClient.fetch(userId).roles();
+        boolean hit = roles != null && roles.stream().anyMatch(allowed::contains);
+        if (!hit) {
+            throw new BizException(ErrorCode.FORBIDDEN,
+                    "当前用户角色不在连接器调用白名单: " + def.getConnCode());
+        }
+    }
+
+    private String toJsonList(List<String> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(roles.stream()
+                    .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList());
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.CONN_SPEC_INVALID, "aclRoles 序列化失败");
+        }
+    }
+
+    private List<String> parseList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, objectMapper.getTypeFactory()
+                    .constructCollectionType(List.class, String.class));
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
 
     /** 触发配置校验 + canonical 落库（P2-2 §12.2）。 */
     private void applyTrigger(ConnDefinition def, SaveConnRequest request) {

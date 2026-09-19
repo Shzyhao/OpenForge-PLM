@@ -43,6 +43,7 @@ public class ConnectorController {
     }
 
     @GetMapping
+    @RequirePermission("conn:view")
     public ApiResponse<PageResponse<ConnSummaryResponse>> page(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long pageSize) {
@@ -50,6 +51,7 @@ public class ConnectorController {
     }
 
     @GetMapping("/{id}")
+    @RequirePermission("conn:view")
     public ApiResponse<ConnDetailResponse> detail(@PathVariable Long id) {
         return ApiResponse.ok(definitionService.detail(id));
     }
@@ -100,14 +102,16 @@ public class ConnectorController {
 
     /**
      * 运行时调用（仅已发布连接器；trigger=API）：前端/脚本经网关调用。
-     * 未发布 6004 / 停用 6005 / 不存在 6002。
+     * 未发布 6004 / 停用 6005 / 不存在 6002；连接器配置了调用白名单（ACL）时校验调用者角色。
      */
     @PostMapping("/invoke/{connCode}")
     @RequirePermission("conn:invoke")
     public ApiResponse<InvokeResponse> invoke(
-            @PathVariable String connCode, @RequestBody(required = false) InvokeRequest request) {
+            @PathVariable String connCode, @RequestBody(required = false) InvokeRequest request,
+            HttpServletRequest http) {
         return ApiResponse.ok(definitionService.invoke(connCode,
-                request == null || request.getParams() == null ? java.util.Map.of() : request.getParams()));
+                request == null || request.getParams() == null ? java.util.Map.of() : request.getParams(),
+                currentUserId(http)));
     }
 
     // ===== 触发死信（P2-2 §12.2：EVENT/CRON 执行失败落死信，人工重放/丢弃） =====

@@ -57,6 +57,16 @@ export function assignUserRoles(userId: number, roleIds: number[]): Promise<void
   return put(`/api/v1/roles/users/${userId}`, { roleIds })
 }
 
+/** 批量启停（D9；十轮接线）。任一被拒整体不生效（后端事务内回滚）。 */
+export function batchUserStatus(ids: number[], enable: boolean): Promise<void> {
+  return post('/api/v1/users/batch-status', { ids, enable })
+}
+
+/** 用户挂接组织（org:manage；orgId=null 移出）。 */
+export function assignUserOrg(id: number, orgId: number | null): Promise<void> {
+  return put(`/api/v1/users/${id}/org`, { orgId })
+}
+
 // ===== 角色管理（B 组） =====
 
 export interface Role {
