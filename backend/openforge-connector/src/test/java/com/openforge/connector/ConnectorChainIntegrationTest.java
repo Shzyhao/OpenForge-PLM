@@ -95,7 +95,7 @@ class ConnectorChainIntegrationTest {
 
     private void grant() {
         when(permissionQueryClient.fetch(ArgumentMatchers.anyLong())).thenReturn(
-                new PermissionView(1L, "USER", List.of("ADMINS"), List.of("conn:manage", "conn:invoke")));
+                new PermissionView(1L, "USER", List.of("ADMINS"), List.of("conn:manage", "conn:invoke", "conn:view")));
     }
 
     /** 两步链：s1 取 token（http://…/s1）→ s2 带 {{steps.s1.body.token}} 回调。 */
