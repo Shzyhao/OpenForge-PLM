@@ -79,7 +79,7 @@ class ConnectorIntegrationTest {
 
     private void grantPermissions() {
         when(permissionQueryClient.fetch(ArgumentMatchers.anyLong())).thenReturn(
-                new PermissionView(1L, "USER", List.of("ADMINS"), List.of("conn:manage", "conn:invoke")));
+                new PermissionView(1L, "USER", List.of("ADMINS"), List.of("conn:manage", "conn:invoke", "conn:view")));
     }
 
     private String connSpec(String code, String credRef, String url) {

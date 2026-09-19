@@ -80,7 +80,8 @@ public class KnowledgeService {
 
     /** 反馈闭环（开发文档 7.5 自适应）：ADOPT 提升 usage 与质量分，DISMISS 扣分。 */
     public void feedback(String queryText, Long itemId, String action, Long userId) {
-        if (!List.of("CLICK", "DISMISS", "ADOPT", "RATE").contains(action)) {
+        // 先判空再 contains：List.of 不可变列表 contains(null) 抛 NPE（T12-1 扫描实锤：缺字段落 5000）
+        if (action == null || !List.of("CLICK", "DISMISS", "ADOPT", "RATE").contains(action)) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "未知反馈类型: " + action);
         }
         KnowledgeFeedback fb = new KnowledgeFeedback();

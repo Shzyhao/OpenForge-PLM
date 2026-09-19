@@ -1,6 +1,6 @@
 # 贡献指南 ｜ Contributing to OpenForge PLM
 
-感谢你关注 OpenForge PLM！本文档说明如何参与贡献。应用主体与框架化路线截至 v1.9.0 的各版均已交付，最需要的是后续迭代方向的共建与场景输入。
+感谢你关注 OpenForge PLM！本文档说明如何参与贡献。应用主体与框架化路线截至 v1.20.0 的各版均已交付，最需要的是后续迭代方向的共建与场景输入。
 
 ## 🌿 分支模型
 
@@ -54,7 +54,7 @@ docs(readme): 补充品牌指南
 
 ## 🛠️ 开发环境
 
-- JDK 21 / Node 20+ / Python 3.12 / Docker
+- JDK 21 / Node 20+ / Python 3.11 / Docker
 - 后端：Spring Boot 3.x；前端：React 18 + Vite；AI：FastAPI（OpenAI 兼容协议接入多模型）
 - 本地依赖（PostgreSQL/Redis/MinIO 等）统一用 `docker-compose` 启动，一键脚本 `./scripts/dev-up.sh`
 

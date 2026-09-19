@@ -64,6 +64,27 @@ class WorkflowEngineIntegrationTest {
     }
 
     @Test
+    @DisplayName("动作归一化：小写 approve 同样推进（API 直调不再静默挂起）")
+    void lowercaseActionIsNormalized() {
+        engine.deploy("test-flow", "测试流程", DEFINITION, 1L);
+        WorkflowInstance instance = startWith(Map.of("amount", 100));
+        WorkflowTask first = taskOf(instance);
+        WorkflowInstance done = engine.act(first.getId(), 7L, "approve", "小写动作");
+        assertThat(done.getState()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    @DisplayName("动作校验：非法动作拒绝并提示（此前静默挂起实例）")
+    void invalidActionRejected() {
+        engine.deploy("test-flow", "测试流程", DEFINITION, 1L);
+        WorkflowInstance instance = startWith(Map.of("amount", 100));
+        WorkflowTask first = taskOf(instance);
+        assertThatThrownBy(() -> engine.act(first.getId(), 7L, "ok", null))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("APPROVE/REJECT");
+    }
+
+    @Test
     @DisplayName("低金额：初审通过后直达结束（条件默认分支）")
     void lowAmountGoesStraightToEnd() {
         engine.deploy("test-flow", "测试流程", DEFINITION, 1L);

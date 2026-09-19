@@ -57,6 +57,7 @@ public class DrawingService {
     private final StorageClient storageClient;
     private final EventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final com.openforge.drawing.client.AuthAuditClient auditClient;
 
     // ===== 档案 =====
 
@@ -72,6 +73,7 @@ public class DrawingService {
         drawing.setCreatedBy(operatorId);
         drawing.setDeleted(0);
         drawingMapper.insert(drawing);
+        auditClient.record(operatorId, "DRW_CREATE", "DRAWING", drawing.getDrawingNumber(), drawing.getTitle());
         return drawing;
     }
 
@@ -112,6 +114,7 @@ public class DrawingService {
                     "仅草稿可删除，已进入流程的图纸请走作废");
         }
         drawingMapper.deleteById(id);
+        auditClient.record(null, "DRW_DELETE", "DRAWING", drawing.getDrawingNumber(), drawing.getTitle());
     }
 
     // ===== 文件 =====
@@ -121,6 +124,10 @@ public class DrawingService {
     public DrawingFile uploadFile(Long id, String fileName, InputStream content, String kind) throws Exception {
         DrawingInfo drawing = requireDrawing(id);
         requireDraft(drawing, "上传文件");
+        // 文件名长度在源头收口（R11）：DB file_name varchar(255)，超长此前落 5000+ERROR 堆栈（输入错误族）
+        if (fileName != null && fileName.length() > 255) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "文件名过长（上限 255 字符）");
+        }
         String normalizedKind = kind == null || kind.isBlank() ? "ATTACHMENT" : kind.trim();
         if (!FILE_KINDS.contains(normalizedKind)) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "文件类型须为 MAIN/PREVIEW/ATTACHMENT");
@@ -220,6 +227,8 @@ public class DrawingService {
         drawing.setLifecycleState("RELEASED");
         drawingMapper.updateById(drawing);
         saveSnapshot(drawing, operatorId);
+        auditClient.record(operatorId, "DRW_PUBLISH", "DRAWING", drawing.getDrawingNumber(),
+                "发布版本 " + drawing.version());
         publishAfterCommit("drawing.released", Map.of(
                 "drawingId", drawing.getId(),
                 "drawingNumber", drawing.getDrawingNumber(),
@@ -247,6 +256,7 @@ public class DrawingService {
         }
         drawing.setLifecycleState("OBSOLETE");
         drawingMapper.updateById(drawing);
+        auditClient.record(null, "DRW_OBSOLETE", "DRAWING", drawing.getDrawingNumber(), "作废");
         publishAfterCommit("drawing.obsolete", Map.of(
                 "drawingId", drawing.getId(),
                 "drawingNumber", drawing.getDrawingNumber(),
@@ -269,6 +279,8 @@ public class DrawingService {
         drawing.setVersionMinor(0);
         drawing.setLifecycleState("DRAFT");
         drawingMapper.updateById(drawing);
+        auditClient.record(null, "DRW_REVISE", "DRAWING", drawing.getDrawingNumber(),
+                "升版 " + drawing.version());
         return drawing;
     }
 

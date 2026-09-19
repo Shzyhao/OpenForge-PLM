@@ -22,7 +22,7 @@ Java 21 + Spring Boot 3.3 微服务（Maven 多模块）。
 | `openforge-metadata` | 8088 | 元数据内核（F2）：动态对象建模 + DDL 生成器 + 发布流水线 + 表单/列表布局设计器 |
 | `openforge-connector` | 8094 | 集成编排器（v1.14.0，EXTENSION 部署即注册）：连接器定义/凭据/多步骤链（CHAIN）运行时 + EVENT/CRON 触发 + 死信队列 |
 | `openforge-drawing` | 8095 | 图纸管理服务（v1.20.0）：图纸档案/版本快照/物料关联/预览文件 |
-| `openforge-mono` | 8090 | 单进程聚合（PROFILE=mono，v1.12.0）：auth+9 业务服务+connector+drawing 合一上下文，gateway 独立 |
+| `openforge-mono` | 8090 | 单进程聚合（PROFILE=mono，v1.12.0）：auth+7 业务服务+connector+drawing 十模块合一上下文，gateway 独立 |
 
 ## 本地开发
 

@@ -94,6 +94,7 @@ public class WorkflowEngine {
         instance.setVariables(toJson(variables == null ? Map.of() : variables));
         instance.setState("RUNNING");
         instance.setInitiatorId(initiatorId);
+        instance.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         instanceMapper.insert(instance);
         advance(instance, "start", variables == null ? Map.of() : variables);
         return instance;
@@ -104,14 +105,25 @@ public class WorkflowEngine {
         if (instance == null) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "流程实例不存在");
         }
+        // 租户边界（R10）：实例为全局表，跨租户按不存在应答（与任务 act 的指派人校验互补）
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L && !tenantId.equals(instance.getTenantId())) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "流程实例不存在");
+        }
         return instance;
     }
 
     /** 按业务对象查最新实例（含终态——业务详情需展示 COMPLETED/REJECTED；冒烟暴露只查 RUNNING 导致终态不可见）。 */
     public WorkflowInstance findByBiz(String bizType, Long bizId) {
-        return instanceMapper.selectOne(new LambdaQueryWrapper<WorkflowInstance>()
+        LambdaQueryWrapper<WorkflowInstance> wrapper = new LambdaQueryWrapper<WorkflowInstance>()
                 .eq(WorkflowInstance::getBizType, bizType)
-                .eq(WorkflowInstance::getBizId, bizId)
+                .eq(WorkflowInstance::getBizId, bizId);
+        // 租户边界（R10）：内部调用方（change 等）经 X-User-Tenant 透传本租户；平台租户(0)不限
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L) {
+            wrapper.eq(WorkflowInstance::getTenantId, tenantId);
+        }
+        return instanceMapper.selectOne(wrapper
                 .orderByDesc(WorkflowInstance::getId)
                 .last("LIMIT 1"));
     }
@@ -149,6 +161,12 @@ public class WorkflowEngine {
         if (task == null || !task.isOpen()) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");
         }
+        // 动作归一化 + 校验（v1.20.0 体检修复）：此前大小写敏感——小写 "approve" 会让
+        // 会签判定 "APPROVE".equals(action) 恒 false，实例在当前节点静默挂起（无任何报错）
+        String normalized = action == null ? "" : action.trim().toUpperCase();
+        if (!"APPROVE".equals(normalized) && !"REJECT".equals(normalized)) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "action 须为 APPROVE/REJECT: " + action);
+        }
         boolean assignedToMe = userId.equals(task.getAssigneeId());
         boolean myRole = task.getCandidateRole() != null
                 && permissionQueryClient.fetch(userId).roles().contains(task.getCandidateRole());
@@ -157,7 +175,7 @@ public class WorkflowEngine {
         }
 
         WorkflowInstance inst = instance(task.getInstanceId());
-        task.setAction(action);
+        task.setAction(normalized);
         task.setComment(comment);
         task.setAssigneeId(userId); // 角色任务认领后记录办理人
         task.setActedAt(LocalDateTime.now());
@@ -173,7 +191,7 @@ public class WorkflowEngine {
         boolean allApproved = openTasks.isEmpty()
                 && nodeTasks.stream().allMatch(t -> "APPROVE".equals(t.getAction()));
 
-        if ("REJECT".equals(action)) {
+        if ("REJECT".equals(normalized)) {
             cancelOpenTasks(openTasks);
             if (node.rejectTo() != null) {
                 return fallBack(inst, node.rejectTo());

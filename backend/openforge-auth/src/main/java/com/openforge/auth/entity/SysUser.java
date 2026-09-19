@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -22,6 +23,8 @@ public class SysUser {
 
     private String username;
 
+    /** 凭据哈希永不外发（R10：任何 API 响应不得序列化该字段）。 */
+    @JsonIgnore
     private String passwordHash;
 
     private String displayName;

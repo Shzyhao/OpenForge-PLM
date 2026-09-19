@@ -10,6 +10,8 @@
 """
 import json
 import re
+import threading
+import time
 from typing import List, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException
@@ -62,15 +64,20 @@ def healthz():
             "providers": len(chain)}
 
 
+def _ok(payload):
+    """ApiResponse 统一包络（R12）：与 Java 后端同构，前端 client.ts request() 按 code==0 解包。"""
+    return {"code": 0, "message": "ok", "data": payload}
+
+
 @app.post("/api/v1/ai/chat")
 def chat(req: ChatRequest):
     if not llm_client.online:
-        return {"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None}
+        return _ok({"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None})
     try:
         reply = llm_client.complete(req.messages)
-        return {"reply": reply, "mode": "online", "model": llm_client.model}
+        return _ok({"reply": reply, "mode": "online", "model": llm_client.model})
     except LLMOfflineError:
-        return {"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None}
+        return _ok({"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None})
 
 
 @app.post("/api/v1/ai/jobs/doc-parse")
@@ -137,7 +144,19 @@ def start_provider_chain_polling():
 @app.on_event("startup")
 def register_module():
     """A4 模块注册（声明式，与 JVM 模块同协议）：AI 网关向 auth 注册中心上报自描述。
-    尽力而为：注册中心不可用时告警不阻塞启动（运维侧可主动补登记或等下次重启重试）。"""
+    尽力而为：注册中心不可用时告警不阻塞启动（运维侧可主动补登记或等下次重启重试）。
+    R11 心跳：JVM 模块每 60s 重发注册保活（ModuleRegistrar.heartbeat），本网关此前只注册一次，
+    心跳过期即进 staleModules——经网关路由 404。补齐同频后台保活（幂等 upsert）。"""
+    threading.Thread(target=_heartbeat_loop, daemon=True).start()
+
+
+def _heartbeat_loop(interval: float = 45.0):
+    while True:
+        _register_once()
+        time.sleep(interval)
+
+
+def _register_once():
     import os
     import urllib.request
 
@@ -160,7 +179,7 @@ def register_module():
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
             if resp.status == 200:
-                print(f"[module-registry] registered ai-gateway -> {auth_base}")
+                print(f"[module-registry] heartbeat ai-gateway -> {auth_base}")
     except Exception as e:  # noqa: BLE001 - 注册失败不阻塞启动
         print(f"[module-registry] register failed (non-fatal): {e}")
 

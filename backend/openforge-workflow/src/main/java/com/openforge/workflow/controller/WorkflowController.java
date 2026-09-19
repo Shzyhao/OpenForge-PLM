@@ -30,7 +30,7 @@ public class WorkflowController {
 
     @PostMapping("/defs")
     @RequirePermission("workflow:manage")
-    public ApiResponse<WorkflowDef> deploy(@RequestBody DeployRequest request,
+    public ApiResponse<WorkflowDef> deploy(@jakarta.validation.Valid @RequestBody DeployRequest request,
                                            HttpServletRequest httpRequest) {
         return ApiResponse.ok(engine.deploy(request.getDefKey(), request.getName(),
                 request.getDefinition(), currentUserId(httpRequest)));
@@ -42,7 +42,7 @@ public class WorkflowController {
     }
 
     @PostMapping("/instances")
-    public ApiResponse<WorkflowInstance> start(@RequestBody StartRequest request,
+    public ApiResponse<WorkflowInstance> start(@jakarta.validation.Valid @RequestBody StartRequest request,
                                                HttpServletRequest httpRequest) {
         return ApiResponse.ok(engine.start(request.getDefKey(), request.getBizType(),
                 request.getBizId(), request.getVariables(), currentUserId(httpRequest)));
@@ -66,7 +66,7 @@ public class WorkflowController {
 
     @PostMapping("/tasks/{taskId}/act")
     public ApiResponse<WorkflowInstance> act(@PathVariable Long taskId,
-                                             @RequestBody ActRequest body,
+                                             @jakarta.validation.Valid @RequestBody ActRequest body,
                                              HttpServletRequest request) {
         return ApiResponse.ok(engine.act(taskId, currentUserId(request), body.getAction(), body.getComment()));
     }
@@ -87,7 +87,7 @@ public class WorkflowController {
 
     @org.springframework.web.bind.annotation.PostMapping("/internal/instances")
     public ApiResponse<WorkflowInstance> internalStart(
-            @RequestBody StartRequest request,
+            @jakarta.validation.Valid @RequestBody StartRequest request,
             @org.springframework.web.bind.annotation.RequestHeader(value = "X-Internal-Token", required = false) String token) {
         requireInternalToken(token);
         return ApiResponse.ok(engine.start(request.getDefKey(), request.getBizType(),

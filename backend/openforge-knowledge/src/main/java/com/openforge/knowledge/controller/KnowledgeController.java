@@ -35,7 +35,7 @@ public class KnowledgeController {
 
     @PostMapping("/items")
     @RequirePermission("knowledge:manage")
-    public ApiResponse<KnowledgeItem> create(@RequestBody CreateItemRequest request,
+    public ApiResponse<KnowledgeItem> create(@jakarta.validation.Valid @RequestBody CreateItemRequest request,
                                              HttpServletRequest httpRequest) {
         return ApiResponse.ok(knowledgeService.create(request.getTitle(), request.getContent(),
                 request.getTags(), request.getSourceType(), request.getSourceRef(),
@@ -44,7 +44,7 @@ public class KnowledgeController {
 
     /** 服务间知识沉淀入口（变更结项/文档发布等场景调用，X-Internal-Token 防护）。 */
     @PostMapping("/internal/items")
-    public ApiResponse<KnowledgeItem> internalCreate(@RequestBody CreateItemRequest request,
+    public ApiResponse<KnowledgeItem> internalCreate(@jakarta.validation.Valid @RequestBody CreateItemRequest request,
                                                      @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         requireInternal(token);
         return ApiResponse.ok(knowledgeService.create(request.getTitle(), request.getContent(),
@@ -66,7 +66,7 @@ public class KnowledgeController {
     }
 
     @PostMapping("/feedback")
-    public ApiResponse<Void> feedback(@RequestBody FeedbackRequest request,
+    public ApiResponse<Void> feedback(@jakarta.validation.Valid @RequestBody FeedbackRequest request,
                                       HttpServletRequest httpRequest) {
         knowledgeService.feedback(request.getQueryText(), request.getItemId(),
                 request.getAction(), currentUserId(httpRequest));

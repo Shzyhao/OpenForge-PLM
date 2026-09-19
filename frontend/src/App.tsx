@@ -18,6 +18,9 @@ import ObjectDataPage from './pages/ObjectDataPage'
 import LayoutDesignerPage from './pages/LayoutDesignerPage'
 import IntegrationPage from './pages/IntegrationPage'
 import ModuleAdminPage from './pages/ModuleAdminPage'
+import OrgAdminPage from './pages/OrgAdminPage'
+import TenantAdminPage from './pages/TenantAdminPage'
+import NumberRuleAdminPage from './pages/NumberRuleAdminPage'
 import AppLayout from './layouts/AppLayout'
 import { getToken } from './api/client'
 
@@ -55,6 +58,9 @@ export default function App() {
         <Route path="system/roles" element={<RoleAdminPage />} />
         <Route path="system/logs" element={<SecurityLogPage />} />
         <Route path="system/modules" element={<ModuleAdminPage />} />
+        <Route path="system/orgs" element={<OrgAdminPage />} />
+        <Route path="system/tenants" element={<TenantAdminPage />} />
+        <Route path="system/numbers" element={<NumberRuleAdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

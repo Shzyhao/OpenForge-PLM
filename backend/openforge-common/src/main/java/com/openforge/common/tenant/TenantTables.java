@@ -17,12 +17,15 @@ public final class TenantTables {
             // 审计/日志/安全（跨租户运维视角）+ 租户主档自身 + 事件总线基础设施
             "sys_audit_log", "sys_login_log", "sys_password_history", "sys_module", "sys_tenant",
             "sys_event_outbox", "sys_event_consumed",
-            // 编号（规则带租户但计数器行级全局递增）
-            "sys_number_counter",
+            // 编号（R10：规则为平台模板，非零租户此前取号必失败——规则全部 tenant 0 而查询被租户过滤；
+            // 计数器行级全局递增）
+            "sys_number_rule", "sys_number_counter",
             // 元数据定义（建模与界面制品全局共享）
             "meta_object", "meta_field", "meta_object_version", "meta_form_layout",
-            // 各服务无 tenant_id 列的业务从表
-            "part_version", "doc_file", "knowledge_feedback", "workflow_instance", "workflow_task");
+            // 各服务无 tenant_id 列的业务从表 + 流程定义（R10：定义是管理员部署的平台模板，
+            // 租户过滤使非零租户启动流程 4001；实例/任务按租户戳+指派人隔离）
+            "part_version", "doc_file", "knowledge_feedback",
+            "workflow_def", "workflow_instance", "workflow_task");
 
     private TenantTables() {
     }
