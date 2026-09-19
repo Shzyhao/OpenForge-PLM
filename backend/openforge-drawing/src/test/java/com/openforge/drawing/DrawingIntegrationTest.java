@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.openforge.drawing.client.AuthAuditClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
@@ -22,6 +23,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -36,6 +41,9 @@ class DrawingIntegrationTest {
 
     @MockBean
     private NumberClient numberClient;
+
+    @MockBean
+    private AuthAuditClient auditClient;
 
     private static final AtomicLong drwSeq = new AtomicLong(200);
 
@@ -101,6 +109,8 @@ class DrawingIntegrationTest {
 
         DrawingInfo released = drawingService.approve(drawing.getId(), 9L);
         assertThat(released.getLifecycleState()).isEqualTo("RELEASED");
+        // R8 审计（v1.20.0 五轮补齐）：发布动作落审计
+        verify(auditClient).record(eq(9L), eq("DRW_PUBLISH"), eq("DRAWING"), eq(drawing.getDrawingNumber()), any());
 
         // 发布快照固化（版本 A/1，含文件清单）
         List<DrawingVersion> versions = drawingService.versions(drawing.getId());
@@ -173,5 +183,16 @@ class DrawingIntegrationTest {
         }
         assertThatThrownBy(() -> drawingService.download(drawing.getId(), 99999L))
                 .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    @DisplayName("超长文件名在源头拒绝（R11：此前 varchar 溢出落 5000+ERROR 堆栈，输入错误族）")
+    void overlongFileNameRejected() throws Exception {
+        DrawingInfo drawing = drawingService.create("超长文件名校验图", 1L);
+        String longName = "L".repeat(300) + ".dwg";
+        assertThatThrownBy(() -> drawingService.uploadFile(drawing.getId(), longName,
+                new ByteArrayInputStream(content("x")), "ATTACHMENT"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("文件名过长");
     }
 }

@@ -1,6 +1,11 @@
-# OpenForge PLM 生产部署栈（B4）：全服务容器化 + 模块注册自动路由
-# 用法: cp .env.example .env && docker compose -f docker-compose.prod.yml up -d --build
-# 可观测栈另行叠加: docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --profile monitoring up -d
+# OpenForge PLM 生产部署栈（B4）：容器化 + 模块注册自动路由
+# 两种部署形态（互斥 profile，二选一）：
+#   mono 形态（默认推荐，单机/中小规模）：2 JVM 进程，镜像 ~750MB、RSS ~405MB（画像 §8 实测 -78%）
+#     docker compose -f docker-compose.prod.yml --profile mono up -d --build
+#   scale-out 形态（水平扩展/独立伸缩时启用）：11 服务独立进程
+#     docker compose -f docker-compose.prod.yml --profile scale-out up -d --build
+#   .env 需同步设置 AUTH_SERVICE_URI：mono=http://mono:8090 ｜ scale-out=http://auth:8081
+# 可观测栈另行叠加: docker compose -f docker-compose.prod.yml --profile mono -f docker-compose.monitoring.yml --profile monitoring up -d
 #
 # 关键约定：
 # - 服务经 MODULE_SERVICE_URI 上报容器网络地址 → 模块注册表 → 网关动态路由（零手工路由配置）
@@ -13,7 +18,8 @@ x-java-env: &java-env
   PG_DB: openforge
   PG_USER: ${PG_USER:-openforge}
   PG_PASSWORD: ${PG_PASSWORD:?请在 .env 设置 PG_PASSWORD}
-  AUTH_SERVICE_URI: http://auth:8081
+  # 注册寻址随部署形态切换（mono: 网关/AI 网关指向 mono 容器；scale-out: 指向 auth 容器）
+  AUTH_SERVICE_URI: ${AUTH_SERVICE_URI:?请在 .env 设置 AUTH_SERVICE_URI（mono=http://mono:8090 / scale-out=http://auth:8081）}
   INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置 INTERNAL_TOKEN}
   JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET（≥32 字节）}
   NACOS_ENABLED: ${NACOS_ENABLED:-false}
@@ -55,7 +61,28 @@ services:
     volumes: [minio_data:/data]
     ports: ["9000:9000", "9001:9001"]
 
+  mono:
+    # 单进程聚合 10 模块（auth+7 业务+connector+drawing；PROFILE=mono 等价性已全栈实测，PR #98）
+    profiles: ["mono"]
+    image: openforge-mono:latest
+    build: { <<: *java-build, args: { MODULE: openforge-mono, PORT: "8090" } }
+    environment:
+      <<: *java-env
+      MODULE_SERVICE_URI: http://mono:8090
+      AUTH_SERVICE_URI: http://localhost:8090   # 进程内 Tomcat 自寻址（模块间调用不出容器）
+      OPENFORGE_DRAWING_STORAGE_DIR: /data/drawing-files
+      OPENFORGE_CONNECTOR_MASTER_KEY: ${OPENFORGE_CONNECTOR_MASTER_KEY:-}
+      OPENFORGE_CONNECTOR_EGRESS_WHITELIST: ${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:-}
+      # 对齐性能画像 §8 mono 形态（dev 实测 RSS 224MB；容器堆给裕量）
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60 -Xms128m -Xmx640m -Xss512k -XX:+UseSerialGC -XX:MaxMetaspaceSize=320m -Dfile.encoding=UTF-8"
+    volumes:
+      - doc_data:/data/doc-files
+      - drawing_files:/data/drawing-files
+    depends_on:
+      postgres: { condition: service_healthy }
+
   auth:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-auth, PORT: "8081" } }
     environment:
       <<: *java-env
@@ -64,6 +91,7 @@ services:
       postgres: { condition: service_healthy }
 
   material:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-material, PORT: "8082" } }
     environment:
       <<: *java-env
@@ -71,6 +99,7 @@ services:
     depends_on: [auth]
 
   doc:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-doc, PORT: "8083" } }
     environment:
       <<: *java-env
@@ -80,6 +109,7 @@ services:
     depends_on: [auth]
 
   workflow:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-workflow, PORT: "8084" } }
     environment:
       <<: *java-env
@@ -87,6 +117,7 @@ services:
     depends_on: [auth]
 
   change:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-change, PORT: "8085" } }
     environment:
       <<: *java-env
@@ -94,6 +125,7 @@ services:
     depends_on: [auth, workflow]
 
   knowledge:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-knowledge, PORT: "8086" } }
     environment:
       <<: *java-env
@@ -101,6 +133,7 @@ services:
     depends_on: [auth]
 
   project:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-project, PORT: "8087" } }
     environment:
       <<: *java-env
@@ -108,6 +141,7 @@ services:
     depends_on: [auth]
 
   metadata:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-metadata, PORT: "8088" } }
     environment:
       <<: *java-env
@@ -115,6 +149,7 @@ services:
     depends_on: [auth]
 
   connector:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-connector, PORT: "8094" } }
     environment:
       <<: *java-env
@@ -125,6 +160,7 @@ services:
     depends_on: [auth]
 
   drawing:
+    profiles: ["scale-out"]
     build: { <<: *java-build, args: { MODULE: openforge-drawing, PORT: "8095" } }
     environment:
       <<: *java-env
@@ -132,27 +168,28 @@ services:
       # 图纸文件存储卷（本地磁盘；MinIO 切换前生产须挂载持久卷）
       OPENFORGE_DRAWING_STORAGE_DIR: /data/drawing-files
     volumes:
-      - drawing-files:/data/drawing-files
+      - drawing_files:/data/drawing-files
     depends_on: [auth]
 
   gateway:
+    image: openforge-gateway:latest
     build: { <<: *java-build, args: { MODULE: openforge-gateway, PORT: "8080" } }
     environment:
       <<: *java-env
-      AUTH_SERVICE_URI: http://auth:8081
+      # x-java-env 的 AUTH_SERVICE_URI 已由 .env 按形态注入，此处无需覆盖
     ports: ["8080:8080"]
-    depends_on: [auth]
+    depends_on: [postgres]
 
   ai-gateway:
     build: { context: ., dockerfile: ai/Dockerfile }
     environment:
-      OPENFORGE_AUTH_BASE_URL: http://auth:8081
+      OPENFORGE_AUTH_BASE_URL: ${AUTH_SERVICE_URI:?请在 .env 设置 AUTH_SERVICE_URI}
       OPENFORGE_INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置 INTERNAL_TOKEN}
       OPENFORGE_MODULE_SERVICE_URI: http://ai-gateway:8001
       OPENFORGE_LLM_BASE_URL: ${OPENFORGE_LLM_BASE_URL:-}
       OPENFORGE_LLM_API_KEY: ${OPENFORGE_LLM_API_KEY:-}
       OPENFORGE_LLM_MODEL: ${OPENFORGE_LLM_MODEL:-glm-4-flash}
-    depends_on: [auth]
+    depends_on: [postgres]
 
   frontend:
     build: { context: ., dockerfile: frontend/Dockerfile }

@@ -132,6 +132,25 @@ public class DocService {
                 .eq(DocFile::getDocInfoId, docId).orderByDesc(DocFile::getId));
     }
 
+    /** 下载/预览源：校验归属后流式读出（doc_file 全局表，租户边界由文档可见性 + 归属校验保证）。 */
+    public DownloadPayload download(Long docId, Long fileId) {
+        detail(docId);
+        DocFile file = docFileMapper.selectById(fileId);
+        if (file == null || !file.getDocInfoId().equals(docId)) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在或不属于该文档");
+        }
+        try {
+            return new DownloadPayload(file, storageClient.load(file.getStorageKey()));
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "文件读取失败");
+        }
+    }
+
+    public record DownloadPayload(DocFile file, InputStream stream) {
+    }
+
     private String sha256(byte[] bytes) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
     }

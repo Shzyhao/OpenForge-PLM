@@ -77,4 +77,22 @@ class DocIntegrationTest {
         assertThat(files).hasSize(1);
         assertThat(files.get(0).getStorageKey()).isNotBlank();
     }
+
+    @Test
+    @DisplayName("下载：字节级往返一致；文件不属于该文档拒绝（十轮补齐回读端点）")
+    void downloadRoundtrip() throws Exception {
+        DocInfo doc = docService.create("下载校验文档", "SPEC", 1L);
+        byte[] content = ("roundtrip-" + System.nanoTime()).getBytes(StandardCharsets.UTF_8);
+        DocFile file = docService.uploadFile(doc.getId(), "spec.txt",
+                new ByteArrayInputStream(content));
+
+        DocService.DownloadPayload payload = docService.download(doc.getId(), file.getId());
+        byte[] downloaded = payload.stream().readAllBytes();
+        assertThat(downloaded).isEqualTo(content);
+        assertThat(payload.file().getFileName()).isEqualTo("spec.txt");
+
+        // 跨文档/不存在文件 → 404 语义
+        assertThatThrownBy(() -> docService.download(doc.getId(), 999999L))
+                .isInstanceOf(BizException.class);
+    }
 }

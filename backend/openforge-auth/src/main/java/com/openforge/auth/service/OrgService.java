@@ -138,6 +138,11 @@ public class OrgService {
         if (user == null) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
         }
+        // 租户边界（R10）：与 UserAdminService.assertTenantScope 同规——跨租户按不存在应答
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L && !tenantId.equals(user.getTenantId())) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
+        }
         if (orgId != null) {
             requireOrg(orgId);
         }

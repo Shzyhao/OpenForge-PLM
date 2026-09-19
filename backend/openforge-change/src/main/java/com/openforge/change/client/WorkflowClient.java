@@ -41,6 +41,7 @@ public class WorkflowClient {
         try {
             response = restClient.post()
                     .uri("/api/v1/workflow/internal/instances")
+                    .headers(this::forwardTenant)
                     .body(Map.of(
                             "defKey", defKey,
                             "bizType", bizType,
@@ -68,6 +69,7 @@ public class WorkflowClient {
                             .queryParam("bizType", bizType)
                             .queryParam("bizId", bizId)
                             .build())
+                    .headers(this::forwardTenant)
                     .retrieve()
                     .body(TYPE);
         } catch (Exception e) {
@@ -77,5 +79,11 @@ public class WorkflowClient {
             return null;
         }
         return response.getData();
+    }
+
+    /** 服务间调用透传租户（与 MaterialClient 同规；R10 起流程实例按租户读写，漏传即落平台租户）。 */
+    private void forwardTenant(org.springframework.http.HttpHeaders headers) {
+        headers.set(com.openforge.common.tenant.TenantHeaderFilter.HEADER_USER_TENANT,
+                String.valueOf(com.openforge.common.tenant.TenantContext.getTenantId()));
     }
 }

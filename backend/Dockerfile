@@ -5,7 +5,8 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 COPY backend/ .
-RUN mvn -B -ntp -q -DskipTests package
+# .m2 挂 BuildKit 缓存卷：依赖跨构建持久（mono 双镜像形态下重复构建只编译改动源码，不再全量下载）
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -q -DskipTests package
 
 FROM eclipse-temurin:21-jre
 ARG MODULE=openforge-auth

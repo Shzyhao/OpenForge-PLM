@@ -58,3 +58,6 @@ shots/
 # 运行时产物（服务本地文件存储 / 会话目录）
 data/
 .zcode/
+
+# 备份产物（backup.sh）
+backups/

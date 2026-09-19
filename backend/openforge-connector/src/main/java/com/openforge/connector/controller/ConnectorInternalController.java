@@ -40,8 +40,9 @@ public class ConnectorInternalController {
             @RequestBody(required = false) InvokeRequest request,
             @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         requireInternal(token);
+        // userId=null：服务间内部调用不受连接器 ACL 白名单约束（已有内部令牌门禁）
         return ApiResponse.ok(definitionService.invoke(connCode,
-                request == null || request.getParams() == null ? Map.of() : request.getParams()));
+                request == null || request.getParams() == null ? Map.of() : request.getParams(), null));
     }
 
     private void requireInternal(String token) {

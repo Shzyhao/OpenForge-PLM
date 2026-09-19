@@ -27,8 +27,16 @@ public class NumberController {
     }
 
     @GetMapping("/rules")
+    @RequirePermission("number:manage")
     public ApiResponse<List<SysNumberRule>> list() {
         return ApiResponse.ok(numberRuleService.listRules());
+    }
+
+    /** 取号计数器水位（十轮改进：此前只能 SQL 手查）。 */
+    @GetMapping("/counters")
+    @RequirePermission("number:manage")
+    public ApiResponse<List<com.openforge.auth.entity.SysNumberCounter>> counters() {
+        return ApiResponse.ok(numberRuleService.listCounters());
     }
 
     @PostMapping("/rules")

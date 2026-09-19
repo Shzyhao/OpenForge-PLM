@@ -38,6 +38,7 @@ public class OrgController {
     }
 
     @GetMapping("/tree")
+    @RequirePermission("org:manage")
     public ApiResponse<List<OrgNodeResponse>> tree() {
         return ApiResponse.ok(orgService.fullTree());
     }
@@ -64,6 +65,7 @@ public class OrgController {
     }
 
     @GetMapping("/{id}/users")
+    @RequirePermission("org:manage")
     public ApiResponse<List<UserBriefResponse>> users(
             @PathVariable Long id,
             @RequestParam(name = "includeChildren", defaultValue = "false") boolean includeChildren) {

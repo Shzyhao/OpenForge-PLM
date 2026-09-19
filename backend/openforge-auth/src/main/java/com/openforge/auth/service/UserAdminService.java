@@ -55,6 +55,18 @@ public class UserAdminService {
         }
     }
 
+    /**
+     * 租户边界（R10）：sys_user 是全局表（登录需跨租户按用户名寻址），租户拦截器不覆盖，
+     * 用户管理必须在服务层自守——平台租户(0)操作者管理全部租户，其余操作者仅限本租户。
+     * 跨租户一律按"用户不存在"应答，避免账号存在性泄露。
+     */
+    private void assertTenantScope(SysUser target) {
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L && !tenantId.equals(target.getTenantId())) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
+        }
+    }
+
     // ===== D2 创建 =====
 
     @Transactional
@@ -94,6 +106,11 @@ public class UserAdminService {
 
     public PageResponse<SysUser> page(long page, long pageSize, String username, Long roleId, String status) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>().orderByDesc(SysUser::getId);
+        // 租户边界（R10）：平台租户(0)可见全部，其余租户仅见本租户账号
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L) {
+            wrapper.eq(SysUser::getTenantId, tenantId);
+        }
         if (username != null && !username.isBlank()) {
             wrapper.like(SysUser::getUsername, username.trim());
         }
@@ -118,6 +135,7 @@ public class UserAdminService {
         if (user == null) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
         }
+        assertTenantScope(user);
         return user;
     }
 

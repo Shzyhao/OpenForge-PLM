@@ -84,7 +84,7 @@ class ConnectorTriggerIntegrationTest {
 
     private void grant() {
         when(permissionQueryClient.fetch(ArgumentMatchers.anyLong())).thenReturn(
-                new PermissionView(1L, "USER", List.of("ADMINS"), List.of("conn:manage", "conn:invoke")));
+                new PermissionView(1L, "USER", List.of("ADMINS"), List.of("conn:manage", "conn:invoke", "conn:view")));
     }
 
     private long createPublished(String code, String url, String triggerType, String triggerJson)

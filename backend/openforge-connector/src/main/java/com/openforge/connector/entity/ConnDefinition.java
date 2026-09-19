@@ -39,6 +39,9 @@ public class ConnDefinition {
 
     private String triggerJson;
 
+    /** 调用白名单角色代码 JSON 数组（ACL）：NULL/空 = 租户内持 conn:invoke 者皆可运行时调用 */
+    private String aclRoles;
+
     private Long tenantId;
 
     private Long createdBy;
