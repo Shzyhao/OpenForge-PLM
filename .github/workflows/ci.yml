@@ -57,8 +57,8 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-          cache-dependency-path: ai/requirements.txt
+          cache-dependency-path: ai/requirements-dev.txt
       - name: Install
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt   # 含测试依赖（生产镜像只装 requirements.txt）
       - name: Test
         run: python -m pytest -q
