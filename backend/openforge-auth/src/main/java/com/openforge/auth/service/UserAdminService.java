@@ -102,6 +102,25 @@ public class UserAdminService {
         return user;
     }
 
+    /** 用户轻量选项（v1.23 审批委托选人）：仅 id/账号/显示名，登录即可访问，不暴露管理字段。 */
+    public List<UserOption> options() {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getStatus, "ACTIVE")
+                .orderByAsc(SysUser::getId);
+        // 租户边界（R10）：平台租户(0)可见全部，其余租户仅见本租户账号
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L) {
+            wrapper.eq(SysUser::getTenantId, tenantId);
+        }
+        wrapper.select(SysUser::getId, SysUser::getUsername, SysUser::getDisplayName);
+        return userMapper.selectList(wrapper).stream()
+                .map(u -> new UserOption(u.getId(), u.getUsername(), u.getDisplayName()))
+                .toList();
+    }
+
+    public record UserOption(Long id, String username, String displayName) {
+    }
+
     // ===== D1 列表 / D10 详情 =====
 
     public PageResponse<SysUser> page(long page, long pageSize, String username, Long roleId, String status) {
