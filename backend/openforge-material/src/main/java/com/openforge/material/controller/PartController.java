@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PartController {
 
     private final PartService partService;
+    private final com.openforge.material.service.RecycleService recycleService;
 
     @PostMapping
     @RequirePermission("part:create")
@@ -65,6 +66,19 @@ public class PartController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         partService.deleteDraft(id);
         return ApiResponse.ok();
+    }
+
+    // ===== 回收站（v1.23）：软删行列表 + 恢复（与删除同权） =====
+
+    @GetMapping("/recycle")
+    public ApiResponse<java.util.List<Part>> recycle() {
+        return ApiResponse.ok(recycleService.trashedParts());
+    }
+
+    @PostMapping("/{id}/restore")
+    @RequirePermission("part:delete")
+    public ApiResponse<Part> restore(@PathVariable Long id) {
+        return ApiResponse.ok(recycleService.restore(id));
     }
 
     // ===== 状态机（M3 由流程引擎驱动，当前为轻量流转） =====

@@ -38,6 +38,19 @@ public class DrawingController {
 
     private final DrawingService drawingService;
 
+    // ===== 回收站（v1.23）：软删图纸列表 + 恢复（与删除同权） =====
+
+    @org.springframework.web.bind.annotation.GetMapping("/recycle")
+    public ApiResponse<java.util.List<DrawingInfo>> recycle() {
+        return ApiResponse.ok(drawingService.trashed());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/restore")
+    @RequirePermission("drawing:manage")
+    public ApiResponse<DrawingInfo> restore(@PathVariable Long id, HttpServletRequest request) {
+        return ApiResponse.ok(drawingService.restore(id, currentUserId(request)));
+    }
+
     @PostMapping
     @RequirePermission("drawing:manage")
     public ApiResponse<DrawingInfo> create(@jakarta.validation.Valid @RequestBody CreateDrawingRequest request,
