@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Avatar, Button, Dropdown, Layout, Menu, Result, Spin, Tag, theme, Typography } from 'antd'
 import {
   ApiOutlined, ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined,
-  CloudOutlined, FileImageOutlined, FileTextOutlined, NumberOutlined, HomeOutlined, KeyOutlined,
+  CloudOutlined, DeleteOutlined, FileImageOutlined, FileTextOutlined, NumberOutlined, HomeOutlined, KeyOutlined,
   LogoutOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { fetchCurrentUser, type UserInfo } from '../api/user'
 import { fetchEnabledModules } from '../api/modules'
 import AiAssistant from '../components/AiAssistant'
 import Logo from '../components/Logo'
+import NotificationBell from '../components/NotificationBell'
 import PasswordModal from '../components/PasswordModal'
 import { PermContext, type PermContextValue } from '../perm/PermContext'
 import { useThemeMode } from '../theme/ThemeMode'
@@ -29,11 +30,14 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: '/', menu: 'menu:dashboard', icon: <HomeOutlined />, label: '工作台' },
   { key: '/tasks', menu: 'menu:tasks', icon: <BellOutlined />, label: '我的待办' },
+  { key: '/notifications', menu: 'menu:notify', icon: <BellOutlined />, label: '通知中心' },
   { key: '/material', menu: 'menu:material', icon: <AppstoreOutlined />, label: '物料', module: 'material' },
   { key: '/bom', menu: 'menu:bom', icon: <ProjectOutlined />, label: 'BOM', module: 'material' },
+  { key: '/recycle', menu: 'menu:recycle', icon: <DeleteOutlined />, label: '回收站' },
   { key: '/doc', menu: 'menu:doc', icon: <FileTextOutlined />, label: '文档', module: 'doc' },
   { key: '/drawing', menu: 'menu:drawing', icon: <FileImageOutlined />, label: '图纸', module: 'drawing' },
   { key: '/change', menu: 'menu:change', icon: <SwapOutlined />, label: '变更', module: 'change' },
+  { key: '/workflow/delegates', menu: 'menu:delegate', icon: <TeamOutlined />, label: '审批委托' },
   { key: '/workflow', menu: 'menu:workflow', icon: <ApartmentOutlined />, label: '流程', module: 'workflow' },
   { key: '/knowledge', menu: 'menu:knowledge', icon: <BookOutlined />, label: '知识库', module: 'knowledge' },
   { key: '/project', menu: 'menu:project', icon: <ProjectOutlined />, label: '项目', module: 'project' },
@@ -53,9 +57,9 @@ const NAV_ITEMS: NavItem[] = [
 /** 侧边栏分组（顺序即展示顺序） */
 const NAV_GROUP_ORDER = ['概览', '产品数据', '协作', '知识', '低代码', '系统'] as const
 const NAV_GROUP_OF: Record<string, string> = {
-  '/': '概览', '/tasks': '概览',
-  '/material': '产品数据', '/bom': '产品数据', '/doc': '产品数据', '/drawing': '产品数据',
-  '/change': '协作', '/workflow': '协作',
+  '/': '概览', '/tasks': '概览', '/notifications': '概览',
+  '/material': '产品数据', '/bom': '产品数据', '/recycle': '产品数据', '/doc': '产品数据', '/drawing': '产品数据',
+  '/change': '协作', '/workflow': '协作', '/workflow/delegates': '协作',
   '/knowledge': '知识', '/project': '知识',
   '/meta/objects': '低代码', '/meta/data': '低代码', '/meta/designer': '低代码',
   '/integration': '低代码',
@@ -156,6 +160,7 @@ export default function AppLayout() {
               icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggle}
             />
+            <NotificationBell />
             <AiAssistant />
             {user && (
               <>
