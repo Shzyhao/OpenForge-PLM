@@ -76,26 +76,46 @@ services:
       timeout: 5s
       retries: 12
 
-  # B2 事件总线（docs/OpenForge-B2事件总线设计.md）：broker 仅内网，不发布端口
+  # B2 事件总线（docs/OpenForge-B2事件总线设计.md）。
+  # v1.23 R20 实纱修正：namesrv 无 HTTP /healthz（curl exit 52 空回复，healthcheck 恒失败
+  # 卡死依赖门）；宿主机 JVM 直连需发布端口；broker 须 brokerIP1=127.0.0.1 通告宿主可达地址
+  # （Docker Desktop 容器 IP 宿主不可路由）；默认堆过大须 JAVA_OPT_EXT 收紧。
   rocketmq-namesrv:
     profiles: ["rocketmq"]
     image: apache/rocketmq:5.3.1
     container_name: openforge-mq-namesrv
     command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+    environment:
+      JAVA_OPT_EXT: "-Xms128m -Xmx256m -XX:MaxDirectMemorySize=64m"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9876/healthz || exit 1"]
-      interval: 10s
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/9876'"]
+      interval: 5s
       timeout: 5s
-      retries: 12
+      retries: 24
 
   rocketmq-broker:
     profiles: ["rocketmq"]
     image: apache/rocketmq:5.3.1
     container_name: openforge-mq-broker
-    command: sh mqbroker -n rocketmq-namesrv:9876
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/broker.conf
+    volumes:
+      - ./deploy/rocketmq/broker.conf:/home/rocketmq/broker.conf:ro
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+      - "10912:10912"
+    environment:
+      JAVA_OPT_EXT: "-Xms256m -Xmx512m -XX:MaxDirectMemorySize=128m"
     depends_on:
       rocketmq-namesrv:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/10911'"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
 
   # rocketmq-namesrv:    # M3 事件总线
   #   image: apache/rocketmq:5.3.1
