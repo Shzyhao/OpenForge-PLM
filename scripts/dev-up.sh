@@ -46,6 +46,27 @@ else
   export NACOS_CONFIG_IMPORT=""
 fi
 
+# v1.23 事件总线可选开关：EVENT_BUS=1 启动 RocketMQ 并开启事件总线
+# （站内通知走 MQ 消费组通道——B2 预留的 notify 组；同时 drawing→change 联动切事件驱动）。
+# 默认关闭：通知走 auth HTTP 回退通道全功能可用，省内存。发版验证（R20）须跑一轮 EVENT_BUS=1。
+if [ "${EVENT_BUS:-0}" = "1" ]; then
+  echo "=== [事件总线] 启动 RocketMQ（rocketmq profile） ==="
+  docker compose -f "$ROOT/docker-compose.yml" --profile rocketmq up -d
+  export OPENFORGE_EVENT_ENABLED=true
+  # 等 broker 就绪并注册到 namesrv（约 10~30s）：producer 首发失败会走 outbox 重试，
+  # 不等待也能最终一致，但等齐可让冒烟/探针首查即中
+  for i in $(seq 1 30); do
+    if docker exec openforge-mq-broker bash -c "echo > /dev/tcp/localhost/10911" 2>/dev/null        && docker exec openforge-mq-namesrv sh mqadmin clusterList -n localhost:9876 2>/dev/null | grep -q "broker-a"; then
+      echo "  broker 就绪并已注册（第 ${i} 次探测）"
+      break
+    fi
+    [ "$i" = 30 ] && echo "  警告: broker 60s 未就绪，事件管道可能延迟（outbox 会补发）"
+    sleep 2
+  done
+else
+  export OPENFORGE_EVENT_ENABLED="${OPENFORGE_EVENT_ENABLED:-false}"
+fi
+
 echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被锁） ==="
 # SKIP_BUILD=1 强制跳过；默认按源码新旧自动判断——无改动时省 1~2 分钟与构建内存峰值
 # （多模块构建峰值曾是闪退直接诱因之一：MAVEN_OPTS 限 512m）
