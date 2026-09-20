@@ -38,6 +38,13 @@ public class WorkflowTask {
 
     private LocalDateTime createdAt;
 
+    /** 委托代办时的原指派人（v1.23；act 覆盖 assignee_id 前记录，代办追溯用） */
+    private Long delegatedFrom;
+
+    /** 查询期标记：该任务经委托规则进入我的待办（不入库，随 JSON 下发前端打标） */
+    @TableField(exist = false)
+    private Boolean viaDelegation;
+
     public boolean isOpen() {
         return action == null;
     }
