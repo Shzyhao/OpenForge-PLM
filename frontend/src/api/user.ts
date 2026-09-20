@@ -21,6 +21,17 @@ export function changeMyPassword(oldPassword: string, newPassword: string): Prom
   return put('/api/v1/users/me/password', { oldPassword, newPassword })
 }
 
+export interface UserOption {
+  id: number
+  username: string
+  displayName: string | null
+}
+
+/** 用户轻量选项（审批委托选人）：登录即可，不走 user:manage 门槛。 */
+export function fetchUserOptions(): Promise<UserOption[]> {
+  return get<UserOption[]>('/api/v1/users/options')
+}
+
 // ===== 用户管理（D 组） =====
 
 export interface AdminUser {

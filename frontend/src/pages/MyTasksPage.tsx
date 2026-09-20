@@ -78,6 +78,7 @@ export default function MyTasksPage() {
                 <List.Item.Meta
                   title={<Space>{task.nodeName ?? task.nodeId}
                     {task.candidateRole && <Tag color="blue">{task.candidateRole}</Tag>}
+                    {task.viaDelegation && <Tag color="purple">来自委托</Tag>}
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>#{task.id}</Typography.Text>
                   </Space>}
                   description={`流程实例 ${task.instanceId}`}

@@ -59,6 +59,7 @@ public class DrawingService {
     private final ObjectMapper objectMapper;
     private final com.openforge.drawing.client.AuthAuditClient auditClient;
     private final com.openforge.drawing.client.ChangeNotifyClient changeNotifier;
+    private final com.openforge.drawing.mapper.DrawingRecycleMapper recycleMapper;
 
     // ===== 档案 =====
 
@@ -116,6 +117,31 @@ public class DrawingService {
         }
         drawingMapper.deleteById(id);
         auditClient.record(null, "DRW_DELETE", "DRAWING", drawing.getDrawingNumber(), drawing.getTitle());
+    }
+
+    // ===== 回收站（v1.23）=====
+
+    /** 软删图纸列表（回收站）。 */
+    public List<DrawingInfo> trashed() {
+        return recycleMapper.trashedDrawings();
+    }
+
+    /** 恢复软删图纸：图号被在册记录占用时明确报错；审计与删除对称（DRW_RESTORE）。 */
+    @Transactional
+    public DrawingInfo restore(Long id, Long operatorId) {
+        DrawingInfo drawing = recycleMapper.trashedDrawing(id);
+        if (drawing == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该图纸");
+        }
+        if (recycleMapper.liveCountByNumber(drawing.getDrawingNumber()) > 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "恢复失败：图号 " + drawing.getDrawingNumber() + " 已被其他在册图纸占用");
+        }
+        if (recycleMapper.restoreDrawing(id) != 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该图纸");
+        }
+        auditClient.record(operatorId, "DRW_RESTORE", "DRAWING", drawing.getDrawingNumber(), drawing.getTitle());
+        return drawing;
     }
 
     // ===== 文件 =====

@@ -7,6 +7,9 @@ import DocPage from './pages/DocPage'
 import DrawingPage from './pages/DrawingPage'
 import MyTasksPage from './pages/MyTasksPage'
 import WorkflowDefsPage from './pages/WorkflowDefsPage'
+import DelegatesPage from './pages/DelegatesPage'
+import NotificationsPage from './pages/NotificationsPage'
+import RecycleBinPage from './pages/RecycleBinPage'
 import ChangePage from './pages/ChangePage'
 import KnowledgePage from './pages/KnowledgePage'
 import ProjectPage from './pages/ProjectPage'
@@ -47,6 +50,9 @@ export default function App() {
         <Route path="drawing" element={<DrawingPage />} />
         <Route path="tasks" element={<MyTasksPage />} />
         <Route path="workflow" element={<WorkflowDefsPage />} />
+        <Route path="workflow/delegates" element={<DelegatesPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="recycle" element={<RecycleBinPage />} />
         <Route path="change" element={<ChangePage />} />
         <Route path="project" element={<ProjectPage />} />
         <Route path="knowledge" element={<KnowledgePage />} />

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,6 +60,12 @@ public class UserController {
                 permissionService.menuCodesOfUser(user),
                 permissionService.getPermissionCodesOfUser(userId),
                 user.getUserType()));
+    }
+
+    /** 用户轻量选项（v1.23 审批委托选人）：登录即可，不暴露用户管理数据。 */
+    @GetMapping("/options")
+    public ApiResponse<List<com.openforge.auth.service.UserAdminService.UserOption>> options() {
+        return ApiResponse.ok(userAdminService.options());
     }
 
     /** 将用户挂接到组织（org:manage 权限）。body: {"orgId": 123}，orgId 为 null 表示移出组织。 */
