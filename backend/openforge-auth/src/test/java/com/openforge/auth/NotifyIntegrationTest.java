@@ -100,9 +100,12 @@ class NotifyIntegrationTest {
     @Test
     @DisplayName("未订阅事件类型忽略；收件人不存在跳过")
     void ignoreUnknownAndMissingRecipient() {
+        // 增量断言：同名 H2 跨测试类共享（surefire 类序 Linux/Windows 不同），
+        // 全表清零断言会被其他类残留行误伤（CI 首跑实锤）
+        Long before = jdbc.queryForObject("SELECT COUNT(*) FROM notify_message", Long.class);
         notifyService.ingest("part.released", Map.of("partNumber", "P1"));
         notifyService.ingest("task.created", Map.of("assigneeId", 999999, "nodeName", "初审", "instanceId", 1L));
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message", Long.class)).isEqualTo(before);
     }
 
     @Test
