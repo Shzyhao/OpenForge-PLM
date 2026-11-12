@@ -840,7 +840,10 @@ export default function IntegrationPage() {
         <Button type="primary" icon={<SendOutlined />} loading={testingBusy}
           onClick={runTest} style={{ marginTop: 12 }}>执行</Button>
         {testResult && (
-          <Descriptions size="small" column={2} style={{ marginTop: 16 }} bordered>
+          <>
+          <Button size="small" style={{ marginTop: 12 }} loading={testingBusy}
+            onClick={runTest}>重放（同参重试）</Button>
+          <Descriptions size="small" column={2} style={{ marginTop: 8 }} bordered>
             <Descriptions.Item label="状态">
               <Tag color={testResult.status === 'SUCCESS' ? 'green' : 'red'}>{testResult.status}</Tag>
             </Descriptions.Item>
@@ -848,6 +851,7 @@ export default function IntegrationPage() {
             <Descriptions.Item label="HTTP">{testResult.httpStatus ?? '-'}</Descriptions.Item>
             <Descriptions.Item label="行数">{testResult.rowsReturned ?? '-'}</Descriptions.Item>
           </Descriptions>
+          </>
         )}
         {testResult?.body && (
           <pre style={{

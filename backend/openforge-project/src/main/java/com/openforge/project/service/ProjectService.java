@@ -30,6 +30,46 @@ public class ProjectService {
     private final ProjectMapper projectMapper;
     private final ProjectTaskMapper taskMapper;
     private final NumberClient numberClient;
+    private final com.openforge.project.mapper.ProjectRecycleMapper recycleMapper;
+
+// ===== 回收站（v1.25 设计 §4）=====
+
+    /** 软删项目（任务行保留，恢复后如常；purge 才 GC）。 */
+    @Transactional
+    public void delete(Long id) {
+        Project proj = require(id);
+        projectMapper.deleteById(proj.getId());
+    }
+
+    public java.util.List<Project> trashed() {
+        return recycleMapper.trashedProjects();
+    }
+
+    @Transactional
+    public Project restore(Long id) {
+        Project proj = recycleMapper.trashedProject(id);
+        if (proj == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该项目");
+        }
+        if (recycleMapper.restoreProject(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该项目");
+        }
+        return proj;
+    }
+
+    /** 彻底删除（不可逆）：project_task 行 GC。 */
+    @Transactional
+    public Project purge(Long id) {
+        Project proj = recycleMapper.trashedProject(id);
+        if (proj == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该项目");
+        }
+        recycleMapper.deleteTasksByProject(id);
+        if (recycleMapper.purgeProject(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该项目");
+        }
+        return proj;
+    }
 
     @Transactional
     public Project create(String name, String description, Long ownerId,

@@ -12,6 +12,8 @@ import java.util.UUID;
 
 /** 本地磁盘存储（M2）：按日期目录 + UUID 文件名落盘，元数据在 doc_file 表。 */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "openforge.doc.storage", havingValue = "local", matchIfMissing = true)  // v1.25：minio 切换
 public class LocalDiskStorage implements StorageClient {
 
     private final Path baseDir;

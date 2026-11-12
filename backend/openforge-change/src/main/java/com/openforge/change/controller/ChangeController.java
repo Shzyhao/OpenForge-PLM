@@ -25,6 +25,33 @@ public class ChangeController {
 
     private final EcrService ecrService;
 
+    // ===== 回收站（v1.25 设计 §4）=====
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/requests/{id}")
+    @com.openforge.common.annotation.RequirePermission("change:manage")
+    public ApiResponse<Void> deleteRequest(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        ecrService.delete(id);
+        return ApiResponse.ok();
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/requests/recycle")
+    public ApiResponse<java.util.List<com.openforge.change.entity.ChangeRequest>> requestRecycle() {
+        return ApiResponse.ok(ecrService.trashed());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/requests/{id}/restore")
+    @com.openforge.common.annotation.RequirePermission("change:manage")
+    public ApiResponse<com.openforge.change.entity.ChangeRequest> restoreRequest(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(ecrService.restore(id));
+    }
+
+    /** 彻底删除（不可逆）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/requests/{id}/purge")
+    @com.openforge.common.annotation.RequirePermission("change:manage")
+    public ApiResponse<com.openforge.change.entity.ChangeRequest> purgeRequest(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(ecrService.purge(id));
+    }
+
     @PostMapping("/requests")
     @RequirePermission("change:manage")
     public ApiResponse<ChangeRequest> create(@Valid @RequestBody EcrRequest request,

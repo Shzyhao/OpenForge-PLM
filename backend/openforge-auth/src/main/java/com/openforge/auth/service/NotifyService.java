@@ -39,6 +39,7 @@ public class NotifyService {
     private final NotifyMessageMapper mapper;
     private final NotifySubscriptionMapper subscriptionMapper;
     private final JdbcTemplate jdbc;
+    private final com.openforge.common.event.EventPublisher eventPublisher;
 
     /** 事件→通知落库（幂等由通道层保证：MQ 走 sys_event_consumed，HTTP 天然单次）。 */
     public void ingest(String eventType, Map<String, Object> payload) {
@@ -150,6 +151,25 @@ public class NotifyService {
         msg.setContent(content);
         msg.setReadFlag(0);
         mapper.insert(msg);
+        // 站外渠道分发口（v1.25 §3）：通知类连接器（SMTP/DINGTALK/FEISHU/WEBHOOK）订阅
+        // openforge-notify 主题的 notify.created 即可复用全套触发框架；总线关闭=false→仅站内信
+        String email = userEmail(userId);
+        java.util.Map<String, Object> out = new java.util.HashMap<>();
+        out.put("notifyId", msg.getId());
+        out.put("userId", userId);
+        if (email != null) {
+            out.put("email", email);
+        }
+        out.put("eventType", eventType);
+        if (bizType != null) {
+            out.put("bizType", bizType);
+        }
+        if (bizId != null) {
+            out.put("bizId", bizId);
+        }
+        out.put("title", title);
+        out.put("content", content == null ? "" : content);
+        eventPublisher.publish("openforge-notify", "notify.created", out);
     }
 
     /** 角色成员（同租户、未删、ACTIVE），fan-out 截断。 */
@@ -172,6 +192,14 @@ public class NotifyService {
                 "SELECT tenant_id FROM sys_user WHERE id = ? AND deleted = 0",
                 (rs, i) -> rs.getLong(1), userId);
         return tenants.isEmpty() ? null : tenants.get(0);
+    }
+
+    /** 收件人 email（站外渠道分发用；未配置为 null）。 */
+    private String userEmail(Long userId) {
+        List<String> emails = jdbc.query(
+                "SELECT email FROM sys_user WHERE id = ? AND deleted = 0 AND email IS NOT NULL",
+                (rs, i) -> rs.getString(1), userId);
+        return emails.isEmpty() ? null : emails.get(0);
     }
 
     // ===== 订阅管理（v1.24 §4）=====

@@ -13,6 +13,8 @@ import java.util.UUID;
 /** 本地磁盘存储（M2）：按日期目录 + UUID 文件名落盘，元数据在 drw_drawing_file 表。
  *  bean 名显式区分（doc 域同名类在 mono 单 classpath 下冲突，先例同 docNumberClient）。 */
 @Component("drawingLocalDiskStorage")
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "openforge.drawing.storage", havingValue = "local", matchIfMissing = true)  // v1.25：minio 切换
 public class LocalDiskStorage implements StorageClient {
 
     private final Path baseDir;
