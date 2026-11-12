@@ -1,0 +1,90 @@
+# ===== IDE =====
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Java =====
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+hs_err_pid*
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+
+# ===== Node =====
+node_modules/
+dist/
+build/
+.next/
+.npm/
+*.tsbuildinfo
+
+# ===== 环境与密钥（禁止提交凭据）=====
+*.env.*
+# 部署配置样例（无敏感值，可入库）
+!.env.example
+**/application-local.yml
+**/application-secret.yml
+*.pem
+*.key
+secrets/
+
+# ===== 构建产物 =====
+*.tar.gz
+*.zip
+coverage/
+shots/
+
+# 运行时产物（服务本地文件存储 / 会话目录）
+data/
+.zcode/
+
+# 备份产物（backup.sh）
+backups/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
