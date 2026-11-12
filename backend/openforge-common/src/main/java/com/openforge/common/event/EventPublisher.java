@@ -35,6 +35,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class EventPublisher implements DisposableBean {
 
     static final long TRIP_OPEN_MILLIS = 60_000L;
+    /**
+     * 事件 Schema 版本（B2 §7 outbox P3 轻量落地，v1.25）：加字段演进下恒为 1；
+     * 消费端容忍规则——见到大于本版本的信封按"未知新版本"跳过并 WARN（宁丢通知类事件不误消费），
+     * 破坏性变更须升版本并同步全部消费组分支。Registry 随规模（事件类型 ≥10 或跨团队）另议。
+     */
+    public static final int EVENT_SCHEMA_VERSION = 1;
     private static final int TRIP_THRESHOLD = 3;
 
     private final boolean enabled;
@@ -82,7 +88,7 @@ public class EventPublisher implements DisposableBean {
             return false;
         }
         EventEnvelope envelope = new EventEnvelope(
-                UUID.randomUUID().toString(), eventType, 1,
+                UUID.randomUUID().toString(), eventType, EVENT_SCHEMA_VERSION,
                 LocalDateTime.now().toString(), producerName,
                 com.openforge.common.tenant.TenantContext.getTenantId(),
                 MDC.get(com.openforge.common.trace.TraceIdFilter.MDC_KEY),
