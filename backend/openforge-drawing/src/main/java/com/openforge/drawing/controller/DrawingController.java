@@ -51,6 +51,13 @@ public class DrawingController {
         return ApiResponse.ok(drawingService.restore(id, currentUserId(request)));
     }
 
+    /** 彻底删除（不可逆）：文件字节 GC + 行删除。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/purge")
+    @RequirePermission("drawing:manage")
+    public ApiResponse<DrawingInfo> purge(@PathVariable Long id, HttpServletRequest request) {
+        return ApiResponse.ok(drawingService.purge(id, currentUserId(request)));
+    }
+
     @PostMapping
     @RequirePermission("drawing:manage")
     public ApiResponse<DrawingInfo> create(@jakarta.validation.Valid @RequestBody CreateDrawingRequest request,

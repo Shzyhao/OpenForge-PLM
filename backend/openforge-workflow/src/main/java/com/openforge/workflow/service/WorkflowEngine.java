@@ -43,7 +43,7 @@ public class WorkflowEngine {
     private final ObjectMapper objectMapper;
     private final com.openforge.common.event.EventPublisher eventPublisher;
     private final DelegateService delegateService;
-    private final com.openforge.workflow.client.NotifyClient notifyClient;
+    private final com.openforge.workflow.client.WorkflowNotifyClient notifyClient;
 
     // ===== 定义 =====
 

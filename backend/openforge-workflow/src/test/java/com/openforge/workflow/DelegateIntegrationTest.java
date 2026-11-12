@@ -4,7 +4,7 @@ import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import com.openforge.security.PermissionQueryClient;
 import com.openforge.security.PermissionView;
-import com.openforge.workflow.client.NotifyClient;
+import com.openforge.workflow.client.WorkflowNotifyClient;
 import com.openforge.workflow.entity.WorkflowDelegate;
 import com.openforge.workflow.entity.WorkflowInstance;
 import com.openforge.workflow.entity.WorkflowTask;
@@ -51,7 +51,7 @@ class DelegateIntegrationTest {
     private PermissionQueryClient permissionQueryClient;
 
     @MockBean
-    private NotifyClient notifyClient;
+    private WorkflowNotifyClient notifyClient;
 
     private static final String DEFINITION = """
             {

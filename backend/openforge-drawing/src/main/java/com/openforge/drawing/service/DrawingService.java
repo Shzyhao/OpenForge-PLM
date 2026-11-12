@@ -60,6 +60,7 @@ public class DrawingService {
     private final com.openforge.drawing.client.AuthAuditClient auditClient;
     private final com.openforge.drawing.client.ChangeNotifyClient changeNotifier;
     private final com.openforge.drawing.mapper.DrawingRecycleMapper recycleMapper;
+    private final com.openforge.drawing.client.DrawingNotifyClient notifyClient;
 
     // ===== 档案 =====
 
@@ -141,6 +142,33 @@ public class DrawingService {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该图纸");
         }
         auditClient.record(operatorId, "DRW_RESTORE", "DRAWING", drawing.getDrawingNumber(), drawing.getTitle());
+        return drawing;
+    }
+
+    /**
+     * 彻底删除（不可逆，v1.24）：文件字节经 StorageClient.delete 逐个 GC（best-effort，失败仅告警——
+     * MinIO 接线后同接口承接），行级 file/version/part-link/drawing GC；审计与删除对称（DRW_PURGE）。
+     */
+    @Transactional
+    public DrawingInfo purge(Long id, Long operatorId) {
+        DrawingInfo drawing = recycleMapper.trashedDrawing(id);
+        if (drawing == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该图纸");
+        }
+        for (String key : recycleMapper.fileKeysOf(id)) {
+            try {
+                storageClient.delete(key);
+            } catch (Exception e) {
+                log.warn("图纸文件 GC 失败（继续行删除）: key={} — {}", key, e.getMessage());
+            }
+        }
+        recycleMapper.deleteFilesByDrawing(id);
+        recycleMapper.deleteVersionsByDrawing(id);
+        recycleMapper.deletePartLinksByDrawing(id);
+        if (recycleMapper.purgeDrawing(id) != 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该图纸");
+        }
+        auditClient.record(operatorId, "DRW_PURGE", "DRAWING", drawing.getDrawingNumber(), drawing.getTitle());
         return drawing;
     }
 
@@ -268,8 +296,12 @@ public class DrawingService {
                 "title", drawing.getTitle() == null ? "" : drawing.getTitle(),
                 "version", drawing.version(),
                 "linkedParts", linkedParts);
+        // 回退复合：ECO 联动（change）+ 站内信订阅通知（auth），均 best-effort（v1.24）
         boolean viaBus = publishAfterCommit("drawing.released", payload,
-                p -> changeNotifier.notifyDrawingReleased(p));
+                p -> {
+                    changeNotifier.notifyDrawingReleased(p);
+                    notifyClient.deliver("drawing.released", p);
+                });
         if (!viaBus && !linkedParts.isEmpty()) {
             changeNotifier.notifyDrawingReleased(payload);
         }
@@ -299,7 +331,8 @@ public class DrawingService {
         publishAfterCommit("drawing.obsolete", Map.of(
                 "drawingId", drawing.getId(),
                 "drawingNumber", drawing.getDrawingNumber(),
-                "version", drawing.version()), p -> { });
+                "version", drawing.version()),
+                p -> notifyClient.deliver("drawing.obsolete", p));
         return drawing;
     }
 

@@ -43,6 +43,10 @@ class DrawingIntegrationTest {
     private NumberClient numberClient;
 
     @MockBean
+    private com.openforge.drawing.client.DrawingNotifyClient notifyClient;
+
+
+    @MockBean
     private AuthAuditClient auditClient;
 
     private static final AtomicLong drwSeq = new AtomicLong(200);
