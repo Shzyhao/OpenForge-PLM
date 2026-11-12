@@ -1,4 +1,5 @@
 """AI 供应商降级链测试（§12.1）：链解析/env 兜底/逐个降级。CI 无 LLM 与 connector 环境。"""
+import httpx
 import pytest
 
 from gateway import llm as llm_mod
@@ -80,3 +81,38 @@ def test_llm_all_providers_down(monkeypatch):
         lambda: _chain([("https://a.example.com/v4", "k1", "m1")]))
     with pytest.raises(LLMOfflineError):
         client.complete([{"role": "user", "content": "hi"}])
+
+
+def test_model_hint_reorders_chain(monkeypatch):
+    """多模型分流（v1.25 §7）：hint 命中同模型供应商时其子链先行，无命中保持全链原序。"""
+    from gateway import llm as llm_mod
+    fake_chain = [
+        {"model": "m-a", "baseUrl": "http://a", "apiKey": "k"},
+        {"model": "m-b", "baseUrl": "http://b", "apiKey": "k"},
+        {"model": "m-a2", "baseUrl": "http://c", "apiKey": "k"},
+    ]
+    monkeypatch.setattr(llm_mod.provider_chain, "get_chain", lambda: list(fake_chain))
+    client = llm_mod.LLMClient()
+    calls = []
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append(json["model"])
+        class R:
+            status_code = 500  # 全部 5xx 触发降级遍历
+        raise httpx.HTTPError("boom")
+
+    monkeypatch.setattr(client._client, "post", fake_post)
+    # hint=m-b：m-b 先试，随后其余按原序
+    try:
+        client.complete([{"role": "user", "content": "hi"}], model_hint="m-b")
+    except llm_mod.LLMOfflineError:
+        pass
+    assert calls[0] == "m-b"
+    assert calls[1:] == ["m-a", "m-a2"]
+    # 无命中 hint：保持原序
+    calls.clear()
+    try:
+        client.complete([{"role": "user", "content": "hi"}], model_hint="nope")
+    except llm_mod.LLMOfflineError:
+        pass
+    assert calls == ["m-a", "m-b", "m-a2"]

@@ -35,6 +35,7 @@ OFFLINE_CHAT_REPLY = (
 class ChatRequest(BaseModel):
     messages: List[Dict[str, str]]
     question: Optional[str] = None
+    model: Optional[str] = None      # 多模型分流（v1.25 §7）：偏好模型名，链内无命中回退默认链
 
 
 class DocParseRequest(BaseModel):
@@ -74,7 +75,7 @@ def chat(req: ChatRequest):
     if not llm_client.online:
         return _ok({"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None})
     try:
-        reply = llm_client.complete(req.messages)
+        reply = llm_client.complete(req.messages, model_hint=req.model)
         return _ok({"reply": reply, "mode": "online", "model": llm_client.model})
     except LLMOfflineError:
         return _ok({"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None})
