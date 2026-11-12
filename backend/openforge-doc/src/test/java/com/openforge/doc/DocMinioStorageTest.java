@@ -27,13 +27,17 @@ class DocMinioStorageTest {
 
     @BeforeAll
     static void requireDockerAndStart() {
+        // 双门控：Docker 可用 + 显式开启（CI 匿名拉 minio 镜像被限流抖动——R22 实锤 404；
+        // 默认跳过保 CI 稳定，专用 runner/本机设 OPENFORGE_MINIO_IT=1 真跑）
         boolean available;
         try {
-            available = DockerClientFactory.instance().isDockerAvailable();
+            available = DockerClientFactory.instance().isDockerAvailable()
+                    && "1".equals(System.getenv().getOrDefault("OPENFORGE_MINIO_IT", "0"));
         } catch (Exception e) {
             available = false;
         }
-        Assumptions.assumeTrue(available, "Docker 不可用，跳过 MinIO 真实容器集成测试");
+        Assumptions.assumeTrue(available,
+                "Docker 不可用或未设 OPENFORGE_MINIO_IT=1，跳过 MinIO 真实容器集成测试");
         minio = new MinIOContainer("minio/minio:latest");
         minio.start();
         storage = new DocMinioStorage(minio.getS3URL(), minio.getUserName(), minio.getPassword(), "openforge-doc");
