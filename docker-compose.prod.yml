@@ -66,6 +66,28 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?请在 .env 设置 MINIO_ROOT_PASSWORD}
     volumes: [minio_data:/data]
     ports: ["9000:9000", "9001:9001"]
+    healthcheck:            # v1.26 灰度演练补强：/dev/tcp 探活（镜像内 curl 不保证存在）
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/9000'"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  # v1.26 灰度演练补强：桶自动初始化（openforge-doc/openforge-drawing）——此前桶需手工建
+  minio-init:
+    profiles: ["extras"]
+    image: minio/mc:latest
+    container_name: openforge-prod-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set of http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing http://minio:9000/openforge-doc &&
+      mc mb --ignore-existing http://minio:9000/openforge-drawing &&
+      echo 'buckets ready'
+      "
+    restart: "no"
 
   mono:
     # 单进程聚合 10 模块（auth+7 业务+connector+drawing；PROFILE=mono 等价性已全栈实测，PR #98）
