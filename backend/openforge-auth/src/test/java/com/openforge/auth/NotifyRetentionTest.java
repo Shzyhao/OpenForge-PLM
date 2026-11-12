@@ -28,6 +28,12 @@ class NotifyRetentionTest {
         jdbc.update("DELETE FROM notify_message WHERE title LIKE 'RET-%'");
     }
 
+    /** 同名 H2 跨测试类共享：RET-% 残行会污染 NotifyIntegrationTest 的全表断言（类序平台不同） */
+    @org.junit.jupiter.api.AfterEach
+    void cleanUp() {
+        jdbc.update("DELETE FROM notify_message WHERE title LIKE 'RET-%'");
+    }
+
     private void insert(String title, int tenantId, boolean read, int ageDays) {
         LocalDateTime t = LocalDateTime.now().minusDays(ageDays);
         jdbc.update("INSERT INTO notify_message (tenant_id, user_id, event_type, title, read_flag, created_at) "
