@@ -25,4 +25,21 @@ public interface DrawingRecycleMapper {
 
     @Update("UPDATE drw_drawing SET deleted = 0 WHERE id = #{id} AND deleted = 1")
     int restoreDrawing(@Param("id") Long id);
+
+    // ===== 彻底删除（v1.24）：文件键读取 + 行 GC（文件字节由 StorageClient.delete 承接）=====
+
+    @org.apache.ibatis.annotations.Select("SELECT storage_key FROM drw_drawing_file WHERE drawing_id = #{drawingId}")
+    List<String> fileKeysOf(@Param("drawingId") Long drawingId);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM drw_drawing_file WHERE drawing_id = #{drawingId}")
+    int deleteFilesByDrawing(@Param("drawingId") Long drawingId);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM drw_drawing_version WHERE drawing_id = #{drawingId}")
+    int deleteVersionsByDrawing(@Param("drawingId") Long drawingId);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM drw_drawing_part WHERE drawing_id = #{drawingId}")
+    int deletePartLinksByDrawing(@Param("drawingId") Long drawingId);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM drw_drawing WHERE id = #{id} AND deleted = 1")
+    int purgeDrawing(@Param("id") Long id);
 }

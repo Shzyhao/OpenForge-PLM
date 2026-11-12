@@ -12,4 +12,7 @@ public interface StorageClient {
 
     /** 按存储键读取。 */
     InputStream load(String storageKey) throws Exception;
+
+    /** 按存储键删除（回收站彻底删除的文件 GC，v1.24；不存在时静默返回）。 */
+    void delete(String storageKey) throws Exception;
 }

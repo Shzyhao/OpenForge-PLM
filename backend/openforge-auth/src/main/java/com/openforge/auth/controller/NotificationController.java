@@ -51,6 +51,25 @@ public class NotificationController {
         return ApiResponse.ok();
     }
 
+    // ===== 订阅管理（v1.24：发布类事件通知设置）=====
+
+    @GetMapping("/subscriptions")
+    public ApiResponse<java.util.List<com.openforge.auth.entity.NotifySubscription>> subscriptions(HttpServletRequest request) {
+        return ApiResponse.ok(notifyService.subscriptions(currentUserId(request)));
+    }
+
+    @PostMapping("/subscriptions/{eventKey}")
+    public ApiResponse<Void> subscribe(@PathVariable String eventKey, HttpServletRequest request) {
+        notifyService.subscribe(currentUserId(request), eventKey);
+        return ApiResponse.ok();
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/subscriptions/{eventKey}")
+    public ApiResponse<Void> unsubscribe(@PathVariable String eventKey, HttpServletRequest request) {
+        notifyService.unsubscribe(currentUserId(request), eventKey);
+        return ApiResponse.ok();
+    }
+
     private Long currentUserId(HttpServletRequest request) {
         String header = request.getHeader("X-User-Id");
         if (header == null) {

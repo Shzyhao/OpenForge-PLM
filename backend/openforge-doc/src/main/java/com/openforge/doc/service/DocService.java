@@ -32,6 +32,8 @@ public class DocService {
     private final NumberClient numberClient;
     private final StorageClient storageClient;
     private final com.openforge.common.event.EventPublisher eventPublisher;
+    private final com.openforge.doc.client.DocNotifyClient notifyClient;
+    private final com.openforge.doc.mapper.DocRecycleMapper recycleMapper;
 
     public DocInfo create(String title, String docType, Long operatorId) {
         DocInfo doc = new DocInfo();
@@ -97,10 +99,78 @@ public class DocService {
         doc.setCheckedOutBy(null);
         doc.setCheckedOutAt(null);
         docInfoMapper.updateById(doc);
-        // doc.released（B2 设计 6.2 事件清单：knowledge/search 预留消费）
-        eventPublisher.publish("openforge-doc", "doc.released", java.util.Map.of(
+        // doc.released（B2 设计 6.2 事件清单：knowledge/search 预留消费）；总线关闭回退站内信订阅通知（v1.24）
+        java.util.Map<String, Object> payload = java.util.Map.of(
                 "docId", doc.getId(), "title", doc.getTitle() == null ? "" : doc.getTitle(),
-                "versionMinor", doc.getVersionMinor()));
+                "versionMinor", doc.getVersionMinor());
+        if (!eventPublisher.publish("openforge-doc", "doc.released", payload)) {
+            notifyClient.deliver("doc.released", payload);
+        }
+        return doc;
+    }
+
+    // ===== 删除/回收站/彻底删除（v1.24）=====
+
+    /** 逻辑删除（仅 DRAFT 且未检出——已发布文档不可删除，与物料/图纸同规）。 */
+    @Transactional
+    public void delete(Long id) {
+        DocInfo doc = docInfoMapper.selectById(id);
+        if (doc == null || doc.getDeleted() == 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "文档不存在");
+        }
+        if (!"DRAFT".equals(doc.getLifecycleState())) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "仅草稿文档可删除，已发布文档不可删除");
+        }
+        if (doc.getCheckedOutBy() != null) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "检出中的文档不可删除，请先检入");
+        }
+        docInfoMapper.deleteById(id);
+    }
+
+    /** 软删文档列表（回收站）。 */
+    public List<DocInfo> trashed() {
+        return recycleMapper.trashedDocs();
+    }
+
+    /** 恢复软删文档：编号被在册记录占用时明确报错。 */
+    @Transactional
+    public DocInfo restore(Long id) {
+        DocInfo doc = recycleMapper.trashedDoc(id);
+        if (doc == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
+        if (recycleMapper.liveCountByNumber(doc.getDocNumber()) > 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "恢复失败：编号 " + doc.getDocNumber() + " 已被其他在册文档占用");
+        }
+        if (recycleMapper.restoreDoc(id) != 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
+        return doc;
+    }
+
+    /**
+     * 彻底删除（不可逆）：文件字节经 StorageClient.delete 逐个 GC（best-effort，失败仅告警不阻断
+     * 行删除——MinIO 接线后同接口承接，孤儿文件由存储侧生命周期策略兜底），行级 doc_file/doc_info GC。
+     */
+    @Transactional
+    public DocInfo purge(Long id) {
+        DocInfo doc = recycleMapper.trashedDoc(id);
+        if (doc == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
+        for (DocFile file : recycleMapper.filesOf(id)) {
+            try {
+                storageClient.delete(file.getStorageKey());
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(DocService.class)
+                        .warn("文档文件 GC 失败（继续行删除）: key={} — {}", file.getStorageKey(), e.getMessage());
+            }
+        }
+        recycleMapper.deleteFilesByDoc(id);
+        if (recycleMapper.purgeDoc(id) != 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
         return doc;
     }
 

@@ -32,6 +32,34 @@ import java.util.Map;
 public class BomController {
 
     private final BomService bomService;
+    private final com.openforge.material.service.RecycleService recycleService;
+
+    // ===== 删除/回收站/彻底删除（v1.23/v1.24）=====
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @RequirePermission("bom:manage")
+    public ApiResponse<Void> delete(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        bomService.deleteDraft(id);
+        return ApiResponse.ok();
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/recycle")
+    public ApiResponse<java.util.List<Bom>> recycle() {
+        return ApiResponse.ok(recycleService.trashedBoms());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/restore")
+    @RequirePermission("bom:manage")
+    public ApiResponse<Bom> restore(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(recycleService.restoreBom(id));
+    }
+
+    /** 彻底删除（不可逆）：行 + 替代组 GC。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/purge")
+    @RequirePermission("bom:manage")
+    public ApiResponse<Bom> purge(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(recycleService.purgeBom(id));
+    }
 
     @PostMapping
     @RequirePermission("bom:manage")

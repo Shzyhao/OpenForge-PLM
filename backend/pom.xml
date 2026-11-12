@@ -95,7 +95,9 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <configuration>
-                        <argLine>-Dfile.encoding=UTF-8</argLine>
+                        <!-- EnableDynamicAgentLoading：JDK 21.0.13+ 收紧 attach 策略，Mockito 内联
+                             mockmaker 的 byte-buddy 自附加被拒（CI temurin 21.0.13 实锤，本地 21.0.11 不触发） -->
+                        <argLine>-Dfile.encoding=UTF-8 -XX:+EnableDynamicAgentLoading -Djdk.attach.allowAttachSelf=true</argLine>
                     </configuration>
                 </plugin>
             </plugins>

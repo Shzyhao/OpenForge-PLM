@@ -17,7 +17,8 @@ public class LocalDiskStorage implements StorageClient {
     private final Path baseDir;
 
     public LocalDiskStorage(@Value("${openforge.doc.storage-dir:./data/doc-files}") String storageDir) throws IOException {
-        this.baseDir = Path.of(storageDir);
+        // toAbsolutePath+normalize：删除路径防逃逸的 startsWith 判断要求两端同基准（相对路径下 "." 段会导致误判）
+        this.baseDir = Path.of(storageDir).toAbsolutePath().normalize();
         Files.createDirectories(baseDir);
     }
 
@@ -40,5 +41,15 @@ public class LocalDiskStorage implements StorageClient {
     @Override
     public InputStream load(String storageKey) throws Exception {
         return Files.newInputStream(baseDir.resolve(storageKey));
+    }
+
+    @Override
+    public void delete(String storageKey) throws Exception {
+        Path target = baseDir.resolve(storageKey).toAbsolutePath().normalize();
+        // 存储键虽为系统生成，彻底删除入口仍按根目录约束防目录逃逸
+        if (!target.startsWith(baseDir)) {
+            throw new IllegalArgumentException("非法存储键: " + storageKey);
+        }
+        Files.deleteIfExists(target);
     }
 }

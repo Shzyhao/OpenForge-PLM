@@ -50,6 +50,33 @@ public class DocController {
         return ApiResponse.ok(docService.detail(id));
     }
 
+    // ===== 删除/回收站/彻底删除（v1.24）=====
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @RequirePermission("doc:delete")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        docService.delete(id);
+        return ApiResponse.ok();
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/recycle")
+    public ApiResponse<List<DocInfo>> recycle() {
+        return ApiResponse.ok(docService.trashed());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/restore")
+    @RequirePermission("doc:delete")
+    public ApiResponse<DocInfo> restore(@PathVariable Long id) {
+        return ApiResponse.ok(docService.restore(id));
+    }
+
+    /** 彻底删除（不可逆）：文件字节 GC + 行删除。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/purge")
+    @RequirePermission("doc:delete")
+    public ApiResponse<DocInfo> purge(@PathVariable Long id) {
+        return ApiResponse.ok(docService.purge(id));
+    }
+
     @PostMapping("/{id}/check-out")
     @RequirePermission("doc:write")
     public ApiResponse<DocInfo> checkOut(@PathVariable Long id, HttpServletRequest request) {

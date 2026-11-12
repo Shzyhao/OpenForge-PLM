@@ -44,6 +44,8 @@ jobs:
         run: npm ci || npm install
       - name: Build
         run: npm run build
+      - name: Test (vitest)
+        run: npm test
 
   ai:
     name: AI Gateway (Python 3.11)
