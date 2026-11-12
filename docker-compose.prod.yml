@@ -27,6 +27,9 @@ x-java-env: &java-env
   # 事件总线（v1.24）：默认关（无 broker 时 publish 进 outbox 重试会拖慢联动），随 rocketmq profile 一起启用
   OPENFORGE_EVENT_ENABLED: ${OPENFORGE_EVENT_ENABLED:-false}
   OPENFORGE_EVENT_NAMESRV_ADDR: ${OPENFORGE_EVENT_NAMESRV_ADDR:-rocketmq-namesrv:9876}
+  # 文件存储切换（v1.25 §5）：默认容器本地盘；minio 时启用 extras profile 的 minio 服务
+  OPENFORGE_DOC_STORAGE: ${OPENFORGE_DOC_STORAGE:-local}
+  OPENFORGE_DRAWING_STORAGE: ${OPENFORGE_DRAWING_STORAGE:-local}
 
 x-java-build: &java-build
   context: .
