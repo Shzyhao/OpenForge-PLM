@@ -276,3 +276,17 @@ export function replayDlq(id: number): Promise<{ status: string; retryCount: num
 export function discardDlq(id: number): Promise<void> {
   return del(`/api/v1/connectors/dlq/${id}`)
 }
+
+// ===== 通知渠道连接器模板（v1.26 §3）=====
+
+export interface ConnectorPreset {
+  connType: string
+  name: string
+  description: string
+  spec: Record<string, unknown>
+  variables: { name: string; description: string }[]
+}
+
+export function fetchConnectorPresets(): Promise<ConnectorPreset[]> {
+  return get<ConnectorPreset[]>('/api/v1/connectors/presets')
+}
