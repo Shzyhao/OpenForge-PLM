@@ -34,10 +34,17 @@ class LLMClient:
     def model(self) -> str:
         return self._last_model or (provider_chain.get_chain()[0]["model"] if self.online else "")
 
-    def complete(self, messages: List[Dict[str, str]], json_mode: bool = False) -> str:
+    def complete(self, messages: List[Dict[str, str]], json_mode: bool = False,
+                 model_hint: Optional[str] = None) -> str:
+        """多模型分流（v1.25 §7）：model_hint 命中链内同模型供应商时优先其子链（仍保降级序），
+        无命中回退全链——_hint 是偏好不是硬约束，保证永远有兜底。"""
         chain = provider_chain.get_chain()
         if not chain:
             raise LLMOfflineError("LLM 未配置（库中无启用供应商，且未设置 OPENFORGE_LLM_* 环境变量）")
+        if model_hint:
+            hinted = [p for p in chain if p.get("model") == model_hint]
+            if hinted:
+                chain = hinted + [p for p in chain if p.get("model") != model_hint]
         last_error: Exception = LLMOfflineError("无可用供应商")
         for provider in chain:
             body: Dict[str, object] = {"model": provider["model"], "messages": messages}
