@@ -43,4 +43,8 @@ public class KnowledgeItem {
     private Long createdBy;
 
     private LocalDateTime createdAt;
+
+    /** 软删标记（v1.25 回收站；@TableLogic 使业务查询自动过滤） */
+    @com.baomidou.mybatisplus.annotation.TableLogic
+    private Integer deleted;
 }

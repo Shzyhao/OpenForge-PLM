@@ -41,12 +41,62 @@ public class EcrService {
     static final String TYPE_PART_STATE = "PART_STATE_CHANGE";
 
     private final ChangeRequestMapper mapper;
+    private final com.openforge.change.mapper.ChangeRecycleMapper recycleMapper;
     private final NumberClient numberClient;
     private final WorkflowClient workflowClient;
     private final MaterialClient materialClient;
     private final com.openforge.common.event.EventPublisher eventPublisher;
     /** Spring 配置的 ObjectMapper（JavaTimeModule） */
     private final ObjectMapper objectMapper;
+
+    // ===== 回收站（v1.25 §4）=====
+
+    /** 软删变更单：SUBMITTED（审批在途）不可删——workflow_instance 悬挂引用护栏。 */
+    @Transactional
+    public void delete(Long id) {
+        ChangeRequest ecr = mapper.selectById(id);
+        if (ecr == null || ecr.getDeleted() == 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "变更单不存在");
+        }
+        if ("SUBMITTED".equals(ecr.getState())) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.INVALID_STATE_TRANSITION,
+                    "审批在途的变更单不可删除，请先驳回或等流程终态");
+        }
+        mapper.deleteById(id);
+    }
+
+    public List<ChangeRequest> trashed() {
+        return recycleMapper.trashedRequests();
+    }
+
+    @Transactional
+    public ChangeRequest restore(Long id) {
+        ChangeRequest ecr = recycleMapper.trashedRequest(id);
+        if (ecr == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该变更单");
+        }
+        if (recycleMapper.restoreRequest(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该变更单");
+        }
+        return ecr;
+    }
+
+    /** 彻底删除（不可逆）：仅非在途（同 delete 护栏）；workflow_instance 历史保留（审计面）。 */
+    @Transactional
+    public ChangeRequest purge(Long id) {
+        ChangeRequest ecr = recycleMapper.trashedRequest(id);
+        if (ecr == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该变更单");
+        }
+        if ("SUBMITTED".equals(ecr.getState())) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.INVALID_STATE_TRANSITION,
+                    "审批在途的变更单不可彻底删除");
+        }
+        if (recycleMapper.purgeRequest(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该变更单");
+        }
+        return ecr;
+    }
 
     @Transactional
     public ChangeRequest create(EcrRequest request, Long initiatorId) {

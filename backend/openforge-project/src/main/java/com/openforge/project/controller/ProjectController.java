@@ -29,6 +29,33 @@ public class ProjectController {
 
     private final ProjectService projectService;
 
+    // ===== 回收站（v1.25 设计 §4）=====
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @com.openforge.common.annotation.RequirePermission("project:manage")
+    public ApiResponse<Void> delete(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        projectService.delete(id);
+        return ApiResponse.ok();
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/recycle")
+    public ApiResponse<java.util.List<Project>> recycle() {
+        return ApiResponse.ok(projectService.trashed());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/restore")
+    @com.openforge.common.annotation.RequirePermission("project:manage")
+    public ApiResponse<Project> restore(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(projectService.restore(id));
+    }
+
+    /** 彻底删除（不可逆）：任务行 GC。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/purge")
+    @com.openforge.common.annotation.RequirePermission("project:manage")
+    public ApiResponse<Project> purge(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(projectService.purge(id));
+    }
+
     @PostMapping
     @RequirePermission("project:manage")
     public ApiResponse<Project> create(@RequestBody CreateProjectRequest request,
