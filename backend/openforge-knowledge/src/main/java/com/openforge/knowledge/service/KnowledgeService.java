@@ -13,6 +13,7 @@ import com.openforge.knowledge.mapper.KnowledgeItemMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -28,6 +29,57 @@ public class KnowledgeService {
     private final KnowledgeFeedbackMapper feedbackMapper;
     private final EmbeddingClient embeddingClient;
     private final VectorStore vectorStore;
+    private final com.openforge.knowledge.mapper.KnowledgeRecycleMapper recycleMapper;
+
+    // ===== 回收站（v1.25 §4）=====
+
+    /** 软删知识条目（向量保留——恢复后仍可检索；purge 时才移除）。 */
+    @Transactional
+    public void deleteItem(Long id) {
+        KnowledgeItem item = itemMapper.selectById(id);
+        if (item == null || item.getDeleted() == 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "知识条目不存在");
+        }
+        itemMapper.deleteById(id);
+    }
+
+    public List<KnowledgeItem> trashed() {
+        return recycleMapper.trashedItems();
+    }
+
+    @Transactional
+    public KnowledgeItem restoreItem(Long id) {
+        KnowledgeItem item = recycleMapper.trashedItem(id);
+        if (item == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        if (recycleMapper.restoreItem(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        return item;
+    }
+
+    /** 彻底删除（不可逆）：反馈行 GC + 向量移除（best-effort，失败不阻断行删除）。 */
+    @Transactional
+    public KnowledgeItem purgeItem(Long id) {
+        KnowledgeItem item = recycleMapper.trashedItem(id);
+        if (item == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        if (item.getVectorId() != null) {
+            try {
+                vectorStore.remove(item.getVectorId());
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(KnowledgeService.class)
+                        .warn("知识向量移除失败（继续行删除）: vectorId={} — {}", item.getVectorId(), e.getMessage());
+            }
+        }
+        recycleMapper.deleteFeedbackByItem(id);
+        if (recycleMapper.purgeItem(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        return item;
+    }
 
     public KnowledgeItem create(String title, String content, String tags,
                                 String sourceType, String sourceRef, Long operatorId) {
