@@ -1,14 +1,14 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-09-20（v1.23.0 发版收口）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-11-12（v1.24.0 发版收口）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.23.0**（tag + GitHub Release；站内通知中心 · 审批委托 · 回收站 + EVENT_BUS 真栈 RocketMQ 修复） |
-| dev 最新 | 与 main 同步（v1.23.0 发版后回灌，91305b7）；无在途功能 |
-| main vs dev | v1.23.0 合入后同步（PR #119，91305b7） |
+| 最新发布版 | **v1.24.0**（tag + GitHub Release；回收站四域+彻底删除 · 订阅通知 · 保留期 · 前端 vitest 基线 · 生产 MQ + CI 环境漂移三修） |
+| dev 最新 | 与 main 同步（v1.24.0 发版后回灌，78e4fb4）；无在途功能 |
+| main vs dev | v1.24.0 合入后同步（PR #121，78e4fb4） |
 | 工作区 | 干净；本地 admin 密码 smoke-test-2026（dev 库）；冒烟 `./scripts/smoke.sh`（10 业务域 + 连接器/触发/死信/审计 + **图纸域 6 断言，共 35 项**） |
 | 全量测试 | CI 全绿；drawing DrawingIntegrationTest 4 + mono MonoSmoke **10 模块** + connector 68；真实栈 11 服务（drawing :8095）；v1.20.0 浏览器级巡检（图纸菜单/三 Tab/PDF 内嵌预览/关联交互/状态流转，DOM 断言）|
 
@@ -76,6 +76,7 @@
 | — | **十四轮连接器扩展包①②③**（长任务书收口，通知类全家桶）：① SMTP_EMAIL（spring-boot-starter-mail；spec host/port/starttls/from/to 多收件人/subject/bodyText 占位；EgressGuard.checkHost 非 HTTP host 校验；JavaMailSender 按 spec 动态装配缓存；凭据 SMTP_PASSWORD）；② DINGTALK_BOT（text/markdown + 官方加签 DingTalkSigner 纯函数固定向量钉死）；③ FEISHU_BOT（官方签名 FeishuSigner——key=ts+
 +secret 对空串签，payload 内 sign 字段，与钉钉明确不同）；共享 R6 出站客户端 + check(webhookUrl)；authType 加 SMTP/WEBHOOK_SECRET；前端三配置分支+链步骤类型+凭据下拉。测试 connector 81 全绿（GreenMail 真发信 + 回环 HttpServer 断言 payload/加签）；真栈冒烟：三类型建模/发布/白名单拦截（6011）全通。教训：validateSpec 的 switch 是 checkType 之外的第二个类型分派点（新增类型四处同步：SUPPORTED_TYPES/parseSpec/validateSpec/credential 提取）；git add 列表混入错误参数静默吞 add——提交后必看 changed files 数 | 已随 v1.22.0 发布 |
 | #119 | **v1.23.0 三模块发布**（通知中心/审批委托/回收站）：①通知中心落 auth 零新增服务——双通道摄取（MQ 组 openforge-notify 即 B2 预留组落地 / 总线关闭时 workflow NotifyClient HTTP 回退）、task.created→assignee（ROLE 按租户 fan-out≤50）、task.completed→发起人（payload 补 initiatorId/candidateRole）、收件箱 API+铃铛 30s 轮询、/users/options 轻量选人；②审批委托——查询期虚拟收件箱（myTasks 单嵌套 and 并集防 OR 优先级破坏 action IS NULL）、delegated_from 追溯、def_key 范围过滤；③回收站 MVP=物料+图纸（盘点：doc 无删除 API、BOM 无整册删除）。**EVENT_BUS 真栈首跑修 RocketMQ compose 四处缺口**（healthcheck 指向不存在端点恒 52 卡死依赖门/端口未发布/brokerIP1=127.0.0.1/JAVA_OPT_EXT 收堆）——rocketmq profile 此前从未真正起过。收口：verify 绿、smoke 35/35×3 ERROR=0、authz-probe 21 断言、新增 v123-probe 25 断言（MQ 实锤 sys_event_consumed）、docker-audit 净。实纱：两域同名 RecycleMapper → mono bean 冲突第三例（域前缀命名）；MSYS mktemp vs 原生 python 路径分歧；curl 内联中文 ANSI 转码；python `v or ''` 吞 falsy 0 | v1.23.0 |
+| #121 | **v1.24.0 发布**（回收站补全+订阅通知+保留期+vitest 基线+生产 MQ）：①回收站四域化与 purge 彻底删除（StorageClient.delete 文件 GC、MinIO 同签名承接、BOM 引用护栏、doc:delete 新权限）；②notify_subscription 显式订阅制五发布事件 fan-out≤50+三域 NotifyClient 回退+通知设置 Tab+**消费者订阅面修复**（原只订 openforge-task 致发布类事件静默丢通知——真栈探针实锤）；③NotifyRetentionJob 只清已读超期（原生 JDBC 绕租户拦截器）；④vitest 基线 10 用例入 CI；⑤prod compose rocketmq profile（内网不发布端口+共享 env 默认关）。**CI 环境漂移三修**：JDK 21.0.13 attach 收紧/jsdom30 Node20 不兼容/surefire 类序平台差异跨类污染。实纱：mono 同名 bean 第五例（四域 NotifyClient→域前缀改名）；LocalDiskStorage 相对路径 startsWith 防逃逸误伤（GC 静默失效）→toAbsolutePath().normalize()；GitHub git-receive 间歇 502 需退避重试+ls-remote 双确认 | v1.24.0 |
 | #116 | **README 重塑（docs-only）**：9 张真实环境截图入册 docs/screenshots/（登录/工作台/物料/图纸详情 PDF 预览/流程设计器画布/编排链画布/BOM/知识库/AI 助手，主画廊 6 + 折叠 3）+ ASCII 架构框图 → Mermaid flowchart（GitHub 原生渲染）+ 首屏版本流水账折叠为 changelog + 功能矩阵补集成编排器/企业级安全两行 + CI 徽章 | 已随 v1.21.0 发布 |
 | #115 | **图纸管理 openforge-drawing（:8095）**：四表 drw_*（档案/三类文件/发布快照/物料关联）+ 编号引擎取号（V29）+ 检入检出 + 状态机（submit/approve/reject/obsolete/revise 大版本升版）+ 发布快照（对齐 PartVersion）+ 流式下载端点（平台首个）+ drawing.released/obsolete 事件入 connector 触发白名单 + 前端 DrawingPage（PDF/图片内嵌预览）+ mono 10 模块 + 权限种子 V27/V28；**dev-up 启动期 OOM 根治**（AppCDS 仅 gateway——业务服务 A/B 收益仅 2-4% 而训练跑瞬时+1 JVM、构建护栏防栈运行中重打包）；实纱：mono LocalDiskStorage bean 名冲突/父 pom 未绑定 repackage goal（漏则无 -exec.jar）/Git Bash curl -F 不做 MSYS 路径转换（smoke cygpath 修复）；设计文档《OpenForge-图纸管理设计》入册 | v1.20.0 |
 | #114 | **SSRF 根治（R6，生产前必须项闭环）**：EgressGuard.resolveValidated 解析+校验公共入口 + EgressPinningDnsResolver 挂 httpclient5 DnsResolver（解析即校验·所解即所连，重绑定 TOCTOU 窗口归零）+ OutboundHttpConfig 共享出站客户端（重定向禁用保持）；HttpRestConnector/AiProviderService.test 两路径迁移（重试/1MB 流式截断/脱敏/消息格式等价）；httpclient5 收编（BOM 管版本，JDK HttpClient 无解析器注入点）；EgressPinningDnsResolverTest 5 + connector 68 全绿 + 冒烟 28 全绿；出站脱敏代理通道（与 ai-gateway 外呼合并）仍列路线项 | v1.19.0 |
@@ -91,7 +92,7 @@
 
 ## 下一步（按优先级）
 
-1. **v1.23.0 已发版**（PR #119 → main + tag + Release + 回灌）。站内通知中心（原候选，双通道摄取）/审批委托/回收站（物料+图纸两域）全部交付。近期候选：回收站彻底删除（需 MinIO 文件 GC 方案）与 BOM/文档域接入（待其删除入口建立）、通知扩展至材料/文档/图纸发布事件（需订阅模型，payload 无收件人语义）、通知保留期清理策略、前端 vitest 基线（R14 清单作蓝本）、生产形态接入 rocketmq profile（prod compose 尚无 MQ 服务，事件总线生产态默认关闭）。其余候选：断点续跑/单步重放、审签接流程引擎（REVIEWING 简化态）、CADConverter 服务端转换预览、MinIO 切换（与 doc 同欠账）、新内置连接器类型、多模型分流、规模化基建随规模信号
+1. **v1.24.0 已发版**（PR #121 → main + tag + Release + 回灌）。上批候选六项全交付：回收站彻底删除（StorageClient.delete 文件 GC，MinIO 同签名承接）+BOM/文档域接入、订阅通知（notify_subscription 五发布事件）、保留期清理（NotifyRetentionJob 90d 只清已读）、前端 vitest 基线 10 用例入 CI、prod compose rocketmq profile。**发版窗口遭遇 CI 环境漂移三连**（距上发版近两月）：temurin 21.0.13 attach 收紧（Mockito byte-buddy 自附加被拒→surefire -XX:+EnableDynamicAgentLoading）、jsdom 30 需 Node 22+（降 25）、surefire 类序 Linux/Windows 不同（通知测试跨类污染→@AfterEach 自清理+增量断言）。近期候选：MinIO 切换（文件 GC 已留接口）、R14 全页面四态逐批补 vitest、通知渠道扩展（邮件/webhook 复用通知类连接器）、断点续跑/单步重放、审签接流程引擎、CADConverter 转换预览、新内置连接器类型、多模型分流、规模化基建随规模信号
 2. **单进程 mono 模式**：**刀 1（骨架）已实施并全栈实测（PROFILE=mono）**——mono 224MB + gateway 181MB = **405MB RSS（-78%）**、网关链路冒烟 8/8 域等价，方案与数据见 docs/OpenForge-mono单进程设计.md；**刀 2 评估完成不实施**（回环均有缓存/低频，直调化收益≈零、侵入风险不成比例，见 PR 表与 mono 设计 §3.2）；H2 文件库 dev 模式维持 §8.3 备选不动
 3. **连接器与行业模板包**：需外部场景输入
 4. **Milvus/Neo4j/ES**：架构文档路线项，随规模引入
