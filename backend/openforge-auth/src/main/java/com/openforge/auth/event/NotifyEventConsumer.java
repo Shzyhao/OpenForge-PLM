@@ -30,7 +30,13 @@ import java.util.List;
 public class NotifyEventConsumer extends AbstractEventConsumer
         implements ApplicationListener<ApplicationReadyEvent>, DisposableBean {
 
-    static final String TOPIC = "openforge-task";
+    /**
+     * 订阅主题清单（v1.24 §1.2）：审批流事件在 openforge-task；发布类事件在
+     * openforge-material/doc/drawing——**必须与 ingest 的事件映射范围一致**，
+     * 漏订阅 = 对应事件静默无通知（R21 真栈探针实锤过 doc.released 漏订阅）。
+     */
+    static final List<String> TOPICS = List.of(
+            "openforge-task", "openforge-material", "openforge-doc", "openforge-drawing");
     private final NotifyService notifyService;
     private final String namesrvAddr;
     private final long staleSkewMinutes;
@@ -60,12 +66,14 @@ public class NotifyEventConsumer extends AbstractEventConsumer
             c.setMaxReconsumeTimes(1);
             c.setConsumeFromWhere(
                     org.apache.rocketmq.common.consumer.ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
-            c.subscribe(TOPIC, "*");
+            for (String topic : TOPICS) {
+                c.subscribe(topic, "*");
+            }
             c.registerMessageListener((org.apache.rocketmq.client.consumer.listener.MessageListenerConcurrently)
                     this::onMessages);
             c.start();
             this.consumer = c;
-            log.info("站内通知消费者已启动: namesrv={}, topic={}, 时间闸门={}", namesrvAddr, TOPIC, startedAt);
+            log.info("站内通知消费者已启动: namesrv={}, topics={}, 时间闸门={}", namesrvAddr, TOPICS, startedAt);
         } catch (Exception e) {
             log.error("站内通知消费者启动失败（HTTP 回退通道与收件箱不受影响）: {}", e.getMessage());
         }

@@ -125,6 +125,35 @@ class NotifyIntegrationTest {
         assertThat(notifyService.unreadCount(u7)).isZero();
     }
 
+    @Test
+    @DisplayName("订阅通知：part.released fan-out 给同租户订阅者；退订后不再通知；非法 eventKey 拒绝")
+    void subscriptionNotify() {
+        long u7 = userId("notify-u7");
+        long u8 = userId("notify-u8");
+        notifyService.subscribe(u7, "part.released");
+        notifyService.subscribe(u7, "part.released"); // 幂等
+        notifyService.subscribe(u8, "part.released");
+
+        notifyService.ingest("part.released", java.util.Map.of(
+                "partId", 9L, "partNumber", "P-SUB-1", "partName", "订阅物料", "version", "A/1"));
+        // 两订阅者各一条，标题含编码
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notify_message WHERE title LIKE '%P-SUB-1%'", Long.class)).isEqualTo(2L);
+        assertThat(notifyService.unreadCount(u7)).isEqualTo(1);
+
+        // 退订 u7 后再发布：仅 u8 收到新通知
+        notifyService.unsubscribe(u7, "part.released");
+        notifyService.ingest("part.released", java.util.Map.of(
+                "partId", 10L, "partNumber", "P-SUB-2", "partName", "订阅物料二", "version", "A/1"));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notify_message WHERE title LIKE '%P-SUB-2%'", Long.class)).isEqualTo(1L);
+
+        // 非法事件类型拒绝
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> notifyService.subscribe(u7, "task.created"))
+                .isInstanceOf(BizException.class).hasMessageContaining("不支持订阅");
+        assertThat(notifyService.subscriptions(u7)).isEmpty();
+    }
+
     /** 暴露 protected consume()/finish() 供测试 MQ 通道幂等（不依赖 broker）。 */
     static class TestableConsumer extends NotifyEventConsumer {
         TestableConsumer(JdbcTemplate jdbc, ObjectMapper mapper, NotifyService service) {
