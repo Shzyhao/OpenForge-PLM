@@ -3,30 +3,39 @@ import { Button, Card, Empty, Popconfirm, Space, Table, Tabs, Tag, Typography, m
 import { DeleteOutlined, ReloadOutlined, UndoOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import {
-  fetchTrashedBoms, fetchTrashedDocs, fetchTrashedDrawings, fetchTrashedParts,
-  purgeBom, purgeDoc, purgeDrawing, purgePart,
-  restoreBom, restoreDoc, restoreDrawing, restorePart,
-  type TrashedBom, type TrashedDoc, type TrashedDrawing, type TrashedPart,
+  fetchTrashedBoms, fetchTrashedChanges, fetchTrashedDocs, fetchTrashedDrawings,
+  fetchTrashedKnowledge, fetchTrashedParts, fetchTrashedProjects,
+  purgeBom, purgeChange, purgeDoc, purgeDrawing, purgeKnowledge, purgePart, purgeProject,
+  restoreBom, restoreChange, restoreDoc, restoreDrawing, restoreKnowledge, restorePart, restoreProject,
+  type TrashedBom, type TrashedChange, type TrashedDoc, type TrashedDrawing,
+  type TrashedKnowledge, type TrashedPart, type TrashedProject,
 } from '../api/recycle'
 
-/** 回收站（v1.23/v1.24）：四域软删行的列表/恢复/彻底删除。恢复与删除同权；purge 不可逆。 */
+/** 回收站（v1.23~v1.25）：七域软删行的列表/恢复/彻底删除。恢复与删除同权；purge 不可逆。 */
 export default function RecycleBinPage() {
   const [parts, setParts] = useState<TrashedPart[]>([])
   const [boms, setBoms] = useState<TrashedBom[]>([])
   const [docs, setDocs] = useState<TrashedDoc[]>([])
   const [drawings, setDrawings] = useState<TrashedDrawing[]>([])
+  const [knowledge, setKnowledge] = useState<TrashedKnowledge[]>([])
+  const [changes, setChanges] = useState<TrashedChange[]>([])
+  const [projects, setProjects] = useState<TrashedProject[]>([])
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [p, b, d, dr] = await Promise.all([
+      const [p, b, d, dr, k, c, pr] = await Promise.all([
         fetchTrashedParts(), fetchTrashedBoms(), fetchTrashedDocs(), fetchTrashedDrawings(),
+        fetchTrashedKnowledge(), fetchTrashedChanges(), fetchTrashedProjects(),
       ])
       setParts(p)
       setBoms(b)
       setDocs(d)
       setDrawings(dr)
+      setKnowledge(k)
+      setChanges(c)
+      setProjects(pr)
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败')
     } finally {
@@ -121,6 +130,51 @@ export default function RecycleBinPage() {
     },
   ]
 
+  const knowledgeColumns: ColumnsType<TrashedKnowledge> = [
+    { dataIndex: 'id', title: '#', width: 70 },
+    { dataIndex: 'title', title: '标题', ellipsis: true },
+    { dataIndex: 'status', title: '状态', width: 110, render: (v: string) => <Tag>{v}</Tag> },
+    {
+      width: 200,
+      render: (_, r) => (
+        <Space>
+          {restoreBtn('知识条目', () => restoreKnowledge(r.id))}
+          {purgeBtn(`知识条目 ${r.title}`, () => purgeKnowledge(r.id))}
+        </Space>
+      ),
+    },
+  ]
+  const changeColumns: ColumnsType<TrashedChange> = [
+    { dataIndex: 'id', title: '#', width: 70 },
+    { dataIndex: 'ecrNumber', title: '变更编号' },
+    { dataIndex: 'title', title: '标题', ellipsis: true },
+    { dataIndex: 'state', title: '状态', width: 110, render: (v: string) => <Tag>{v}</Tag> },
+    {
+      width: 200,
+      render: (_, r) => (
+        <Space>
+          {restoreBtn('变更单', () => restoreChange(r.id))}
+          {purgeBtn(`变更单 ${r.ecrNumber}`, () => purgeChange(r.id))}
+        </Space>
+      ),
+    },
+  ]
+  const projectColumns: ColumnsType<TrashedProject> = [
+    { dataIndex: 'id', title: '#', width: 70 },
+    { dataIndex: 'projectNumber', title: '项目编号' },
+    { dataIndex: 'name', title: '名称', ellipsis: true },
+    { dataIndex: 'status', title: '状态', width: 110, render: (v: string) => <Tag>{v}</Tag> },
+    {
+      width: 200,
+      render: (_, r) => (
+        <Space>
+          {restoreBtn('项目', () => restoreProject(r.id))}
+          {purgeBtn(`项目 ${r.projectNumber}`, () => purgeProject(r.id))}
+        </Space>
+      ),
+    },
+  ]
+
   const tabOf = (key: string, label: string, rows: unknown[], columns: ColumnsType<never>) => ({
     key,
     label: `${label}（${rows.length}）`,
@@ -140,6 +194,9 @@ export default function RecycleBinPage() {
         tabOf('boms', 'BOM', boms, bomColumns as ColumnsType<never>),
         tabOf('docs', '文档', docs, docColumns as ColumnsType<never>),
         tabOf('drawings', '图纸', drawings, drawingColumns as ColumnsType<never>),
+        tabOf('knowledge', '知识', knowledge, knowledgeColumns as ColumnsType<never>),
+        tabOf('changes', '变更', changes, changeColumns as ColumnsType<never>),
+        tabOf('projects', '项目', projects, projectColumns as ColumnsType<never>),
       ]} />
     </Card>
   )
