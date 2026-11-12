@@ -81,6 +81,13 @@ public class PartController {
         return ApiResponse.ok(recycleService.restore(id));
     }
 
+    /** 彻底删除（不可逆）：版本快照 GC；被 BOM 引用时明确拒绝。 */
+    @PostMapping("/{id}/purge")
+    @RequirePermission("part:delete")
+    public ApiResponse<Part> purge(@PathVariable Long id) {
+        return ApiResponse.ok(recycleService.purgePart(id));
+    }
+
     // ===== 状态机（M3 由流程引擎驱动，当前为轻量流转） =====
 
     @PostMapping("/{id}/submit")

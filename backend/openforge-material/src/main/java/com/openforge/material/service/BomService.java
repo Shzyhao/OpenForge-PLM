@@ -50,6 +50,7 @@ public class BomService {
     private final PartService partService;
     private final NumberClient numberClient;
     private final com.openforge.common.event.EventPublisher eventPublisher;
+    private final com.openforge.material.client.MaterialNotifyClient notifyClient;
 
     /** 单行替代件防呆上限（设计文档 §5.5） */
     @Value("${openforge.material.substitute.max-per-line:10}")
@@ -75,6 +76,17 @@ public class BomService {
         bom.setDeleted(0);
         bomMapper.insert(bom);
         return bom;
+    }
+
+    /** 逻辑删除（仅 DRAFT——RELEASED 不可变走升版/废止，与物料同规；v1.24 回收站接入）。 */
+    @Transactional
+    public void deleteDraft(Long bomId) {
+        Bom bom = requireBom(bomId);
+        if (!"DRAFT".equals(bom.getLifecycleState())) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "仅草稿 BOM 可删除，已发布 BOM 走升版/废止");
+        }
+        bomMapper.deleteById(bomId);
     }
 
     public Bom requireBom(Long bomId) {
@@ -597,12 +609,18 @@ public class BomService {
      * 事务活跃时 afterCommit 发送，失败由 EventPublisher 落 outbox/熔断，不阻断业务。
      */
     private void publishReleased(Bom bom) {
-        Runnable emit = () -> eventPublisher.publish("openforge-material", "bom.published", java.util.Map.of(
-                "bomId", bom.getId(),
-                "bomNumber", bom.getBomNumber() == null ? "" : bom.getBomNumber(),
-                "parentPartId", bom.getParentPartId() == null ? 0 : bom.getParentPartId(),
-                "bomType", bom.getBomType() == null ? "" : bom.getBomType(),
-                "version", bom.getVersion() == null ? "" : bom.getVersion()));
+        Runnable emit = () -> {
+            java.util.Map<String, Object> payload = java.util.Map.of(
+                    "bomId", bom.getId(),
+                    "bomNumber", bom.getBomNumber() == null ? "" : bom.getBomNumber(),
+                    "parentPartId", bom.getParentPartId() == null ? 0 : bom.getParentPartId(),
+                    "bomType", bom.getBomType() == null ? "" : bom.getBomType(),
+                    "version", bom.getVersion() == null ? "" : bom.getVersion());
+            // 总线关闭时回退 auth 站内信订阅通知（v1.24 §4）
+            if (!eventPublisher.publish("openforge-material", "bom.published", payload)) {
+                notifyClient.deliver("bom.published", payload);
+            }
+        };
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
                     new org.springframework.transaction.support.TransactionSynchronization() {
