@@ -29,8 +29,8 @@ public class DelegateService {
         if (principalId == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "未识别当前用户");
         }
-        if (agentId == null) {
-            throw new BizException(ErrorCode.INVALID_ARGUMENT, "被委托人必填");
+        if (agentId == null || agentId <= 0) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "被委托人必填且须为有效用户 ID");
         }
         if (agentId.equals(principalId)) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "不能委托给自己");
