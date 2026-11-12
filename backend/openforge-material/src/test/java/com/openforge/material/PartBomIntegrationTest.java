@@ -64,6 +64,10 @@ class PartBomIntegrationTest {
     private NumberClient numberClient;
 
     @MockBean
+    private com.openforge.material.client.MaterialNotifyClient notifyClient;
+
+
+    @MockBean
     private com.openforge.common.event.EventPublisher eventPublisher;
 
     // JUnit 每个测试方法新建实例，而 H2 数据跨方法共享——序列与分类缓存必须静态

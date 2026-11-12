@@ -39,7 +39,7 @@ print('YES' if ('''$1''') in d else 'NO')
 resp() { local m=$1 p=$2 t=$3; shift 3
   curl -s -m 8 -X "$m" "$GW$p" -H "Authorization: Bearer $t" -H "Content-Type: application/json" "$@" 2>/dev/null; }
 
-echo "=== [1/6] 登录与被委托人就绪 ==="
+echo "=== [1/7] 登录与被委托人就绪 ==="
 login() { curl -s -m 5 -X POST "$GW/api/v1/auth/login" -H "Content-Type: application/json" \
   -d "{\"username\":\"$1\",\"password\":\"$PASSWORD\"}" | jget accessToken; }
 AT=$(login admin)
@@ -52,7 +52,7 @@ AGENTID=$($PSQL -c "SELECT id FROM sys_user WHERE username='probe_agent'")
 AG=$(login probe_agent)
 [ -n "$AGENTID" ] && [ "$AGENTID" != "$ADMINID" ] && ok "被委托人 probe_agent=$AGENTID" || { echo "  探针用户就绪失败"; exit 1; }
 
-echo "=== [2/6] 审批委托闭环 ==="
+echo "=== [2/7] 审批委托闭环 ==="
 R=$(resp POST /api/v1/workflow/delegates "$AT" -d "{\"agentId\":$AGENTID,\"startTime\":\"$(date -u -d '-1 hour' +%Y-%m-%dT%H:%M:%S)\",\"remark\":\"v123-probe\"}")
 DID=$(echo "$R" | jget id)
 [ -n "$DID" ] && ok "创建委托规则 id=$DID" || bad "创建委托规则失败: $(echo "$R" | head -c 100)"
@@ -63,7 +63,7 @@ c=$(resp POST /api/v1/workflow/delegates "$AT" -d "{\"agentId\":$ADMINID,\"start
 c=$(resp DELETE /api/v1/workflow/delegates/$DID "$AG" | jcode)
 [ "$c" != "0" ] && ok "被委托人撤销被拒($c)" || bad "被委托人撤销成功（越权）"
 
-echo "=== [3/6] 流程任务经委托进入代办待办并办理（delegated_from 追溯） ==="
+echo "=== [3/7] 流程任务经委托进入代办待办并办理（delegated_from 追溯） ==="
 # definition 须为 JSON 字符串：bash 拼 wrapper，内层 JSON 无中文无双引号歧义，直接组装
 DEFINNER="{\"nodes\":[{\"id\":\"start\",\"type\":\"START\"},{\"id\":\"a1\",\"type\":\"APPROVAL\",\"name\":\"PROBE-NODE\",\"assignee\":{\"type\":\"USER\",\"value\":\"$ADMINID\"}},{\"id\":\"end\",\"type\":\"END\"}],\"edges\":[{\"from\":\"start\",\"to\":\"a1\"},{\"from\":\"a1\",\"to\":\"end\"}]}"
 echo "{\"defKey\":\"v123-probe-flow\",\"name\":\"v123-probe\",\"definition\":\"$(echo "$DEFINNER" | sed 's/"/\\"/g')\"}" > .v123probe.def.json
@@ -91,7 +91,7 @@ fi
 c=$(resp DELETE /api/v1/workflow/delegates/$DID "$AT" | jcode)
 [ "$c" = "0" ] && ok "委托人撤销规则" || bad "委托人撤销失败($c)"
 
-echo "=== [4/6] 站内通知（task.created→收件箱；EVENT_BUS=1 时验证 MQ 消费证据） ==="
+echo "=== [4/7] 站内通知（task.created→收件箱；EVENT_BUS=1 时验证 MQ 消费证据） ==="
 FOUND=0
 for i in $(seq 1 15); do
   CNT=$(resp GET /api/v1/notifications/unread-count "$AT" | jget count)
@@ -127,7 +127,7 @@ else
   echo "  SKIP [MQ 通道证据]（OPENFORGE_EVENT_ENABLED!=1，本次走 HTTP 回退通道）"
 fi
 
-echo "=== [5/6] 回收站往返（part） ==="
+echo "=== [5/7] 回收站往返（part） ==="
 CATID=$($PSQL -c "SELECT id FROM part_category ORDER BY id LIMIT 1"); [ -z "$CATID" ] && CATID=1
 RP=$(resp POST /api/v1/parts "$AT" -d "{\"name\":\"PROBE-V123-RECYCLE-$(date +%s)\",\"type\":\"RAW\",\"categoryId\":$CATID}" | jget id)
 [ -n "$RP" ] && ok "靶标物料建档 id=$RP" || bad "靶标物料建档失败"
@@ -142,10 +142,53 @@ c=$(resp POST /api/v1/parts/$RP/restore "$AT" | jcode)
 [ "$c" != "0" ] && ok "重复恢复按不存在应答($c)" || bad "重复恢复放行"
 resp DELETE /api/v1/parts/$RP "$AT" >/dev/null   # 收尾：靶标软删（与既有探针同规）
 
-echo "=== [6/6] 用户轻量选项（委托选人，不走 user:manage） ==="
+echo "=== [6/7] 用户轻量选项（委托选人，不走 user:manage） ==="
 R=$(resp GET /api/v1/users/options "$AG")
 [ "$(echo "$R" | jcode)" = "0" ] && ok "普通登录用户可读 options" || bad "options 被拒"
 echo "$R" | grep -Eq 'passwordHash|email|"status"|userType' && bad "options 暴露管理字段" || ok "options 仅轻量字段(id/username/displayName)"
+
+echo "=== [7/7] v1.24：BOM/文档回收站+彻底删除、发布事件订阅通知 ==="
+# BOM：建档→软删→回收站→彻底删除（行 GC 后 404）；父件需在册（上节 RP 已软删，取新件）
+BOM_PARENT=$(resp POST /api/v1/parts "$AT" -d "{\"name\":\"PROBE-V124-BOM\",\"type\":\"RAW\",\"categoryId\":$CATID}" | jget id)
+BID=$(resp POST /api/v1/boms "$AT" -d "{\"parentPartId\":$BOM_PARENT}" | jget id)
+[ -n "$BID" ] && ok "BOM 建档 id=$BID" || bad "BOM 建档失败"
+resp DELETE /api/v1/boms/$BID "$AT" >/dev/null
+[ "$(resp GET /api/v1/boms/recycle "$AT" | jhas "\"id\":$BID,")" = "YES" ] && ok "BOM 入回收站" || bad "BOM 回收站未见靶标"
+resp POST /api/v1/boms/$BID/purge "$AT" >/dev/null
+c=$(resp POST /api/v1/boms/$BID/restore "$AT" | jcode)
+[ "$c" != "0" ] && ok "BOM 彻底删除后 restore 404($c)" || bad "BOM purge 后仍可恢复"
+
+# 文档：建档→软删→恢复→软删→彻底删除
+DD=$(resp POST /api/v1/docs "$AT" -d "{\"title\":\"PROBE-V124-DOC\",\"docType\":\"GENERAL\"}" | jget id)
+[ -n "$DD" ] && ok "文档建档 id=$DD" || bad "文档建档失败"
+resp DELETE /api/v1/docs/$DD "$AT" >/dev/null
+[ "$(resp GET /api/v1/docs/recycle "$AT" | jhas "\"id\":$DD,")" = "YES" ] && ok "文档入回收站" || bad "文档回收站未见靶标"
+c=$(resp POST /api/v1/docs/$DD/restore "$AT" | jcode)
+[ "$c" = "0" ] && ok "文档恢复" || bad "文档恢复失败($c)"
+resp DELETE /api/v1/docs/$DD "$AT" >/dev/null
+resp POST /api/v1/docs/$DD/purge "$AT" >/dev/null
+c=$(resp POST /api/v1/docs/$DD/restore "$AT" | jcode)
+[ "$c" != "0" ] && ok "文档彻底删除后 restore 404($c)" || bad "文档 purge 后仍可恢复"
+
+# 订阅通知：admin 订阅 doc.released → 检入发布 → 通知到达（EVENT_BUS=1 走 MQ / 否则 HTTP 回退）
+resp POST /api/v1/notifications/subscriptions/doc.released "$AT" >/dev/null
+DD2=$(resp POST /api/v1/docs "$AT" -d "{\"title\":\"PROBE-V124-SUB\",\"docType\":\"GENERAL\"}" | jget id)
+if [ -n "$DD2" ]; then
+  resp POST /api/v1/docs/$DD2/check-out "$AT" >/dev/null
+  resp POST /api/v1/docs/$DD2/check-in "$AT" >/dev/null
+  SUBFOUND=0
+  for i in $(seq 1 15); do
+    LIST2=$(resp GET "/api/v1/notifications?page=1&size=10" "$AT")
+    [ "$(echo "$LIST2" | jhas 'PROBE-V124-SUB')" = "YES" ] && { SUBFOUND=1; break; }
+    sleep 2
+  done
+  [ "$SUBFOUND" = "1" ] && ok "doc.released 订阅通知到达" || bad "doc.released 订阅通知未到达"
+  resp DELETE /api/v1/notifications/subscriptions/doc.released "$AT" >/dev/null
+  resp DELETE /api/v1/docs/$DD2 "$AT" >/dev/null
+  resp POST /api/v1/docs/$DD2/purge "$AT" >/dev/null
+else
+  bad "订阅探针文档建档失败"
+fi
 
 echo "=== 收尾：清理探针数据 ==="
 rm -f .v123probe.def.json

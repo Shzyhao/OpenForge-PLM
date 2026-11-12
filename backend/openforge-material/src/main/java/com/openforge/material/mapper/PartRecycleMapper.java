@@ -1,6 +1,7 @@
 package com.openforge.material.mapper;
 
 import com.openforge.material.entity.Part;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -25,4 +26,12 @@ public interface PartRecycleMapper {
 
     @Update("UPDATE part SET deleted = 0 WHERE id = #{id} AND deleted = 1")
     int restorePart(@Param("id") Long id);
+
+    // ===== 彻底删除（v1.24）：版本快照 GC + 行删除 =====
+
+    @Delete("DELETE FROM part_version WHERE part_id = #{partId}")
+    int deleteVersionsByPart(@Param("partId") Long partId);
+
+    @Delete("DELETE FROM part WHERE id = #{id} AND deleted = 1")
+    int purgePart(@Param("id") Long id);
 }
