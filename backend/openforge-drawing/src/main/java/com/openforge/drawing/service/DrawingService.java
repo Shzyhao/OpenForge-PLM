@@ -60,6 +60,10 @@ public class DrawingService {
     private final com.openforge.drawing.client.AuthAuditClient auditClient;
     private final com.openforge.drawing.client.ChangeNotifyClient changeNotifier;
     private final com.openforge.drawing.mapper.DrawingRecycleMapper recycleMapper;
+    private final com.openforge.drawing.client.DrawingWorkflowClient workflowClient;
+    /** 审签接流程引擎（v1.25 §6）：默认关（轻量直批语义不变）；开启后 submit 启流程、查询惰性回流终态 */
+    @org.springframework.beans.factory.annotation.Value("${openforge.drawing.workflow-review:false}")
+    private boolean workflowReview;
     private final com.openforge.drawing.client.DrawingNotifyClient notifyClient;
 
     // ===== 档案 =====
@@ -81,7 +85,9 @@ public class DrawingService {
     }
 
     public DrawingInfo detail(Long id) {
-        return requireDrawing(id);
+        DrawingInfo drawing = requireDrawing(id);
+        syncWorkflowReview(drawing); // 审签流程终态惰性回流（flag-off 时直穿）
+        return requireDrawing(id);   // 回流后重读终态
     }
 
     public PageResponse<DrawingInfo> page(long page, long pageSize, String title, String state, Long partId) {
@@ -270,6 +276,9 @@ public class DrawingService {
         }
         drawing.setLifecycleState("REVIEWING");
         drawingMapper.updateById(drawing);
+        if (workflowReview) {
+            workflowClient.startReview("drawing-review", id);
+        }
         return drawing;
     }
 
@@ -431,6 +440,23 @@ public class DrawingService {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "图纸不存在");
         }
         return drawing;
+    }
+
+    /** 审签流程终态惰性回流（v1.25 §6，ECR 同款拉模型）：REVIEWING 且 flag-on 时查实例——
+     *  COMPLETED→发布（系统操作者），REJECTED→打回 DRAFT；流程服务不可用静默跳过（保持轻量态）。 */
+    private void syncWorkflowReview(DrawingInfo drawing) {
+        if (!workflowReview || drawing == null || !"REVIEWING".equals(drawing.getLifecycleState())) {
+            return;
+        }
+        com.openforge.drawing.client.DrawingWorkflowClient.InstanceView inst = workflowClient.findByBiz(drawing.getId());
+        if (inst == null) {
+            return;
+        }
+        if ("COMPLETED".equals(inst.state())) {
+            approve(drawing.getId(), 0L);
+        } else if ("REJECTED".equals(inst.state())) {
+            reject(drawing.getId());
+        }
     }
 
     private void requireDraft(DrawingInfo drawing, String action) {
