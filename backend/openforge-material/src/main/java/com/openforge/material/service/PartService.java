@@ -37,6 +37,7 @@ public class PartService {
     /** Spring 配置的 ObjectMapper（含 JavaTimeModule，支持 LocalDateTime 快照序列化） */
     private final ObjectMapper objectMapper;
     private final com.openforge.common.event.EventPublisher eventPublisher;
+    private final com.openforge.material.client.MaterialNotifyClient notifyClient;
 
     public Part create(CreatePartRequest request) {
         PartCategory category = categoryService.requireCategory(request.getCategoryId());
@@ -186,11 +187,17 @@ public class PartService {
      * 落 outbox/熔断，不阻断业务。
      */
     private void publishReleased(Part part) {
-        Runnable emit = () -> eventPublisher.publish("openforge-material", "part.released", java.util.Map.of(
-                "partId", part.getId(),
-                "partNumber", part.getPartNumber() == null ? "" : part.getPartNumber(),
-                "partName", part.getName() == null ? "" : part.getName(),
-                "version", part.getVersion() == null ? "" : part.getVersion()));
+        Runnable emit = () -> {
+            java.util.Map<String, Object> payload = java.util.Map.of(
+                    "partId", part.getId(),
+                    "partNumber", part.getPartNumber() == null ? "" : part.getPartNumber(),
+                    "partName", part.getName() == null ? "" : part.getName(),
+                    "version", part.getVersion() == null ? "" : part.getVersion());
+            // 总线关闭时回退 auth 站内信订阅通知（v1.24 §4；订阅 fan-out 由 auth 侧解析）
+            if (!eventPublisher.publish("openforge-material", "part.released", payload)) {
+                notifyClient.deliver("part.released", payload);
+            }
+        };
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
                     new org.springframework.transaction.support.TransactionSynchronization() {
