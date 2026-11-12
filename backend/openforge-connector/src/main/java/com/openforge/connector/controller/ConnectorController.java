@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,6 +35,12 @@ public class ConnectorController {
 
     private final ConnectorDefinitionService definitionService;
     private final com.openforge.connector.service.TriggerDispatcher triggerDispatcher;
+
+    /** 通知渠道连接器模板（v1.26 §3）：最小合法 spec 骨架 + notify.created 变量说明，前端预填。 */
+    @GetMapping("/presets")
+    public ApiResponse<List<com.openforge.connector.dto.ConnectorPreset>> presets() {
+        return ApiResponse.ok(com.openforge.connector.dto.ConnectorPreset.notifyPresets());
+    }
 
     @PostMapping
     @RequirePermission("conn:manage")

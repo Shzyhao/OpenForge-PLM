@@ -15,6 +15,7 @@ import {
   type InvokeResult, type PageData, type TriggerForm, type TriggerType,
 } from '../api/connector'
 import ConnectorConfigPanel, { type ConnectorConfigPanelHandle } from '../components/ConnectorConfigPanel'
+import { fetchConnectorPresets, type ConnectorPreset } from '../api/connector'
 import FlowDesigner from '../components/FlowDesigner'
 import { ORCHESTRATION_NODE_TYPES } from '../flow/nodeTypes'
 import { chainFlowWithLayout, emptyChainFlow, flowToChain } from '../flow/orchestration'
@@ -57,6 +58,21 @@ export default function IntegrationPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState<ConnSummary | null>(null)
   const [draft, setDraft] = useState<SpecDraft>(EMPTY_DRAFT('HTTP_REST'))
+  // 通知渠道连接器模板（v1.26 §3）：新建选类型时自动预填最小合法 spec（用户补连接信息即可）
+  const [presets, setPresets] = useState<ConnectorPreset[]>([])
+  useEffect(() => {
+    fetchConnectorPresets().then((ps) => {
+      setPresets(ps)
+      applyPreset('HTTP_REST')
+    }).catch(() => { /* 注册中心不可达时不预填 */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const applyPreset = (t: ConnType) => {
+    const preset = presets.find((x) => x.connType === t)
+    if (preset) {
+      setDraft((d) => ({ ...d, spec: { ...preset.spec } }))
+    }
+  }
   const [newType, setNewType] = useState<ConnType>('HTTP_REST')
   const [triggerParamsText, setTriggerParamsText] = useState('{}')
   const [saving, setSaving] = useState(false)
@@ -760,7 +776,7 @@ export default function IntegrationPage() {
             <Form.Item label="类型" style={{ marginBottom: 0 }}>
               <Select style={{ width: 200 }} value={editing ? draft.connType : newType}
                 disabled={!!editing}
-                onChange={(t) => { setNewType(t); setDraft((d) => ({ ...d, connType: t as ConnType })) }}
+                onChange={(t) => { setNewType(t); setDraft((d) => ({ ...d, connType: t as ConnType })); applyPreset(t as ConnType) }}
                 options={CONN_TYPES} />
             </Form.Item>
             {newType === 'CHAIN' && !editing && (
