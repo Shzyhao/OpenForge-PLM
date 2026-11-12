@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,9 @@ class NotifyIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @MockBean
+    private com.openforge.common.event.EventPublisher eventPublisher;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -79,6 +83,11 @@ class NotifyIntegrationTest {
                 "initiatorId", u9, "nodeName", "初审", "instanceId", 101L, "action", "APPROVE"));
 
         assertThat(notifyService.unreadCount(u7)).isEqualTo(1);
+        // 渠道分发事件（v1.25 §3）：站内信落库即发 notify.created（携带收件人 email 供 SMTP 连接器寻址）
+        org.mockito.Mockito.verify(eventPublisher).publish(
+                org.mockito.ArgumentMatchers.eq("openforge-notify"),
+                org.mockito.ArgumentMatchers.eq("notify.created"),
+                org.mockito.ArgumentMatchers.argThat(p -> u7 == Long.valueOf(String.valueOf(p.get("userId")))));
         PageResponse<NotifyMessage> inbox7 = notifyService.inbox(u7, false, 1, 20);
         assertThat(inbox7.list()).hasSize(1);
         assertThat(inbox7.list().get(0).getTitle()).isEqualTo("待办审批：初审");

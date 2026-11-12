@@ -33,6 +33,33 @@ public class KnowledgeController {
     @Value("${openforge.internal.token:openforge-internal-dev-token}")
     private String internalToken;
 
+    // ===== 回收站（v1.25 设计 §4）=====
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @com.openforge.common.annotation.RequirePermission("knowledge:manage")
+    public ApiResponse<Void> delete(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        knowledgeService.deleteItem(id);
+        return ApiResponse.ok();
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/recycle")
+    public ApiResponse<java.util.List<KnowledgeItem>> recycle() {
+        return ApiResponse.ok(knowledgeService.trashed());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/restore")
+    @com.openforge.common.annotation.RequirePermission("knowledge:manage")
+    public ApiResponse<KnowledgeItem> restore(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(knowledgeService.restoreItem(id));
+    }
+
+    /** 彻底删除（不可逆）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/purge")
+    @com.openforge.common.annotation.RequirePermission("knowledge:manage")
+    public ApiResponse<KnowledgeItem> purge(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        return ApiResponse.ok(knowledgeService.purgeItem(id));
+    }
+
     @PostMapping("/items")
     @RequirePermission("knowledge:manage")
     public ApiResponse<KnowledgeItem> create(@jakarta.validation.Valid @RequestBody CreateItemRequest request,

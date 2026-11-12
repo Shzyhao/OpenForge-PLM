@@ -85,3 +85,61 @@ export function restoreDoc(id: number): Promise<TrashedDoc> {
 export function purgeDoc(id: number): Promise<TrashedDoc> {
   return post<TrashedDoc>(`/api/v1/docs/${id}/purge`)
 }
+
+// ===== 知识库 / 变更 / 项目域（v1.25 接入）=====
+
+export interface TrashedKnowledge {
+  id: number
+  title: string
+  status: string
+}
+
+export interface TrashedChange {
+  id: number
+  ecrNumber: string
+  title: string
+  state: string
+}
+
+export interface TrashedProject {
+  id: number
+  projectNumber: string
+  name: string
+  status: string
+}
+
+export function fetchTrashedKnowledge(): Promise<TrashedKnowledge[]> {
+  return get<TrashedKnowledge[]>('/api/v1/knowledge/items/recycle')
+}
+
+export function restoreKnowledge(id: number): Promise<TrashedKnowledge> {
+  return post<TrashedKnowledge>(`/api/v1/knowledge/items/${id}/restore`)
+}
+
+export function purgeKnowledge(id: number): Promise<TrashedKnowledge> {
+  return post<TrashedKnowledge>(`/api/v1/knowledge/items/${id}/purge`)
+}
+
+export function fetchTrashedChanges(): Promise<TrashedChange[]> {
+  return get<TrashedChange[]>('/api/v1/changes/requests/recycle')
+}
+
+export function restoreChange(id: number): Promise<TrashedChange> {
+  return post<TrashedChange>(`/api/v1/changes/requests/${id}/restore`)
+}
+
+export function purgeChange(id: number): Promise<TrashedChange> {
+  return post<TrashedChange>(`/api/v1/changes/requests/${id}/purge`)
+}
+
+export function fetchTrashedProjects(): Promise<TrashedProject[]> {
+  return get<TrashedProject[]>('/api/v1/projects/recycle')
+}
+
+export function restoreProject(id: number): Promise<TrashedProject> {
+  return post<TrashedProject>(`/api/v1/projects/${id}/restore`)
+}
+
+export function purgeProject(id: number): Promise<TrashedProject> {
+  return post<TrashedProject>(`/api/v1/projects/${id}/purge`)
+}

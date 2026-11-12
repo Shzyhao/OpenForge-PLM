@@ -34,5 +34,9 @@ public class Project {
 
     private Long createdBy;
 
+    /** 软删标记（v1.25 回收站） */
+    @com.baomidou.mybatisplus.annotation.TableLogic
+    private Integer deleted;
+
     private LocalDateTime createdAt;
 }

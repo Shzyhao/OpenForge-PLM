@@ -112,15 +112,17 @@ class KnowledgeEventBrokerLoopTest {
         assertThat(sent).as("事件应真实进入 broker").isTrue();
 
         // 消费者已在 ApplicationReady 连接（新消费组 FIRST_OFFSET + 20s 再均衡，轮询等待落库）
-        long deadline = System.currentTimeMillis() + 60_000;
+        // R22 flaky 修复：CI 负载下 broker 启动+消费延迟偶发超 60s（PR #121 与 merge run 两次实锤，
+        // 同代码复跑即绿）——等待上限 60s→180s，轮询步长 2s→1s；断言只放宽时间预算不改语义
+        long deadline = System.currentTimeMillis() + 180_000;
         Long cnt;
         do {
-            Thread.sleep(2000);
+            Thread.sleep(1000);
             Long c = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM knowledge_item WHERE source_type='SCHEMA' AND source_ref=?",
                     Long.class, "mq_loop_" + marker);
             cnt = c == null ? 0 : c;
         } while (cnt == 0 && System.currentTimeMillis() < deadline);
-        assertThat(cnt).as("60s 内应被消费落库").isEqualTo(1);
+        assertThat(cnt).as("180s 内应被消费落库").isEqualTo(1);
     }
 }
