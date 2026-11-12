@@ -24,6 +24,9 @@ x-java-env: &java-env
   JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET（≥32 字节）}
   NACOS_ENABLED: ${NACOS_ENABLED:-false}
   NACOS_ADDR: ${NACOS_ADDR:-nacos:8848}
+  # 事件总线（v1.24）：默认关（无 broker 时 publish 进 outbox 重试会拖慢联动），随 rocketmq profile 一起启用
+  OPENFORGE_EVENT_ENABLED: ${OPENFORGE_EVENT_ENABLED:-false}
+  OPENFORGE_EVENT_NAMESRV_ADDR: ${OPENFORGE_EVENT_NAMESRV_ADDR:-rocketmq-namesrv:9876}
 
 x-java-build: &java-build
   context: .
@@ -170,6 +173,40 @@ services:
     volumes:
       - drawing_files:/data/drawing-files
     depends_on: [auth]
+
+  # 事件总线（v1.24 §5）：容器网内互通——broker 默认通告容器 IP（网内可路由），
+  # 勿照搬 dev 的 brokerIP1=127.0.0.1；仅内网不发布端口（B2 设计）。启用：
+  # .env 设 OPENFORGE_EVENT_ENABLED=true 且 docker compose --profile rocketmq up -d
+  rocketmq-namesrv:
+    profiles: ["rocketmq"]
+    image: apache/rocketmq:5.3.1
+    container_name: openforge-prod-mq-namesrv
+    command: sh mqnamesrv
+    environment:
+      JAVA_OPT_EXT: "-Xms256m -Xmx512m -XX:MaxDirectMemorySize=128m"
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/9876'"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped
+
+  rocketmq-broker:
+    profiles: ["rocketmq"]
+    image: apache/rocketmq:5.3.1
+    container_name: openforge-prod-mq-broker
+    command: sh mqbroker -n rocketmq-namesrv:9876
+    environment:
+      JAVA_OPT_EXT: "-Xms512m -Xmx1g -XX:MaxDirectMemorySize=256m"
+    depends_on:
+      rocketmq-namesrv:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/10911'"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped
 
   gateway:
     image: openforge-gateway:latest
