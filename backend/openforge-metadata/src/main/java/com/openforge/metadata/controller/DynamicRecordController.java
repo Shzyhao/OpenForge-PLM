@@ -73,6 +73,32 @@ public class DynamicRecordController {
         return ApiResponse.ok(dynamicRecordService.update(objectKey, id, body, currentUserId(request)));
     }
 
+    // ===== 回收站（v1.26 设计 §2）=====
+
+    @GetMapping("/recycle")
+    public ApiResponse<java.util.List<Map<String, Object>>> recycle(@PathVariable String objectKey,
+                                                                    HttpServletRequest request) {
+        requirePermission(objectKey + ":view", request);
+        return ApiResponse.ok(dynamicRecordService.trashed(objectKey));
+    }
+
+    @PostMapping("/{id}/restore")
+    public ApiResponse<Void> restore(@PathVariable String objectKey, @PathVariable Long id,
+                                     HttpServletRequest request) {
+        requirePermission(objectKey + ":delete", request);
+        dynamicRecordService.restore(objectKey, id);
+        return ApiResponse.ok();
+    }
+
+    /** 彻底删除（不可逆）。 */
+    @PostMapping("/{id}/purge")
+    public ApiResponse<Void> purge(@PathVariable String objectKey, @PathVariable Long id,
+                                   HttpServletRequest request) {
+        requirePermission(objectKey + ":delete", request);
+        dynamicRecordService.purge(objectKey, id);
+        return ApiResponse.ok();
+    }
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(
             @PathVariable String objectKey, @PathVariable Long id, HttpServletRequest request) {
