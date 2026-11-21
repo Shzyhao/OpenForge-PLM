@@ -12,6 +12,7 @@ import {
   createEcr, fetchEcrDetail, fetchEcrs, retryApply,
 } from '../api/change'
 import { INSTANCE_STATE_LABELS } from '../api/workflow'
+import InstanceDetailDrawer from '../components/InstanceDetailDrawer'
 import {
   PART_STATE_LABELS, fetchBom, fetchBomLines, fetchParts,
   type BomHeader, type BomLineView,
@@ -63,6 +64,8 @@ export default function ChangePage() {
   const [loadedLines, setLoadedLines] = useState<BomLineView[]>([])
   const [selectedLine, setSelectedLine] = useState<BomLineView | null>(null)
   const [loadingBom, setLoadingBom] = useState(false)
+  // 流程实例详情抽屉（v1.28 P3#19：变更详情关联实例查看）
+  const [flowInstanceId, setFlowInstanceId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -173,7 +176,9 @@ export default function ChangePage() {
       const detail: EcrDetail = await fetchEcrDetail(id)
       const flow = detail.flowState
         ? `流程：${INSTANCE_STATE_LABELS[detail.flowState]?.label ?? detail.flowState}${detail.flowCurrentNode ? `（当前节点 ${detail.flowCurrentNode}）` : ''}`
-        : '流程状态不可用'
+        : detail.flowReachable === false
+          ? '流程服务不可达（状态展示降级，审批流转不受影响）'
+          : '流程状态不可用'
 
       let payloadBlock: React.ReactNode = null
       if (detail.changeType === 'SUBSTITUTE_CHANGE' && detail.payload) {
@@ -226,7 +231,12 @@ export default function ChangePage() {
                 </Typography.Text>
               </p>
             )}
-            <p style={{ color: '#888', fontSize: 12 }}>{flow} · 实例 #{detail.workflowInstanceId}</p>
+            <p style={{ color: '#888', fontSize: 12 }}>
+              {flow}
+              {detail.workflowInstanceId != null && (
+                <> · 实例 <a onClick={() => setFlowInstanceId(detail.workflowInstanceId!)}>#{detail.workflowInstanceId}</a></>
+              )}
+            </p>
           </div>
         ),
       })
@@ -400,6 +410,8 @@ export default function ChangePage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <InstanceDetailDrawer instanceId={flowInstanceId} open={flowInstanceId !== null} onClose={() => setFlowInstanceId(null)} />
     </Card>
   )
 }
