@@ -9,6 +9,7 @@
 - POST /internal/tables           动态表登记（F2 发布流水线；不经网关路由，X-Internal-Token 防护）
 """
 import json
+import logging
 import re
 import threading
 import time
@@ -25,6 +26,7 @@ from .nl2sql import nl_to_sql
 from .sql_gateway import validate_sql
 
 app = FastAPI(title="OpenForge AI Gateway", version="0.1.0")
+logger = logging.getLogger("openforge.ai.gateway")
 
 OFFLINE_CHAT_REPLY = (
     "【AI 离线模式】当前未配置大模型接入（OPENFORGE_LLM_BASE_URL / OPENFORGE_LLM_API_KEY），"
@@ -180,9 +182,9 @@ def _register_once():
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
             if resp.status == 200:
-                print(f"[module-registry] heartbeat ai-gateway -> {auth_base}")
+                logger.info("module-registry heartbeat ai-gateway -> %s", auth_base)
     except Exception as e:  # noqa: BLE001 - 注册失败不阻塞启动
-        print(f"[module-registry] register failed (non-fatal): {e}")
+        logger.warning("module-registry register failed (non-fatal): %s", e)
 
 
 @app.post("/internal/tables")
