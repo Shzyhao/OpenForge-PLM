@@ -4,11 +4,14 @@
 生成的 SQL 必须再过 SQL 安全网关（生成不可信，校验兜底——Loop Engineering 原则）。
 离线：明确拒绝并提示（nl2sql 无规则降级路径）。
 """
+import logging
 from typing import Optional, Tuple
 
 from .config import settings
 from .llm import llm_client
 from .sql_gateway import validate_sql
+
+logger = logging.getLogger("openforge.ai.nl2sql")
 
 SYSTEM_PROMPT = (
     "你是 PostgreSQL 专家。根据用户的自然语言问题和可用表结构，生成一条查询 SQL。\n"
@@ -38,7 +41,9 @@ def nl_to_sql(question: str) -> Tuple[bool, str, str]:
             {"role": "user", "content": build_prompt(question)},
         ])
         generated = raw.strip().removeprefix("```sql").removeprefix("```").removesuffix("```").strip()
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - 对用户统一话术，根因留日志
+        logger.warning("nl2sql 生成失败: question=%r — %s: %s",
+                       question[:80], type(e).__name__, e)
         return False, "", "SQL 生成失败，请稍后重试"
 
     if not generated:
