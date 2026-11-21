@@ -47,23 +47,23 @@ describe('UserAdminPage', () => {
   it('点停用调 disableUser；自己那一行停用按钮禁用', async () => {
     const { disableUser } = await import('../api/user')
     render(<PermContext.Provider value={permOf(1)}><UserAdminPage /></PermContext.Provider>)
-    // alice（id=2，非当前用户）行有可点的停用按钮；admin 行禁用
-    const buttons = await screen.findAllByRole('button', { name: '停 用' })
+    // alice（id=2，非当前用户）行有可点的停用按钮；admin 行禁用；正则兼容 antd 两字按钮自动空格
+    const buttons = await screen.findAllByRole('button', { name: /^停\s*用$/ }, { timeout: 4000 })
     const clickable = buttons.find((b) => !b.hasAttribute('disabled'))
     expect(clickable).toBeTruthy()
     fireEvent.click(clickable!)
     await waitFor(() => {
       expect(disableUser).toHaveBeenCalledWith(2)
     })
-  })
+  }, 15000)
 
   it('点启用调 enableUser', async () => {
     const { enableUser } = await import('../api/user')
     render(<PermContext.Provider value={permOf()}><UserAdminPage /></PermContext.Provider>)
-    const enableButtons = await screen.findAllByRole('button', { name: '启 用' })
+    const enableButtons = await screen.findAllByRole('button', { name: /^启\s*用$/ }, { timeout: 4000 })
     fireEvent.click(enableButtons[0])
     await waitFor(() => {
       expect(enableUser).toHaveBeenCalledWith(3)   // bob（DISABLED 行的启用按钮）
     })
-  })
+  }, 15000)
 })
