@@ -1,6 +1,6 @@
 # OpenForge v1.27 待办清单与新会话交接（2026-11-21）
 
-> **【2026-11-21 v1.28 批次注记】v1.28 批次执行中**（同日 v1.27.0 发版后继续）：
+> **【2026-11-21 v1.28.0 已发版（PR #125，merge 1701b89）】v1.27 交接清单全部清欠完成**（同日 v1.27.0 后连发）。批次内容：
 > 已做：P2#12（WorkflowClient.findByBizWithHealth 区分不可达+ECR 详情 flowReachable+前端降级文案）/
 > #13（Embedding 降级 warn+embedding_fallback_total）/ #14（common SecurityDefaultsChecker 非 dev profile 默认密钥醒目 WARN）/
 > #15（NumberRuleService 部署约束注释钉住）/ P3#18（MaterialPage 详情抽屉+关联图纸区）/
