@@ -179,12 +179,14 @@ public class EcrService {
         }
     }
 
-    /** 详情：实时关联流程实例状态（流程服务不可用时降级仅展示 ECR 状态）。 */
+    /** 详情：实时关联流程实例状态（流程服务不可用时降级仅展示 ECR 状态+不可达标记）。 */
     public EcrDetailResponse detail(Long id) {
         ChangeRequest ecr = require(id);
         EcrDetailResponse resp = toDetail(ecr);
 
-        WorkflowClient.InstanceView instance = workflowClient.findByBiz("ECR", ecr.getId());
+        WorkflowClient.BizLookup lookup = workflowClient.findByBizWithHealth("ECR", ecr.getId());
+        resp.setFlowReachable(lookup.workflowReachable());   // v1.28 P2#12：false=服务不可达（区别于无流程）
+        WorkflowClient.InstanceView instance = lookup.instance();
         if (instance != null) {
             resp.setFlowState(instance.state());
             resp.setFlowCurrentNode(instance.currentNode());
