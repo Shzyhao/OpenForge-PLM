@@ -4,13 +4,13 @@ import {
   Table, Tabs, Tag, theme, Typography, message,
 } from 'antd'
 import {
-  DeleteOutlined, PlusOutlined, ReloadOutlined, RocketOutlined, SendOutlined,
+  DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, RocketOutlined, SendOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import {
   CONN_TYPES, EVENT_TOPICS, TRIGGER_TYPES, createAiProvider, createConnector, createCredential,
   deleteAiProvider, deleteConnector, deleteCredential, disableConnector, discardDlq, fetchAiProviders,
-  fetchConnector, fetchConnectors, fetchCredentials, fetchDlq, fetchExecLogs, publishConnector,
-  replayDlq, testAiProvider, testConnector, updateAiProvider, updateConnector,
+  fetchConnector, fetchConnectors, fetchCredentials, fetchDlq, fetchExecLogs, invokeConnector, publishConnector,
+  replayDlq, testAiProvider, testConnector, updateAiProvider, updateConnector, updateCredential,
   type AiProvider, type ConnSummary, type ConnType, type Credential, type DlqRecord, type ExecLog,
   type InvokeResult, type PageData, type TriggerForm, type TriggerType,
 } from '../api/connector'
@@ -102,6 +102,7 @@ export default function IntegrationPage() {
   const [testing, setTesting] = useState<ConnSummary | null>(null)
   const [paramText, setParamText] = useState('{}')
   const [testingBusy, setTestingBusy] = useState(false)
+  const [invokingBusy, setInvokingBusy] = useState(false)   // v1.27 P3#16：单步正式调用
   const [testResult, setTestResult] = useState<InvokeResult | null>(null)
 
   // 执行日志
@@ -125,6 +126,9 @@ export default function IntegrationPage() {
   const [credForm] = Form.useForm<{
     credCode: string; credName: string; authType: string; secret: string; extra: string
   }>()
+  // 凭据编辑（v1.27 P3#17）：secret 不回填不展示，留空=不覆盖
+  const [editingCred, setEditingCred] = useState<Credential | null>(null)
+  const [credEditForm] = Form.useForm<{ credName: string; authType: string; secret?: string; extra?: string }>()
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true)
@@ -333,6 +337,27 @@ export default function IntegrationPage() {
     }
   }
 
+  /** 单步正式调用（v1.27 P3#16）：按 connCode 走已发布版本——计执行日志/触发统计，与试运行（/test 草稿语义）区分。 */
+  const runInvoke = async () => {
+    if (!testing) return
+    let params: Record<string, unknown>
+    try {
+      params = paramText.trim() ? JSON.parse(paramText) : {}
+    } catch {
+      message.warning('参数须为合法 JSON')
+      return
+    }
+    setInvokingBusy(true)
+    try {
+      setTestResult(await invokeConnector(testing.connCode, params))
+      message.success('正式调用完成')
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '调用失败')
+    } finally {
+      setInvokingBusy(false)
+    }
+  }
+
   const openLogs = async (row: ConnSummary) => {
     setLogsFor(row)
     setLogsLoading(true)
@@ -402,6 +427,26 @@ export default function IntegrationPage() {
     }
   }
 
+  /** 保存凭据编辑（v1.27 P3#17）：secret 留空=保持原密文不覆盖。 */
+  const saveCredentialEdit = async () => {
+    if (!editingCred) return
+    const values = await credEditForm.validateFields()
+    setCredSaving(true)
+    try {
+      await updateCredential(editingCred.id, {
+        credName: values.credName, authType: values.authType,
+        secret: values.secret || undefined, extra: values.extra || undefined,
+      })
+      message.success('凭据已更新（secret 留空则保持原密文）')
+      setEditingCred(null)
+      await loadCredentials()
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '凭据更新失败')
+    } finally {
+      setCredSaving(false)
+    }
+  }
+
   const replayDlqRow = async (row: DlqRecord) => {
     setDlqBusyId(row.id)
     try {
@@ -451,7 +496,7 @@ export default function IntegrationPage() {
       schemaVersion: 2,
       steps: [{
         key: 's1', type: 'HTTP_REST',
-        spec: { schemaVersion: 1, method: 'GET', url: 'http://localhost:8080/actuator/health' },
+        spec: { schemaVersion: 1, method: 'GET', url: 'https://example.com/api' }, // 占位 URL，用户必改（v1.27 P1#6：不再默认指向本地）
       }],
     }
     const resp = await createConnector({
@@ -597,7 +642,7 @@ export default function IntegrationPage() {
                   onClick={() => setProvModalOpen(true)}>新建供应商</Button>
               } styles={{ body: { paddingInline: 0 } }}>
               <Table rowKey="id" size="small" dataSource={providers}
-                pagination={{ pageSize: 10, showSizeChanger: false }}
+                pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
                 columns={[
                   { title: 'Code', dataIndex: 'providerCode', width: 140 },
                   { title: '名称', dataIndex: 'providerName', width: 160 },
@@ -644,7 +689,7 @@ export default function IntegrationPage() {
                   onClick={() => setCredModalOpen(true)}>新建凭据</Button>
               } styles={{ body: { paddingInline: 0 } }}>
               <Table rowKey="id" size="small" dataSource={credentials}
-                pagination={{ pageSize: 10, showSizeChanger: false }}
+                pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
                 columns={[
                   { title: 'Code', dataIndex: 'credCode', width: 160 },
                   { title: '名称', dataIndex: 'credName', width: 180 },
@@ -654,14 +699,24 @@ export default function IntegrationPage() {
                     render: (v: string | null) => v ? <Typography.Text code>{v}</Typography.Text> : '-',
                   },
                   {
-                    title: '操作', width: 90,
+                    title: '操作', width: 130,
                     render: (_: unknown, row: Credential) => (
-                      <Popconfirm title="删除凭据？引用它的连接器将无法发布。" onConfirm={() => {
-                        void deleteCredential(row.id).then(loadCredentials)
-                          .catch((e: unknown) => message.error(e instanceof Error ? e.message : '删除失败'))
-                      }} disabled={!canManage}>
-                        <Button size="small" danger icon={<DeleteOutlined />} disabled={!canManage} />
-                      </Popconfirm>
+                      <Space>
+                        <Button size="small" icon={<EditOutlined />} disabled={!canManage}
+                          title="编辑凭据（secret 留空=不覆盖）"
+                          onClick={() => {
+                            setEditingCred(row)
+                            credEditForm.setFieldsValue({
+                              credName: row.credName, authType: row.authType, secret: undefined, extra: row.extra ?? undefined,
+                            })
+                          }} />
+                        <Popconfirm title="删除凭据？引用它的连接器将无法发布。" onConfirm={() => {
+                          void deleteCredential(row.id).then(loadCredentials)
+                            .catch((e: unknown) => message.error(e instanceof Error ? e.message : '删除失败'))
+                        }} disabled={!canManage}>
+                          <Button size="small" danger icon={<DeleteOutlined />} disabled={!canManage} />
+                        </Popconfirm>
+                      </Space>
                     ),
                   },
                 ]} />
@@ -846,15 +901,21 @@ export default function IntegrationPage() {
       </Drawer>
 
       <Modal
-        title={`试运行：${testing?.connName ?? ''}`}
+        title={`执行：${testing?.connName ?? ''}`}
         open={!!testing} onCancel={() => setTesting(null)} footer={null} width={680}>
         <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          参数（JSON 对象；必填参数须齐备）
+          参数（JSON 对象；必填参数须齐备）——试运行走草稿语义不计日志；正式调用按编码走已发布版本并计执行日志
         </Typography.Text>
         <Input.TextArea rows={4} value={paramText} onChange={(e) => setParamText(e.target.value)}
           style={{ fontFamily: 'monospace' }} />
-        <Button type="primary" icon={<SendOutlined />} loading={testingBusy}
-          onClick={runTest} style={{ marginTop: 12 }}>执行</Button>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+          <Button type="primary" icon={<SendOutlined />} loading={testingBusy}
+            onClick={runTest}>试运行（草稿语义）</Button>
+          <Button icon={<ThunderboltOutlined />} loading={invokingBusy}
+            disabled={testing?.status !== 'PUBLISHED'}
+            title={testing?.status !== 'PUBLISHED' ? '仅已发布连接器可正式调用' : '按编码调用已发布版本，计执行日志'}
+            onClick={runInvoke}>正式调用</Button>
+        </div>
         {testResult && (
           <>
           <Button size="small" style={{ marginTop: 12 }} loading={testingBusy}
@@ -886,7 +947,7 @@ export default function IntegrationPage() {
         title={`执行日志：${logsFor?.connName ?? ''}`}
         open={!!logsFor} onCancel={() => setLogsFor(null)} footer={null} width={860}>
         <Table rowKey="id" size="small" loading={logsLoading} dataSource={logs}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
+          pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
           columns={[
             { title: '时间', dataIndex: 'createdAt', width: 165 },
             { title: '触发', dataIndex: 'triggerType', width: 80 },
@@ -1027,6 +1088,32 @@ export default function IntegrationPage() {
             <Input.Password placeholder="Token / user:password / 密码" autoComplete="new-password" />
           </Form.Item>
           <Form.Item name="extra" label={'附加信息 JSON（如 {"headerName":"X-Api-Key"}，可选）'}>
+            <Input placeholder='{"headerName":"X-Api-Key"}' style={{ fontFamily: 'monospace' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`编辑凭据：${editingCred?.credCode ?? ''}`} open={!!editingCred} onCancel={() => setEditingCred(null)}
+        onOk={saveCredentialEdit} confirmLoading={credSaving} destroyOnClose>
+        <Form form={credEditForm} layout="vertical">
+          <Form.Item name="credName" label="名称" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="如 ERP 主凭据" />
+          </Form.Item>
+          <Form.Item name="authType" label="认证类型" rules={[{ required: true, message: '必填' }]}>
+            <Select options={[
+              { value: 'BEARER', label: 'Bearer Token' },
+              { value: 'BASIC', label: 'Basic（填 user:password）' },
+              { value: 'API_KEY_HEADER', label: 'API Key（自定义头）' },
+              { value: 'JDBC_PASSWORD', label: '数据库密码（JDBC 连接器用）' },
+              { value: 'SMTP', label: 'SMTP 密码（邮件连接器用）' },
+              { value: 'WEBHOOK_SECRET', label: 'Webhook 加签密钥（钉钉/飞书机器人）' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="secret" label="凭据值（留空=保持原密文；填写则覆盖，仍不回显）">
+            <Input.Password placeholder="不修改请留空" autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item name="extra" label={'附加信息 JSON（可选）'} style={{ marginBottom: 0 }}>
             <Input placeholder='{"headerName":"X-Api-Key"}' style={{ fontFamily: 'monospace' }} />
           </Form.Item>
         </Form>
