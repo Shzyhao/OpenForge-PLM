@@ -1,9 +1,24 @@
 # OpenForge v1.27 待办清单与新会话交接（2026-11-21）
 
+> **【2026-11-21 v1.28 批次注记】v1.28 批次执行中**（同日 v1.27.0 发版后继续）：
+> 已做：P2#12（WorkflowClient.findByBizWithHealth 区分不可达+ECR 详情 flowReachable+前端降级文案）/
+> #13（Embedding 降级 warn+embedding_fallback_total）/ #14（common SecurityDefaultsChecker 非 dev profile 默认密钥醒目 WARN）/
+> #15（NumberRuleService 部署约束注释钉住）/ P3#18（MaterialPage 详情抽屉+关联图纸区）/
+> #19（InstanceDetailDrawer 组件，我的待办+变更详情两处接入）/ #20（RoleAdmin 用户搜索式选择+角色表分页）/
+> #22（删 5 个零引用封装：fetchRecord/moveOrg/fetchProjectTaskStats/assignUserRoles/fetchPermissionTree——
+> client.ts del/put 扫描清单过时实有调用，未删）/ P5#26（三基类收敛 11 份同构拷贝：
+> common InternalNumberClient/InternalNotifyClient/InternalAuditClient；四 Notify 子类 @Value 默认值保留零漂移；
+> drawing NumberClient 与 connector AuthAuditClient bean 名规范化为域前缀——by-type/Qualifier 已核无引用）/
+> #28（ai print→logging + nl2sql 根因日志）。
+> **Ecr/MetaPublish 事务内 HTTP 重构判停（评估结论）**：create 内取号+startInstance 的原子性
+> （要么都落要么都回滚）是设计语义；移出事务需补偿任务（SUBMITTED 无实例卡死，惰性回流只覆盖有实例终态）
+> 或 outbox 化命令消息（事件基建目前仅通知类）。现有防线已够：P1#1 超时上限 13s + Hikari pending 告警 +
+> 冒烟/authz 回归面。**重启条件：连接池告警实际触发或流程启动超时工单出现**。
+
 > **【2026-11-21 发版注记】v1.27.0 已发版（PR #124，merge 224f344）**：§3 建议批次 15 项全清
 > （P1 全 8 项 + P2 的 9/10/11 + P3 的 16/17/21 + P4 的 23/24 首批 + P5 的 25/27）。
 > **未做项即 v1.28 候选**：P2 的 12/13/14/15（流程降级 Tag/Embedding 降级日志/默认密钥告警/NumberRule 注释）+
-> P3 的 18/19/20/22（物料图纸关联/实例详情/RoleAdmin 两处/11 死函数）+ P4 的 25 之后批次（vitest 其余 18 页）+ P5 的 26/28（同构拷贝抽 common、ai print→logging）+ §4 注明的 EcrService/MetaPublishService 事务内 HTTP 高风险重构。
+> P3 的 18/19/20/22（物料图纸关联/实例详情/RoleAdmin 两处/11 个死函数）+ P4 的 25 之后批次（vitest 其余 18 页）+ P5 的 26/28（同构拷贝抽 common、ai print→logging）+ §4 注明的 EcrService/MetaPublishService 事务内 HTTP 高风险重构。
 > 实纱新增四条（详见总账 #124 行）：pipe 后 $? 是 tail 的退出码；多行 log.warn 锚点插桩错位；CI 慢机按钮名须锚定正则；MinIO Item 取 objectName。
 
 > 用途：新会话开工文档。本会话（v1.23~v1.26 四连发版）已完成全部既定批次，上下文将满，
