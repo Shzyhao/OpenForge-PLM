@@ -10,6 +10,7 @@ import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import io.micrometer.core.instrument.Metrics;
 import org.springframework.stereotype.Service;
 
 /** 安全日志（方案 F6 登录日志 / F7 权限变更审计）。 */
@@ -33,6 +34,7 @@ public class SecurityLogService {
             loginLogMapper.insert(entry);
         } catch (Exception e) {
             log.warn("login log failed: {}", e.getMessage()); // 日志失败不阻断登录
+            Metrics.counter("openforge_audit_report_fail_total", "source", "auth-login-log").increment();   // v1.27 P2#11
         }
     }
 
@@ -47,6 +49,7 @@ public class SecurityLogService {
             auditLogMapper.insert(entry);
         } catch (Exception e) {
             log.warn("audit log failed: {}", e.getMessage());
+            Metrics.counter("openforge_audit_report_fail_total", "source", "auth-audit-log").increment();   // v1.27 P2#11
         }
     }
 
