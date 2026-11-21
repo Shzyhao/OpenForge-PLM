@@ -29,8 +29,14 @@ public final class ModuleRoutePlan {
         }
     }
 
+    /**
+     * portInferred（v1.27 P1#7）：serviceUri 仅裸端口、被推断为 127.0.0.1 的模块——
+     * 本地开发合法；容器/编排场景 127.0.0.1 指向网关自身（路由必 502），
+     * 由 Refresher 周期 WARN 提示注入完整 URL（MODULE_SERVICE_URI / openforge.module.service-uri）。
+     */
     public record Plan(List<RouteDefinition> definitions, List<String> missingRoutes,
-                       List<String> staleModules, List<String> brokenModules) {
+                       List<String> staleModules, List<String> brokenModules,
+                       List<String> portInferred) {
     }
 
     /** 心跳超时 = 3 × 60s 注册周期（A4 设计 3.2；EXTENSION 无进程不参与心跳）。 */
@@ -44,6 +50,7 @@ public final class ModuleRoutePlan {
         List<String> missing = new ArrayList<>();
         List<String> stale = new ArrayList<>();
         List<String> broken = new ArrayList<>();
+        List<String> portInferred = new ArrayList<>();
         Set<String> enabledKeys = new HashSet<>();
         for (ModuleView module : modules) {
             if ("ENABLED".equals(module.status())) {
@@ -78,9 +85,14 @@ public final class ModuleRoutePlan {
                 continue;
             }
             // 描述符可声明完整 URL（容器/编排注入）或裸端口（本地开发默认）——
-            // 裸端口不是合法绝对 URI，须拼本地地址，否则路由构建失败整表失效
-            String uri = module.serviceUri().contains("://")
-                    ? module.serviceUri() : "http://127.0.0.1:" + module.serviceUri();
+            // 裸端口不是合法绝对 URI，须拼本地地址，否则路由构建失败整表失效；
+            // 但容器场景 127.0.0.1 指向网关自身，标记出来交由 Refresher 告警（v1.27 P1#7）
+            boolean inferredLocalhost = !module.serviceUri().contains("://");
+            if (inferredLocalhost) {
+                portInferred.add(module.moduleKey() + " (port=" + module.serviceUri() + ")");
+            }
+            String uri = inferredLocalhost
+                    ? "http://127.0.0.1:" + module.serviceUri() : module.serviceUri();
             RouteDefinition definition = new RouteDefinition();
             definition.setId("dynamic-" + module.moduleKey());
             definition.setUri(java.net.URI.create(uri));
@@ -88,7 +100,7 @@ public final class ModuleRoutePlan {
                     new PredicateDefinition("Path=" + String.join(",", normalized(module.routes())))));
             definitions.add(definition);
         }
-        return new Plan(definitions, missing, stale, broken);
+        return new Plan(definitions, missing, stale, broken, portInferred);
     }
 
     private static List<String> normalized(List<String> routes) {
