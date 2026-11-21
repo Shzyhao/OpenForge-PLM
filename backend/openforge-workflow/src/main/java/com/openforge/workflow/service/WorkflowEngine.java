@@ -415,7 +415,8 @@ public class WorkflowEngine {
                 "initiatorId", instance.getInitiatorId() == null ? 0 : instance.getInitiatorId(),
                 "action", task.getAction() == null ? "" : task.getAction());
         if (!eventPublisher.publish("openforge-task", eventType, payload)) {
-            notifyClient.deliver(eventType, payload);
+            // 回退 HTTP 挪出事务（v1.27 P1#2）：act/deploy 路径常在 @Transactional 内，提交后再投递
+            com.openforge.common.event.AfterCommit.run(() -> notifyClient.deliver(eventType, payload));
         }
     }
 }
