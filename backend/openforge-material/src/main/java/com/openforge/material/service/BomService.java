@@ -621,17 +621,8 @@ public class BomService {
                 notifyClient.deliver("bom.published", payload);
             }
         };
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                    new org.springframework.transaction.support.TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            emit.run();
-                        }
-                    });
-        } else {
-            emit.run();
-        }
+        // v1.27 P1#2：afterCommit 收敛到 common AfterCommit（语义不变——回滚不发、无事务直发）
+        com.openforge.common.event.AfterCommit.run(emit);
     }
 
     private void requireDraftBom(Long bomId) {
