@@ -96,7 +96,7 @@ export default function KnowledgePage() {
 
       <List<KnowledgeItem>
         loading={loading} dataSource={items} rowKey="id"
-        pagination={{ current: page, total, pageSize: 10, onChange: setPage, size: 'small' }}
+        pagination={{ current: page, total, pageSize: 10, onChange: setPage, size: 'small', showTotal: (t) => `共 ${t} 条` }}
         renderItem={(item) => (
           <List.Item>
             <List.Item.Meta

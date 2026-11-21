@@ -255,7 +255,7 @@ export default function MetaObjectsPage() {
       }
     >
       <Table rowKey="id" size="middle" loading={loading} dataSource={data} columns={columns}
-        pagination={{ pageSize: 15, showSizeChanger: false }} />
+        pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }} />
 
       <Drawer
         title={editing ? `编辑对象：${editing.displayName}（草稿）` : '新建对象'}
