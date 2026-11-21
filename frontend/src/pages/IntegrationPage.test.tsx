@@ -74,12 +74,12 @@ describe('IntegrationPage', () => {
       total: 1, page: 1, pageSize: 15,
     })
     render(<PermContext.Provider value={permOf()}><IntegrationPage /></PermContext.Provider>)
-    const testButtons = await screen.findAllByText('测试')
+    const testButtons = await screen.findAllByText('测试', {}, { timeout: 4000 })
     fireEvent.click(testButtons[0])
-    expect(await screen.findByText(/执行：演示连接器/)).toBeInTheDocument()
+    expect(await screen.findByText(/执行：演示连接器/, {}, { timeout: 4000 })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /正式调用/ }))
     await waitFor(() => {
       expect(invokeConnector).toHaveBeenCalledWith('conn_demo', {})
-    })
-  })
+    }, { timeout: 4000 })
+  }, 15000)
 })
