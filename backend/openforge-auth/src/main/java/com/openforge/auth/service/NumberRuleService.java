@@ -25,6 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * 并发策略（演进路线）：
  * - M1 单实例部署：按 (ruleKey, period) 分段锁在应用内串行化取号，数据库唯一约束兜底；
  * - M2 多实例：升级为 PG 标准 SELECT FOR UPDATE（单实例已验证流程）或 Redis INCR（架构文档 9.1）。
+ *
+ * 部署约束（v1.28 P2#15 钉住）：当前 JVM 内分段锁**仅单实例语义**——auth 服务不水平扩缩
+ * （模块注册表 sys_module 本就单实例，对齐 LogRetentionJob 先例）。若未来扩多实例，
+ * {@link #nextNumber(String, LocalDate)} 的应用内锁不再跨进程互斥，必须先行改造为
+ * SELECT FOR UPDATE（counter 行级悲观锁，同事务 read+write）或 Redis INCR，
+ * 否则跨实例并发取号只能靠 DB 唯一约束反复重试兜底（表现为取号 500 + 重试风暴）。
  */
 @Slf4j
 @Service

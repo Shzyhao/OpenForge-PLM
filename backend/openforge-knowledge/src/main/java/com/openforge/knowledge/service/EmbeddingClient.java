@@ -1,6 +1,7 @@
 package com.openforge.knowledge.service;
 
 import com.openforge.common.web.InternalRestClientFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import java.util.Map;
  * Embedding 客户端：在线走 OpenAI 兼容 /embeddings；离线降级为词袋哈希向量
  * （中文 2-gram 分词，256 维归一化——检索质量有限但管道完整可测；生产接 pgvector/Milvus + 真实模型）。
  */
+@Slf4j
 @Component
 public class EmbeddingClient {
 
@@ -55,8 +57,15 @@ public class EmbeddingClient {
                 if (resp != null && resp.data != null && !resp.data.isEmpty()) {
                     return toFloats(resp.data.get(0).embedding);
                 }
-            } catch (Exception ignored) {
-                // 网络异常降级到词袋哈希
+                // v1.28 P2#13：空响应也留痕（不算异常但同样降级）
+                log.warn("embedding 在线响应为空，降级词袋: model={}", model);
+                io.micrometer.core.instrument.Metrics.counter(
+                        "openforge_embedding_fallback_total", "reason", "empty-response").increment();
+            } catch (Exception e) {
+                // v1.28 P2#13：网络异常降级词袋不再静默——留痕+计数（检索质量受限可见）
+                log.warn("embedding 在线调用失败，降级词袋: model={} — {}", model, e.getMessage());
+                io.micrometer.core.instrument.Metrics.counter(
+                        "openforge_embedding_fallback_total", "reason", "call-failed").increment();
             }
         }
         return bagOfWords(text);
