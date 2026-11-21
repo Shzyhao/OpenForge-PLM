@@ -98,6 +98,7 @@ public class EventPublisher implements DisposableBean {
             body = mapper.writeValueAsString(envelope).getBytes(StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.error("事件信封序列化失败（事件丢失）: topic={}, type={} — {}", topic, eventType, e.getMessage());
+            Metrics.counter("openforge_events_lost_total", "topic", topic).increment();
             return false;
         }
         String eventId = envelope.getEventId();
@@ -110,6 +111,7 @@ public class EventPublisher implements DisposableBean {
             } catch (Exception e) {
                 onFailure(topic);
                 log.error("outbox 落库失败（事件丢失，业务已提交前）: topic={}, type={} — {}", topic, eventType, e.getMessage());
+                Metrics.counter("openforge_events_lost_total", "topic", topic).increment();
                 return false;
             }
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -128,6 +130,7 @@ public class EventPublisher implements DisposableBean {
                         eventId, topic, eventType, new String(body, StandardCharsets.UTF_8), producerName);
             } catch (Exception e) {
                 log.error("直发失败且 outbox 落库失败（事件丢失）: topic={}, type={} — {}", topic, eventType, e.getMessage());
+                Metrics.counter("openforge_events_lost_total", "topic", topic).increment();
                 return false;
             }
         }
@@ -137,6 +140,11 @@ public class EventPublisher implements DisposableBean {
     /** 直发（供 relay 复用）。成功 true；失败/熔断 false。 */
     public boolean sendRaw(String topic, String eventType, byte[] body, String eventId) {
         return trySend(topic, eventType, body, eventId);
+    }
+
+    /** 本服务 producer 名（relay 属主过滤用，v1.27 P1#3）。 */
+    public String producerName() {
+        return producerName;
     }
 
     private boolean trySend(String topic, String eventType, byte[] body, String eventId) {
