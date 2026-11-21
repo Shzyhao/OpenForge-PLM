@@ -30,10 +30,6 @@ export function updateOrg(id: number, body: { orgName?: string; sortOrder?: numb
   return put(`/api/v1/orgs/${id}`, body)
 }
 
-export function moveOrg(id: number, parentId: number | null): Promise<void> {
-  return put(`/api/v1/orgs/${id}/parent`, { parentId })
-}
-
 export function deleteOrg(id: number): Promise<void> {
   return del(`/api/v1/orgs/${id}`)
 }

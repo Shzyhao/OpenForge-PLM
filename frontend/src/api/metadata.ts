@@ -119,10 +119,6 @@ export function fetchRecords(
   return get(`/api/v1/objects/${objectKey}/records?${q.toString()}`)
 }
 
-export function fetchRecord(objectKey: string, id: number): Promise<DynamicRecord> {
-  return get(`/api/v1/objects/${objectKey}/records/${id}`)
-}
-
 export function createRecord(objectKey: string, body: Record<string, unknown>): Promise<DynamicRecord> {
   return post(`/api/v1/objects/${objectKey}/records`, body)
 }

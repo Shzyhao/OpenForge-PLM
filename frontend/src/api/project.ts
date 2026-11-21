@@ -44,7 +44,3 @@ export function addProjectTask(projectId: number, title: string): Promise<Projec
 export function moveTask(taskId: number, status: string): Promise<ProjectTask> {
   return post<ProjectTask>(`/api/v1/projects/tasks/${taskId}/move`, { status })
 }
-
-export function fetchProjectTaskStats(projectId: number): Promise<Record<string, number>> {
-  return get<Record<string, number>>(`/api/v1/projects/${projectId}/task-stats`)
-}
