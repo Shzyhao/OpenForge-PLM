@@ -90,4 +90,9 @@ public class PgVectorVectorStore implements VectorStore {
         }
         return sb.append(']').toString();
     }
+    @Override
+    public java.util.List<String> listAllIds() {
+        return jdbc.queryForList("SELECT vector_id FROM knowledge_embedding", String.class);
+    }
+
 }

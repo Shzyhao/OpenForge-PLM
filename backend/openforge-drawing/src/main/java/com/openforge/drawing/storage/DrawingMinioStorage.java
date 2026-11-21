@@ -57,4 +57,18 @@ public class DrawingMinioStorage implements StorageClient {
     public void delete(String storageKey) throws Exception {
         client.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(storageKey).build());
     }
+    @Override
+    public java.util.List<String> listAllKeys() {
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        try {
+            for (var item : client.listObjects(
+                    io.minio.ListObjectsArgs.builder().bucket(bucket).recursive(true).build())) {
+                keys.add(item.get().objectName());
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("MinIO 列举失败: " + e.getMessage(), e);
+        }
+        return keys;
+    }
+
 }

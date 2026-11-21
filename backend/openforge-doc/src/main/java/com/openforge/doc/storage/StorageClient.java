@@ -15,4 +15,9 @@ public interface StorageClient {
 
     /** 按存储键删除（回收站彻底删除的文件 GC，v1.24；不存在时静默返回）。 */
     void delete(String storageKey) throws Exception;
+    /** 列举全部存储键（孤儿对账用，v1.27 P2#10；不支持列举的实现抛 UnsupportedOperationException，调用方跳过）。 */
+    default java.util.List<String> listAllKeys() {
+        throw new UnsupportedOperationException("列举未实现");
+    }
+
 }
