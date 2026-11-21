@@ -59,4 +59,11 @@ public class InMemoryVectorStore implements VectorStore {
         }
         return dot; // 输入向量已归一化，点积即余弦
     }
+    @Override
+    public java.util.List<String> listAllIds() {
+        List<String> ids = new ArrayList<>();
+        vectorsByTenant.values().forEach(m -> ids.addAll(m.keySet()));
+        return ids;
+    }
+
 }

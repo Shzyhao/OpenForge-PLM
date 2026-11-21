@@ -170,6 +170,11 @@ public class EcrService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
+            // v1.27 P1#8：损坏载荷不再静默吞掉——留痕（类型/根因/片段）便于回查上游事件
+            String raw = String.valueOf(value);
+            log.warn("affectedItems 序列化失败，回退空清单: type={}, 原文片段={}, 根因={}",
+                    value == null ? "null" : value.getClass().getSimpleName(),
+                    raw.length() > 120 ? raw.substring(0, 120) + "…" : raw, e.getMessage());
             return "[]";
         }
     }

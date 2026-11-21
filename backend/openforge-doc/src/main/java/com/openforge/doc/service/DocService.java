@@ -104,7 +104,8 @@ public class DocService {
                 "docId", doc.getId(), "title", doc.getTitle() == null ? "" : doc.getTitle(),
                 "versionMinor", doc.getVersionMinor());
         if (!eventPublisher.publish("openforge-doc", "doc.released", payload)) {
-            notifyClient.deliver("doc.released", payload);
+            // 回退 HTTP 挪出事务（v1.27 P1#2）：提交后再投递，避免事务内同步外呼占连接
+            com.openforge.common.event.AfterCommit.run(() -> notifyClient.deliver("doc.released", payload));
         }
         return doc;
     }

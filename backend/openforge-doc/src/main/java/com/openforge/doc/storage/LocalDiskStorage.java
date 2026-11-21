@@ -54,4 +54,16 @@ public class LocalDiskStorage implements StorageClient {
         }
         Files.deleteIfExists(target);
     }
+    @Override
+    public java.util.List<String> listAllKeys() {
+        try (var walk = Files.walk(baseDir)) {
+            // relativize 结果在 Windows 是 '\'，统一回 '/' 与库中 storage_key 可比
+            return walk.filter(Files::isRegularFile)
+                    .map(p -> baseDir.relativize(p.toAbsolutePath().normalize()).toString().replace('\\', '/'))
+                    .toList();
+        } catch (IOException e) {
+            throw new IllegalStateException("存储目录遍历失败: " + e.getMessage(), e);
+        }
+    }
+
 }

@@ -42,11 +42,25 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/** 请求超时（v1.27 P1#5）：读类 15s / 写类 30s——后端假死时浏览器侧不再无限挂起，401 语义不变 */
+const GET_TIMEOUT_MS = 15_000
+const WRITE_TIMEOUT_MS = 30_000
+
 async function request<T>(path: string, init: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...init.headers },
-  })
+  const timeout = init.signal ?? AbortSignal.timeout(init.method === 'GET' ? GET_TIMEOUT_MS : WRITE_TIMEOUT_MS)
+  let res: Response
+  try {
+    res = await fetch(path, {
+      ...init,
+      signal: timeout,
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...init.headers },
+    })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'TimeoutError') {
+      throw new ApiError(-1, '请求超时，请稍后重试')
+    }
+    throw e
+  }
   if (res.status === 401) {
     clearToken()
     window.location.href = '/login'

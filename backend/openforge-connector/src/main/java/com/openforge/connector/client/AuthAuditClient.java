@@ -1,6 +1,8 @@
 package com.openforge.connector.client;
 
+import com.openforge.common.web.InternalRestClientFactory;
 import lombok.extern.slf4j.Slf4j;
+import io.micrometer.core.instrument.Metrics;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -25,7 +27,7 @@ public class AuthAuditClient {
             @Value("${openforge.security.auth-base-url}") String authBaseUrl,
             @Value("${openforge.security.internal-token}") String internalToken) {
         this.internalToken = internalToken;
-        this.authClient = RestClient.builder().baseUrl(authBaseUrl).build();
+        this.authClient = InternalRestClientFactory.builder().baseUrl(authBaseUrl).build();
     }
 
     /** 记录审计；事务活跃时挂 afterCommit（避免回滚操作留下审计残影）。 */
@@ -61,6 +63,7 @@ public class AuthAuditClient {
         } catch (Exception e) {
             log.warn("操作审计上报失败（不阻断业务）: action={}, target={} — {}",
                     body.get("action"), body.get("targetId"), e.getMessage());
+            Metrics.counter("openforge_audit_report_fail_total", "source", "connector-audit").increment();   // v1.27 P2#11
         }
     }
 }
