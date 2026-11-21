@@ -1,5 +1,6 @@
 package com.openforge.drawing.client;
 
+import com.openforge.common.web.InternalRestClientFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -21,7 +22,7 @@ public class ChangeNotifyClient {
 
     public ChangeNotifyClient(@Value("${openforge.change.base-url:http://localhost:8085}") String changeBaseUrl,
                               @Value("${openforge.security.internal-token:openforge-internal-dev-token}") String internalToken) {
-        this.restClient = RestClient.builder().baseUrl(changeBaseUrl).build();
+        this.restClient = InternalRestClientFactory.builder().baseUrl(changeBaseUrl).build();
         this.internalToken = internalToken;
     }
 

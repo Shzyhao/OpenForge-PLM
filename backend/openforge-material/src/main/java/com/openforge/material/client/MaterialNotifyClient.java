@@ -2,6 +2,7 @@ package com.openforge.material.client;
 
 import com.openforge.common.tenant.TenantContext;
 import com.openforge.common.tenant.TenantHeaderFilter;
+import com.openforge.common.web.InternalRestClientFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -23,7 +24,7 @@ public class MaterialNotifyClient {
 
     public MaterialNotifyClient(@Value("${openforge.security.auth-base-url:http://localhost:8081}") String authBaseUrl,
                         @Value("${openforge.security.internal-token:openforge-internal-dev-token}") String internalToken) {
-        this.restClient = RestClient.builder().baseUrl(authBaseUrl).build();
+        this.restClient = InternalRestClientFactory.builder().baseUrl(authBaseUrl).build();
         this.internalToken = internalToken;
     }
 

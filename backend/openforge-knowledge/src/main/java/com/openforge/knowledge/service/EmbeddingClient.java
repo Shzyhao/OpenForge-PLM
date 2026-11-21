@@ -1,11 +1,13 @@
 package com.openforge.knowledge.service;
 
+import com.openforge.common.web.InternalRestClientFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +32,8 @@ public class EmbeddingClient {
                            @Value("${openforge.llm.embedding-model:embedding-3}") String embeddingModel) {
         this.online = !baseUrl.isBlank() && !apiKey.isBlank();
         this.model = embeddingModel;
-        this.restClient = online ? RestClient.builder()
+        // 外呼 LLM 接口慢于内网调用，read 放宽到 30s（connect 仍 3s）
+        this.restClient = online ? InternalRestClientFactory.builder(Duration.ofSeconds(30))
                 .baseUrl(baseUrl.replaceAll("/$", ""))
                 .defaultHeader("Authorization", "Bearer " + apiKey)
                 .build() : null;
