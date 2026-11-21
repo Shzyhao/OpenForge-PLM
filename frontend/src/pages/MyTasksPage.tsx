@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Empty, Input, List, Modal, Space, Tag, Typography, message } from 'antd'
 import { CheckOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons'
 import { fetchMyTasks, actTask, type WorkflowTask } from '../api/workflow'
+import InstanceDetailDrawer from '../components/InstanceDetailDrawer'
 
 /** 我的待办（任务中心，M3）：审批办理。
  *  审批意见用 antd Modal 收集（v1.20.0 七轮体检修复：原 window.prompt 原生对话框
@@ -13,6 +14,8 @@ export default function MyTasksPage() {
   const [pending, setPending] = useState<{ task: WorkflowTask; action: 'APPROVE' | 'REJECT' } | null>(null)
   const [comment, setComment] = useState('')
   const [acting, setActing] = useState(false)
+  // 实例详情抽屉（v1.28 P3#19）
+  const [instanceId, setInstanceId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -81,7 +84,10 @@ export default function MyTasksPage() {
                     {task.viaDelegation && <Tag color="purple">来自委托</Tag>}
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>#{task.id}</Typography.Text>
                   </Space>}
-                  description={`流程实例 ${task.instanceId}`}
+                  description={<>
+                    流程实例{' '}
+                    <a onClick={() => setInstanceId(task.instanceId)}>{task.instanceId}</a>
+                  </>}
                 />
               </List.Item>
             )}
@@ -109,6 +115,8 @@ export default function MyTasksPage() {
           placeholder={pending?.action === 'APPROVE' ? '审批意见（可留空）' : '驳回原因（必填）'}
         />
       </Modal>
+
+      <InstanceDetailDrawer instanceId={instanceId} open={instanceId !== null} onClose={() => setInstanceId(null)} />
     </Card>
   )
 }

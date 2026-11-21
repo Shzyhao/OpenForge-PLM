@@ -142,8 +142,8 @@ class ChangeApplyIntegrationTest {
         // 第一次执行失败（物料端拒绝）
         org.mockito.Mockito.doThrow(new BizException(ErrorCode.INTERNAL_ERROR, "物料服务调用失败: 替代件构成装配逻辑环"))
                 .when(materialClient).applySubstitutes(eq(11L), anyList(), eq(ecr.getId()));
-        when(workflowClient.findByBiz("ECR", ecr.getId())).thenReturn(
-                new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "COMPLETED", "end"));
+        when(workflowClient.findByBizWithHealth("ECR", ecr.getId())).thenReturn(
+                new WorkflowClient.BizLookup(new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "COMPLETED", "end"), true));
         EcrDetailResponse failed = ecrService.detail(ecr.getId());
         assertThat(failed.getState()).isEqualTo("APPROVED");
         assertThat(failed.getApplyState()).isEqualTo("FAILED");
@@ -171,14 +171,14 @@ class ChangeApplyIntegrationTest {
                 "{\"partId\":40,\"targetState\":\"FROZEN\"}"), 7L);
 
         // 流程在途：不执行
-        when(workflowClient.findByBiz("ECR", ecr.getId())).thenReturn(
-                new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "RUNNING", "review"));
+        when(workflowClient.findByBizWithHealth("ECR", ecr.getId())).thenReturn(
+                new WorkflowClient.BizLookup(new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "RUNNING", "review"), true));
         ecrService.detail(ecr.getId());
         verify(materialClient, never()).applyPartLifecycle(anyLong(), org.mockito.ArgumentMatchers.anyString());
 
         // 流程完成：执行禁用
-        when(workflowClient.findByBiz("ECR", ecr.getId())).thenReturn(
-                new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "COMPLETED", "end"));
+        when(workflowClient.findByBizWithHealth("ECR", ecr.getId())).thenReturn(
+                new WorkflowClient.BizLookup(new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "COMPLETED", "end"), true));
         when(materialClient.applyPartLifecycle(40L, "FROZEN"))
                 .thenReturn(new MaterialClient.PartView(40L, "P40", "禁用料", "FROZEN"));
         EcrDetailResponse done = ecrService.detail(ecr.getId());
