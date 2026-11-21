@@ -17,6 +17,11 @@ public interface VectorStore {
 
     /** 余弦相似 TopK（输入向量已归一化，score ∈ [0,2]）。 */
     List<Scored> search(Long tenantId, float[] query, int topK);
+    /** 列举全部向量 id（孤儿对账用，v1.27 P2#10；不支持时抛 UnsupportedOperationException，调用方跳过）。 */
+    default java.util.List<String> listAllIds() {
+        throw new UnsupportedOperationException("列举未实现");
+    }
+
 
     record Scored(String vectorId, double score) {
     }
