@@ -1,6 +1,7 @@
 package com.openforge.security;
 
 import com.openforge.common.api.ApiResponse;
+import com.openforge.common.web.InternalRestClientFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
@@ -28,7 +29,7 @@ public class PermissionQueryClient {
     private static final int MAX_CACHE_ENTRIES = 2048;
 
     public PermissionQueryClient(OpenForgeSecurityProperties properties) {
-        this.restClient = RestClient.builder()
+        this.restClient = InternalRestClientFactory.builder()
                 .baseUrl(properties.getAuthBaseUrl())
                 .defaultHeader("X-Internal-Token", properties.getInternalToken())
                 .build();

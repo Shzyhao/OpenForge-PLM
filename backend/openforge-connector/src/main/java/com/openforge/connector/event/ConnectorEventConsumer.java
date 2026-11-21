@@ -80,10 +80,12 @@ public class ConnectorEventConsumer extends AbstractEventConsumer
                     this::onMessages);
             c.start();
             this.consumer = c;
+            markConsumerStarted();   // v1.27 P2#9 gauge→1
             log.info("连接器事件消费者已启动: namesrv={}, topics={}, 时间闸门={}",
                     namesrvAddr, subscribeTopics, startedAt);
         } catch (Exception e) {
             log.error("连接器事件消费者启动失败（触发能力不可用，invoke/API 调用不受影响）: {}", e.getMessage());
+            markConsumerFailed();   // v1.27 P2#9 gauge 保持 0，供告警发现
         }
     }
 

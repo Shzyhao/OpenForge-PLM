@@ -3,6 +3,7 @@ package com.openforge.drawing.client;
 import com.openforge.common.api.ApiResponse;
 import com.openforge.common.tenant.TenantContext;
 import com.openforge.common.tenant.TenantHeaderFilter;
+import com.openforge.common.web.InternalRestClientFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -30,7 +31,7 @@ public class DrawingWorkflowClient {
     public DrawingWorkflowClient(@Value("${openforge.workflow.base-url:http://localhost:8084}") String workflowBaseUrl,
                                  @Value("${openforge.security.internal-token:openforge-internal-dev-token}") String internalToken,
                                  com.openforge.security.ModuleAvailabilityClient moduleAvailability) {
-        this.restClient = RestClient.builder()
+        this.restClient = InternalRestClientFactory.builder()
                 .baseUrl(workflowBaseUrl)
                 .defaultHeader("X-Internal-Token", internalToken)
                 .build();

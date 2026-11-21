@@ -64,3 +64,41 @@ groups:
         annotations:
           summary: "连接器死信积压"
           description: "PENDING 死信待处理（重放或丢弃），事件/定时触发持续失败。"
+
+  - name: openforge-eventbus
+    rules:
+      # MQ 消费者启动失败（v1.27 P2#9）：进程健康但消费组未运行——通知/ECO 联动/触发/知识沉淀静默失效
+      - alert: OpenForgeMqConsumerDown
+        expr: openforge_mq_consumer_up == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "MQ 消费组不可用: {{ $labels.job }}/{{ $labels.group }}"
+          description: "消费者启动失败已超 5 分钟（进程仍在运行——HTTP 回退通道可能正常，但 MQ 事件静默丢失）。查服务日志『消费者启动失败』。"
+
+      # 事件丢失（v1.27 P2#11）：序列化/outbox 落库失败——丢失计数只增不减，任何增长都该看见
+      - alert: OpenForgeEventsLost
+        expr: increase(openforge_events_lost_total[10m]) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "事件链路丢失事件: {{ $labels.job }}/{{ $labels.topic }}"
+          description: "近 10 分钟 {{ $labels.topic }} 有 {{ $value }} 个事件永久丢失（信封序列化或 outbox 落库失败）。"
+
+      # outbox 死信滞留（v1.27 P2#11）：retry ≥ 32 不再补发，需人工核查 broker/消费组
+      - alert: OpenForgeOutboxDead
+        expr: increase(openforge_outbox_dead_total[10m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "outbox 行进入死信: {{ $labels.job }}/{{ $labels.topic }}"
+          description: "补发重试耗尽（≥32 次不再扫描），检查 broker 可达性与消费组状态。"
+
+  - name: openforge-audit
+    rules:
+      # 审计上报失败（v1.27 P2#11）：auth 落库或跨服务上报失败——合规面，持续失败需介入
+      - alert: OpenForgeAuditReportFailing
+        expr: increase(openforge_audit_report_fail_total[10m]) > 5
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "审计上报持续失败: {{ $labels.job }}/{{ $labels.source }}"
+          description: "近 10 分钟审计上报失败 {{ $value }} 次（auth 服务不可达或库异常），合规留痕出现缺口。"

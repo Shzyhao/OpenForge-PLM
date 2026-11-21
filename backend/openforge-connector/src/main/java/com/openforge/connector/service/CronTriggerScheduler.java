@@ -25,6 +25,10 @@ import java.util.concurrent.ScheduledFuture;
  * CRON 触发调度器（P2-2 §12.2）：周期重同步已发布 CRON 连接器（跨租户全量，
  * 绕过租户行级过滤），按 cron+版本签名增量重排——发布/停用/改表达式后至多一个
  * 重同步周期生效。执行线程逐连接器回填租户上下文。
+ * 单实例语义（v1.27 P1#4 钉住）：connector 服务多实例部署时每个实例都会触发全部
+ * CRON 连接器（重复执行）。当前部署拓扑为单实例（对齐 auth/LogRetentionJob 先例），
+ * 水平扩缩前需引入租约/分片选主（sys_module 表乐观锁抢占）——届时在运行日志以
+ * ERROR 提示重复触发即可定位。
  */
 @Slf4j
 @Component

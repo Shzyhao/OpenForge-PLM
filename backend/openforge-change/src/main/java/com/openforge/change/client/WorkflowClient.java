@@ -3,6 +3,7 @@ package com.openforge.change.client;
 import com.openforge.common.api.ApiResponse;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
+import com.openforge.common.web.InternalRestClientFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -27,7 +28,7 @@ public class WorkflowClient {
     public WorkflowClient(@Value("${openforge.workflow.base-url}") String workflowBaseUrl,
                           @Value("${openforge.security.internal-token}") String internalToken,
                           com.openforge.security.ModuleAvailabilityClient moduleAvailability) {
-        this.restClient = RestClient.builder()
+        this.restClient = InternalRestClientFactory.builder()
                 .baseUrl(workflowBaseUrl)
                 .defaultHeader("X-Internal-Token", internalToken)
                 .build();

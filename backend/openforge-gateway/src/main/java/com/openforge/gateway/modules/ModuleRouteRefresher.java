@@ -10,11 +10,14 @@ import org.springframework.cloud.gateway.route.RouteDefinitionWriter;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import reactor.core.publisher.Mono;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +59,12 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
         this.routeDefinitionWriter = routeDefinitionWriter;
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
+        // 网关刻意不依赖 openforge-common（WebFlux 隔离），此处内联与 common InternalRestClientFactory 对齐的超时（connect 3s / read 10s）
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(10));
         this.restClient = RestClient.builder()
+                .requestFactory(requestFactory)
                 .baseUrl(authBaseUrl)
                 .defaultHeader("X-Internal-Token", internalToken)
                 .build();
@@ -121,6 +129,10 @@ public class ModuleRouteRefresher implements ApplicationListener<ApplicationRead
         }
         for (String broken : brokenModules) {
             log.warn("module-broken: {} — 依赖守护置位，路由未生效", broken);
+        }
+        // v1.27 P1#7：裸端口推断的 127.0.0.1 在容器场景指向网关自身（路由 502），周期提示注入完整 URL
+        for (String inferred : plan.portInferred()) {
+            log.warn("module-uri-inferred: {} — serviceUri 为裸端口，容器部署请注入完整 URL（MODULE_SERVICE_URI）", inferred);
         }
         log.info("模块动态路由已刷新: {} 条路由（来自 {} 个模块）", appliedRouteIds.size(),
                 modules.stream().filter(m -> "ENABLED".equals(m.status())).count());

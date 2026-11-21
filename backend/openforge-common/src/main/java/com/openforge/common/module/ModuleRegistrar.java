@@ -1,5 +1,6 @@
 package com.openforge.common.module;
 
+import com.openforge.common.web.InternalRestClientFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -65,7 +66,7 @@ public class ModuleRegistrar implements ApplicationListener<ApplicationReadyEven
         if (c == null) {
             synchronized (this) {
                 if (restClient == null) {
-                    restClient = RestClient.builder().baseUrl(authBaseUrl.get()).build();
+                    restClient = InternalRestClientFactory.builder().baseUrl(authBaseUrl.get()).build();
                 }
                 c = restClient;
             }
