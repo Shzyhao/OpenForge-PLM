@@ -181,7 +181,7 @@ export default function RecycleBinPage() {
     children: (rows.length === 0 && !loading)
       ? <Empty description={`回收站中没有${label}`} />
       : <Table rowKey="id" loading={loading} dataSource={rows as never}
-        columns={columns} pagination={{ pageSize: 10, showSizeChanger: false }} />,
+        columns={columns} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }} />,
   })
 
   return (

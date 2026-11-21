@@ -113,7 +113,7 @@ export default function DelegatesPage() {
     rows.length === 0 && !loading
       ? <Empty description="暂无委托规则" />
       : <Table<WorkflowDelegate> rowKey="id" loading={loading} dataSource={rows} columns={columns}
-        pagination={{ pageSize: 10, showSizeChanger: false }} />
+        pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }} />
   )
 
   return (
