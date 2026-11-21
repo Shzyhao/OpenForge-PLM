@@ -18,6 +18,8 @@ export interface EcrDetail extends ChangeRequest {
   payload: string | null
   flowState: string | null
   flowCurrentNode: string | null
+  /** v1.28 P2#12：false=流程服务不可达（flowState null 语义为降级）；null=未查询 */
+  flowReachable?: boolean | null
 }
 
 export function fetchEcrs(params: {
