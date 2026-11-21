@@ -3,6 +3,7 @@ package com.openforge.metadata.client;
 import com.openforge.common.api.ApiResponse;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
+import com.openforge.common.web.InternalRestClientFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -40,10 +41,10 @@ public class PublishPipelineClients {
             @Value("${openforge.integration.ai-base-url:http://localhost:8001}") String aiBaseUrl,
             @Value("${openforge.security.internal-token}") String internalToken) {
         this.internalToken = internalToken;
-        this.authClient = RestClient.builder().baseUrl(authBaseUrl).build();
-        this.knowledgeClient = RestClient.builder().baseUrl(knowledgeBaseUrl).build();
+        this.authClient = InternalRestClientFactory.builder().baseUrl(authBaseUrl).build();
+        this.knowledgeClient = InternalRestClientFactory.builder().baseUrl(knowledgeBaseUrl).build();
         // AI 网关内部端点不在 /api/v1/ai/** 网关路由面内
-        this.aiClient = RestClient.builder().baseUrl(aiBaseUrl).build();
+        this.aiClient = InternalRestClientFactory.builder().baseUrl(aiBaseUrl).build();
     }
 
     /** 幂等创建权限点并绑定角色；失败抛 BizException 阻断发布。 */

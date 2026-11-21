@@ -3,6 +3,7 @@ package com.openforge.security;
 import com.openforge.common.api.ApiResponse;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
+import com.openforge.common.web.InternalRestClientFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
@@ -28,7 +29,7 @@ public class ModuleAvailabilityClient {
     private final Map<String, CachedEntry> cache = new ConcurrentHashMap<>();
 
     public ModuleAvailabilityClient(OpenForgeSecurityProperties properties) {
-        this.restClient = RestClient.builder()
+        this.restClient = InternalRestClientFactory.builder()
                 .baseUrl(properties.getAuthBaseUrl())
                 .build();
         this.internalToken = properties.getInternalToken();

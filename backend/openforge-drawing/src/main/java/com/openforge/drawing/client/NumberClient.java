@@ -3,6 +3,7 @@ package com.openforge.drawing.client;
 import com.openforge.common.api.ApiResponse;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
+import com.openforge.common.web.InternalRestClientFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -20,7 +21,7 @@ public class NumberClient {
 
     public NumberClient(@Value("${openforge.security.auth-base-url}") String authBaseUrl,
                         @Value("${openforge.security.internal-token}") String internalToken) {
-        this.restClient = RestClient.builder()
+        this.restClient = InternalRestClientFactory.builder()
                 .baseUrl(authBaseUrl)
                 .defaultHeader("X-Internal-Token", internalToken)
                 .build();
