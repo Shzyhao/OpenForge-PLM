@@ -35,10 +35,24 @@ export default function RoleAdminPage() {
   const openMembers = async (role: Role) => {
     setMemberRole(role)
     setMembers(await fetchRoleMembers(role.id))
-    // 可选用户来自用户列表（简化取前 100）
+    // v1.28 P3#20：搜索式选择（此前取前 100 截断——用户量超百后段用户选不到）
     import('../api/user').then(async ({ fetchUsers }) => {
-      const page = await fetchUsers({ page: 1, pageSize: 100 })
+      const page = await fetchUsers({ page: 1, pageSize: 50 })
       setAllUsers(page.list.map(u => ({ id: u.id, username: u.username })))
+    })
+  }
+
+  /** 远程搜索用户（命中前 50；已选中项保留在选项列表，防 Select 值显示裸 id）。 */
+  const searchUsers = async (keyword: string) => {
+    if (!keyword.trim()) return
+    const { fetchUsers } = await import('../api/user')
+    const page = await fetchUsers({ page: 1, pageSize: 50, username: keyword.trim() })
+    setAllUsers(prev => {
+      const keep = prev.filter(u => pendingAdd.includes(u.id))
+      const keepIds = new Set(keep.map(u => u.id))
+      return [...keep, ...page.list
+        .map(u => ({ id: u.id, username: u.username }))
+        .filter(u => !keepIds.has(u.id))]
     })
   }
 
@@ -110,7 +124,8 @@ export default function RoleAdminPage() {
         </Space>
       }
     >
-      <Table<Role> rowKey="id" columns={columns} dataSource={roles} loading={loading} size="middle" pagination={false} />
+      <Table<Role> rowKey="id" columns={columns} dataSource={roles} loading={loading} size="middle"
+        pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }} />
 
       {/* 新建/编辑角色 */}
       <Modal
@@ -151,7 +166,8 @@ export default function RoleAdminPage() {
           用户列表：点击「＋」加入角色，点击「移除」解除（尚未加入的用户请先在列表上方的下拉框选择后点「批量」）。
         </Typography.Paragraph>
         <Space.Compact style={{ width: '100%', marginBottom: 12 }}>
-          <Select mode="multiple" placeholder="选择要添加的用户" style={{ width: '100%' }}
+          <Select mode="multiple" placeholder="搜索并选择要添加的用户（输入用户名）" style={{ width: '100%' }}
+            showSearch filterOption={false} onSearch={(k) => void searchUsers(k)}
             value={pendingAdd} onChange={setPendingAdd}
             options={allUsers.filter(u => !members.some(m => m.id === u.id)).map(u => ({ value: u.id, label: u.username }))} />
           <Button type="primary" disabled={pendingAdd.length === 0} onClick={async () => {
