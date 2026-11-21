@@ -73,9 +73,11 @@ public class NotifyEventConsumer extends AbstractEventConsumer
                     this::onMessages);
             c.start();
             this.consumer = c;
+            markConsumerStarted();   // v1.27 P2#9 gauge→1
             log.info("站内通知消费者已启动: namesrv={}, topics={}, 时间闸门={}", namesrvAddr, TOPICS, startedAt);
         } catch (Exception e) {
             log.error("站内通知消费者启动失败（HTTP 回退通道与收件箱不受影响）: {}", e.getMessage());
+            markConsumerFailed();   // v1.27 P2#9 gauge 保持 0，供告警发现
         }
     }
 

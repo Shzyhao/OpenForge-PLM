@@ -59,9 +59,11 @@ public class DrawingReleasedEventConsumer extends AbstractEventConsumer
                     this::onMessages);
             c.start();
             this.consumer = c;
+            markConsumerStarted();   // v1.27 P2#9 gauge→1
             log.info("change 事件消费者已启动: namesrv={}", namesrvAddr);
         } catch (Exception e) {
             log.error("change 事件消费者启动失败（ECO 联动 MQ 通道不可用，业务不受影响）: {}", e.getMessage());
+            markConsumerFailed();   // v1.27 P2#9 gauge 保持 0，供告警发现
         }
     }
 
