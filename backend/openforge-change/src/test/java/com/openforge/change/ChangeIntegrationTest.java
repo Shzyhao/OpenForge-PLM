@@ -68,16 +68,19 @@ class ChangeIntegrationTest {
         ChangeRequest ecr = ecrService.create(request, 7L);
 
         // 流程在途
-        when(workflowClient.findByBiz("ECR", ecr.getId()))
-                .thenReturn(new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "RUNNING", "review"));
+        when(workflowClient.findByBizWithHealth("ECR", ecr.getId()))
+                .thenReturn(new WorkflowClient.BizLookup(
+                        new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "RUNNING", "review"), true));
         EcrDetailResponse detail = ecrService.detail(ecr.getId());
         assertThat(detail.getFlowState()).isEqualTo("RUNNING");
         assertThat(detail.getFlowCurrentNode()).isEqualTo("review");
 
         // 流程服务不可用 → 降级
-        when(workflowClient.findByBiz("ECR", ecr.getId())).thenReturn(null);
+        when(workflowClient.findByBizWithHealth("ECR", ecr.getId()))
+                .thenReturn(new WorkflowClient.BizLookup(null, false));   // v1.28 P2#12：不可达（区别于无流程）
         EcrDetailResponse degraded = ecrService.detail(ecr.getId());
         assertThat(degraded.getFlowState()).isNull();
+        assertThat(degraded.getFlowReachable()).isFalse();
         assertThat(degraded.getEcrNumber()).isNotNull();
     }
 }

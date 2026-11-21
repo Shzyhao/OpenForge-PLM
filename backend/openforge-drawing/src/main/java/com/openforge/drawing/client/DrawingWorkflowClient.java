@@ -63,7 +63,9 @@ public class DrawingWorkflowClient {
         return response.getData().id();
     }
 
-    /** 按业务查在途实例（无则返回 null；流程服务不可用降级 null——状态展示退回轻量态）。 */
+    /** 按业务查在途实例（无则返回 null；流程服务不可用降级 null——状态展示退回轻量态）。
+     *  v1.28 P2#12 注：唯一消费方是 syncWorkflowReview 回流（不可达跳过=正确语义），null 不区分
+     *  "无实例/不可达"；若未来详情展示复用本方法，参照 change 侧 WorkflowClient.findByBizWithHealth 加可达性区分。 */
     public InstanceView findByBiz(Long drawingId) {
         ApiResponse<InstanceView> response;
         try {

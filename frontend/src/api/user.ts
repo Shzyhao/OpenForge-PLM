@@ -64,10 +64,6 @@ export function deleteUser(id: number): Promise<void> { return del(`/api/v1/user
 export function resetUserPassword(id: number, password: string): Promise<void> {
   return post(`/api/v1/users/${id}/reset-password`, { password })
 }
-export function assignUserRoles(userId: number, roleIds: number[]): Promise<void> {
-  return put(`/api/v1/roles/users/${userId}`, { roleIds })
-}
-
 /** 批量启停（D9；十轮接线）。任一被拒整体不生效（后端事务内回滚）。 */
 export function batchUserStatus(ids: number[], enable: boolean): Promise<void> {
   return post('/api/v1/users/batch-status', { ids, enable })
@@ -126,15 +122,6 @@ export interface PermNode {
   permType: string
   description: string | null
   sortOrder: number
-}
-
-export interface PermissionTree {
-  menus: PermNode[]
-  operations: PermNode[]
-}
-
-export function fetchPermissionTree(): Promise<PermissionTree> {
-  return get<PermissionTree>('/api/v1/permissions/tree')
 }
 
 export function fetchRolePermissionIds(id: number): Promise<string[]> {
