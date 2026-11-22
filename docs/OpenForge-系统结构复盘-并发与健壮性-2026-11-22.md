@@ -4,6 +4,13 @@
 > + 主模型对全部高危项逐条精读复核。与 v1.27 八维度复扫的差异：本轮以**并发正确性**为主视角——
 > v1.27 扫的是"欠账"（超时/事务边界/指标），本轮扫的是"竞态与语义"（check-then-act / 事件投递语义 / 状态机互斥）。
 > 所有 P0 项均经代码逐行复核确认；≥2 路独立扫描交叉命中的项已标注。
+>
+> **2026-11-22 修复批注（v1.31）**：P0-1~P0-6 与 P1-1/2/3/4 已全部实施——
+> ①消费者模板 `process()` 失败补偿删幂等行 + INSERT 异常分类（6 用例回归）；
+> ②`WorkflowEngine.act` 入口实例行 FOR UPDATE 串行化 + 锁内重读（同任务双推进/或签死锁/会签挂死三场景全解）；
+> ③REFERENCE 校验补租户；④checkOut CAS 独占（doc/drawing）；⑤ECR/drawing 惰性回流值不变 CAS 抢占；
+> ⑥Part/BOM 状态机条件更新 + BOM 五个草稿行操作事务化占位；⑦心跳定点 UPDATE；⑧outbox afterCommit 回写 sent_at；
+> ⑨drawing 自调用拆 @Lazy 自代理（事务恢复 + ECO 双触发消除）；⑩`uk_change_request_link_title` 唯一约束 + 撞键幂等容错。
 
 ## 0. 一句话总结
 

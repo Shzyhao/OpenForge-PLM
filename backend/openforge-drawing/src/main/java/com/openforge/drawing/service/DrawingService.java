@@ -65,6 +65,11 @@ public class DrawingService {
     @org.springframework.beans.factory.annotation.Value("${openforge.drawing.workflow-review:false}")
     private boolean workflowReview;
     private final com.openforge.drawing.client.DrawingNotifyClient notifyClient;
+    /** 自代理（v1.31 P1-3）：syncWorkflowReview 调 approve/reject 须经代理走事务——
+     * 原 this 直调使 @Transactional 失效（RELEASED 提交后快照失败不可恢复、无事务路径 ECO 通知双触发） */
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private DrawingService self;
 
     // ===== 档案 =====
 
@@ -241,9 +246,17 @@ public class DrawingService {
         if (drawing.getCheckedOutBy() != null) {
             throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "图纸已被检出");
         }
+        // 抢占式条件更新（v1.31 P0-4）：读到空的窗口内并发检出只有一人成功（原 check-then-act 使独占锁失效）
+        int taken = drawingMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DrawingInfo>()
+                .eq(DrawingInfo::getId, id)
+                .isNull(DrawingInfo::getCheckedOutBy)
+                .set(DrawingInfo::getCheckedOutBy, operatorId)
+                .set(DrawingInfo::getCheckedOutAt, java.time.LocalDateTime.now()));
+        if (taken == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "图纸已被检出");
+        }
         drawing.setCheckedOutBy(operatorId);
         drawing.setCheckedOutAt(java.time.LocalDateTime.now());
-        drawingMapper.updateById(drawing);
         return drawing;
     }
 
@@ -452,10 +465,22 @@ public class DrawingService {
         if (inst == null) {
             return;
         }
+        if ("COMPLETED".equals(inst.state()) || "REJECTED".equals(inst.state())) {
+            // CAS 抢占（v1.31 P0-5）：值不变条件更新，并发 detail 双回流只一人执行；
+            // 占位不改状态故幂等——抢占者中途失败后仍 REVIEWING，下次可再回流
+            int claimed = drawingMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DrawingInfo>()
+                            .eq(DrawingInfo::getId, drawing.getId())
+                            .eq(DrawingInfo::getLifecycleState, "REVIEWING")
+                            .set(DrawingInfo::getLifecycleState, "REVIEWING"));
+            if (claimed == 0) {
+                return;
+            }
+        }
         if ("COMPLETED".equals(inst.state())) {
-            approve(drawing.getId(), 0L);
+            self.approve(drawing.getId(), 0L);
         } else if ("REJECTED".equals(inst.state())) {
-            reject(drawing.getId());
+            self.reject(drawing.getId());
         }
     }
 

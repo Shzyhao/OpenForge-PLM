@@ -79,9 +79,17 @@ public class DocService {
         if (doc.getCheckedOutBy() != null) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "文档已被检出（用户 " + doc.getCheckedOutBy() + "），禁止重复检出");
         }
+        // 抢占式条件更新（v1.31 P0-4）：读到空的窗口内并发检出只有一人成功（原 check-then-act 使独占锁失效）
+        int taken = docInfoMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DocInfo>()
+                .eq(DocInfo::getId, id)
+                .isNull(DocInfo::getCheckedOutBy)
+                .set(DocInfo::getCheckedOutBy, operatorId)
+                .set(DocInfo::getCheckedOutAt, java.time.LocalDateTime.now()));
+        if (taken == 0) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "文档已被检出，禁止重复检出");
+        }
         doc.setCheckedOutBy(operatorId);
         doc.setCheckedOutAt(java.time.LocalDateTime.now());
-        docInfoMapper.updateById(doc);
         return doc;
     }
 

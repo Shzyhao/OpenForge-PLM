@@ -78,7 +78,7 @@ public class KnowledgeEventConsumer extends AbstractEventConsumer
     private ConsumeConcurrentlyStatus onMessages(List<MessageExt> msgs, ConsumeConcurrentlyContext ctx) {
         for (MessageExt msg : msgs) {
             try {
-                consume(msg).ifPresent(this::handle);
+                process(msg, this::handle);   // v1.31 P0-1：失败补偿删幂等行，重投可再处理
             } catch (Exception e) {
                 log.warn("事件处理失败将重试（重试 {} 次）: msgId={} — {}",
                         msg.getReconsumeTimes(), msg.getMsgId(), e.getMessage());

@@ -19,6 +19,10 @@ public class ChangeRequest {
 
     private String title;
 
+    /** 联动幂等键（v1.31 P1-4）：drawing.released 联动单填 drawingNumber@version——
+     * (tenant_id, link_key) 唯一约束兜底双通道/重投并发；人工 ECR 恒 NULL 不受约束（同名合法） */
+    private String linkKey;
+
     private String reason;
 
     /** LOW/NORMAL/HIGH */
