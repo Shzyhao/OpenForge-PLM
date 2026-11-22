@@ -117,14 +117,25 @@ public class PartService {
         if (request.getAttrs() != null) {
             part.setAttrs(newAttrs);
         }
-        partMapper.updateById(part);
+        // 写带草稿条件（v1.31 P0-6）：防编辑与流转并发——原整行 updateById 会把并发已发布
+        // 的物料降级回 DRAFT（写的是读时的旧状态）
+        int updated = partMapper.update(part, new LambdaQueryWrapper<Part>()
+                .eq(Part::getId, id).eq(Part::getLifecycleState, "DRAFT"));
+        if (updated == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "物料已离开草稿状态，编辑被拒绝");
+        }
         return part;
     }
 
     /** 仅草稿可删除。 */
     public void deleteDraft(Long id) {
         requireDraft(id);
-        partMapper.deleteById(id);
+        // 删除带草稿条件（v1.31 P0-6）：防 deleteDraft 与 approve 并发删除已发布物料
+        int deleted = partMapper.delete(new LambdaQueryWrapper<Part>()
+                .eq(Part::getId, id).eq(Part::getLifecycleState, "DRAFT"));
+        if (deleted == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "物料已离开草稿状态，删除被拒绝");
+        }
     }
 
     // ===== 状态机（M3 由流程引擎驱动，M2 为轻量直接流转） =====
@@ -172,9 +183,19 @@ public class PartService {
     private Part transition(Long id, String target, Long operatorId) {
         Part part = detail(id);
         StateMachine.requireTransition(StateMachine.PART, part.getLifecycleState(), target);
+        // 流转前置状态条件更新（v1.31 P0-6）：并发流转/编辑只有一人成功——原整行 updateById
+        // 带读时旧字段，可互相覆盖对方已提交的状态
+        int moved = partMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Part>()
+                .eq(Part::getId, id)
+                .eq(Part::getLifecycleState, part.getLifecycleState())
+                .set(Part::getLifecycleState, target)
+                .set(Part::getUpdatedBy, operatorId));
+        if (moved == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "状态已并发变更，请刷新后重试: id=" + id);
+        }
         part.setLifecycleState(target);
         part.setUpdatedBy(operatorId);
-        partMapper.updateById(part);
         if ("RELEASED".equals(target)) {
             publishReleased(part);
         }

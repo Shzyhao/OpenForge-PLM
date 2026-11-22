@@ -99,8 +99,12 @@ public class BomService {
 
     // ===== 行维护（仅草稿 BOM） =====
 
+    /** BOM 行新增（v1.31 P0-6 加事务+草稿占位）：占位行锁持有至提交——并发 approve 的条件流转
+     * 在本事务提交后才能进行，防"向已发布 BOM 追加行"破坏发布不可变语义。 */
+    @Transactional
     public BomLine addLine(Long bomId, BomLineRequest request) {
         requireDraftBom(bomId);
+        claimDraftBom(bomId);
         Part child = requireReferenceablePart(request.getChildPartId(), "BOM 行");
         List<BomLine> existing = lines(bomId);
         boolean dup = existing.stream().anyMatch(l -> l.getChildPartId().equals(request.getChildPartId()));
@@ -167,8 +171,10 @@ public class BomService {
         return row;
     }
 
+    @Transactional
     public void removeLine(Long bomId, Long lineId) {
         requireDraftBom(bomId);
+        claimDraftBom(bomId);
         requireLine(bomId, lineId);
         substituteMapper.delete(new LambdaQueryWrapper<BomLineSubstitute>()
                 .eq(BomLineSubstitute::getBomLineId, lineId));
@@ -188,6 +194,7 @@ public class BomService {
     @Transactional
     public BomLineSubstitute addSubstitute(Long bomId, Long lineId, SubstituteRequest request) {
         requireDraftBom(bomId);
+        claimDraftBom(bomId);
         BomLine line = requireLine(bomId, lineId);
         Part sub = requireReferenceablePart(request.getSubstitutePartId(), "替代件");
         if (sub.getId().equals(line.getChildPartId())) {
@@ -224,6 +231,7 @@ public class BomService {
     public BomLineSubstitute updateSubstitute(Long bomId, Long lineId, Long subId,
                                               SubstituteUpdateRequest request) {
         requireDraftBom(bomId);
+        claimDraftBom(bomId);
         requireLine(bomId, lineId);
         BomLineSubstitute sub = requireSubstitute(lineId, subId);
         if (request.getPriority() == null && request.getQtyCoefficient() == null) {
@@ -246,6 +254,7 @@ public class BomService {
     @Transactional
     public void removeSubstitute(Long bomId, Long lineId, Long subId) {
         requireDraftBom(bomId);
+        claimDraftBom(bomId);
         requireLine(bomId, lineId);
         requireSubstitute(lineId, subId);
         substituteMapper.deleteById(subId);
@@ -577,10 +586,12 @@ public class BomService {
 
     // ===== 状态机 =====
 
+    @Transactional
     public Bom submit(Long bomId, Long operatorId) {
         return transition(bomId, "REVIEWING", operatorId);
     }
 
+    @Transactional
     public Bom reject(Long bomId, Long operatorId) {
         return transition(bomId, "DRAFT", operatorId);
     }
@@ -596,8 +607,17 @@ public class BomService {
     private Bom transition(Long bomId, String target, Long operatorId) {
         Bom bom = requireBom(bomId);
         StateMachine.requireTransition(StateMachine.BOM, bom.getLifecycleState(), target);
+        // 流转前置状态条件更新（v1.31 P0-6）：并发流转只有一人成功，防整行回写互相覆盖
+        // （Bom 实体无 updated_by 列，操作人经审批上下文留痕）
+        int moved = bomMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Bom>()
+                .eq(Bom::getId, bomId)
+                .eq(Bom::getLifecycleState, bom.getLifecycleState())
+                .set(Bom::getLifecycleState, target));
+        if (moved == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "BOM 状态已并发变更，请刷新后重试: id=" + bomId);
+        }
         bom.setLifecycleState(target);
-        bomMapper.updateById(bom);
         if ("RELEASED".equals(target)) {
             publishReleased(bom);
         }
@@ -623,6 +643,18 @@ public class BomService {
         };
         // v1.27 P1#2：afterCommit 收敛到 common AfterCommit（语义不变——回滚不发、无事务直发）
         com.openforge.common.event.AfterCommit.run(emit);
+    }
+
+    /** 草稿占位（v1.31 P0-6）：值不变条件更新——事务内占位行锁持有至提交，
+     * 与并发流转（transition 的前置状态条件更新）互斥，防向已发布 BOM 写行。 */
+    private void claimDraftBom(Long bomId) {
+        int claimed = bomMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Bom>()
+                .eq(Bom::getId, bomId)
+                .eq(Bom::getLifecycleState, "DRAFT")
+                .set(Bom::getLifecycleState, "DRAFT"));
+        if (claimed == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "仅草稿 BOM 可编辑（并发流转中）");
+        }
     }
 
     private void requireDraftBom(Long bomId) {

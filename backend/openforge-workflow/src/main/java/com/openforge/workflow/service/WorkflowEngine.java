@@ -199,6 +199,14 @@ public class WorkflowEngine {
     /** 办理任务。APPROVE：ALL 会签需全票通过才推进，ANY 或签一人即决定；REJECT：按 rejectTo 回退或终止。 */
     @Transactional
     public WorkflowInstance act(Long taskId, Long userId, String action, String comment) {
+        WorkflowTask probe = taskMapper.selectById(taskId);
+        if (probe == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");
+        }
+        // 同实例办理互斥（v1.31 P0-2）：锁实例行后重读任务——防同任务双击双推进、
+        // ANY 或签 cancelOpenTasks 互覆/行锁互等死锁、ALL 会签末两票并发双等待静默挂死。
+        // 锁顺序单一（都先锁实例行）故无互等；不同实例互不影响。
+        instanceMapper.lockById(probe.getInstanceId());
         WorkflowTask task = taskMapper.selectById(taskId);
         if (task == null || !task.isOpen()) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");

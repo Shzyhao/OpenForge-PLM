@@ -440,11 +440,13 @@ public class DynamicRecordService {
         return id;
     }
 
-    /** REFERENCE 存在性（F2 设计 3）：被引对象发布期已保证 PUBLISHED，此处查其动态表。 */
+    /** REFERENCE 存在性（F2 设计 3）：被引对象发布期已保证 PUBLISHED，此处查其动态表。
+     * 租户条件（v1.31 P0-3）：同文件其余直写 SQL 均显式带租户，此处曾遗漏——跨租户引用可形成脏数据并探测他租户记录存在性。 */
     private Object checkReferenceExists(MetaField field, Long refId) {
         String refTable = DdlGenerator.tableNameOf(field.getRefObject());
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM " + refTable + " WHERE id = ? AND deleted = 0", Long.class, refId);
+                "SELECT COUNT(*) FROM " + refTable + " WHERE id = ? AND tenant_id = ? AND deleted = 0",
+                Long.class, refId, com.openforge.common.tenant.TenantContext.getTenantId());
         if (count == null || count == 0) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT,
                     field.getFieldKey() + " 引用的记录不存在: " + field.getRefObject() + "#" + refId);

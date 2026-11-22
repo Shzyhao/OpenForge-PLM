@@ -8,7 +8,7 @@
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/release-v1.30.1-blue)]()
+[![Status](https://img.shields.io/badge/release-v1.31.0-blue)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 [![Backend](https://img.shields.io/badge/Java%2021-Spring%20Boot%203.3-orange)]()
 [![Frontend](https://img.shields.io/badge/React%2018-TypeScript-61dafb)]()
@@ -191,7 +191,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ## 🗺️ Roadmap
 
-**M1~M6 产品主线 + 权限专项 + 框架化 F1~F3 + v1.4~v1.30.1 全部交付** ✅
+**M1~M6 产品主线 + 权限专项 + 框架化 F1~F3 + v1.4~v1.31.0 全部交付** ✅
 
 | 阶段 | 交付内容 |
 |------|---------|
@@ -205,10 +205,12 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 | **v1.24~v1.26 补全与健壮性** | 回收站四域+purge/订阅通知/保留期 · 清欠 12 项 · 动态对象回收站 · 渠道模板 · **R23 健壮性专项**（robustness-probe 13 断言） |
 | **v1.27~v1.29 健壮性收口与测试基线** | **R24**：全链路超时/事务边界/outbox 属主/健康指标与告警/孤儿清扫 · **R25**：降级可见/前端补全/三基类收敛 11 拷贝 · **R14**：全页测试 63 例（23/24 页） |
 | **v1.30 A 组小增强与文档活** | Home 工作台测试收口（**24/24 全页**，vitest 66）· JWT/internal-token 弱密钥长度校验（32 字节阈值 + 计数）· 门控项复评制度（《部署约束》§4）· 架构文档 HPA 愿景态标注 · Alertmanager 告警邮件（v1.30.1，双模式零配置起栈） |
+| **v1.31 R26 并发正确性** | 系统结构复盘（4 路扫描+全复核）· 事件消费 at-least-once · 审批/检出/回流/状态机 CAS+行锁 · 心跳定点/outbox 回写/自代理 · ECR `link_key` 唯一（含 Flyway V4） |
 
 <details>
-<summary><b>📜 完整版本历史（v1.1.0 → v1.30.1）</b></summary>
+<summary><b>📜 完整版本历史（v1.1.0 → v1.31.0）</b></summary>
 
+> v1.31.0（R26 并发正确性专项）：系统结构复盘（4 路扫描+高危全复核）驱动——事件消费 **at-least-once 修复**（失败补偿删幂等行+INSERT 异常分类）· 审批实例行锁（双推进/或签死锁/会签挂死三场景）· REFERENCE 校验补租户 · 检出/惰性回流 CAS 抢占 · Part/BOM 状态机条件更新+草稿操作事务化 · 心跳定点 UPDATE（防复活已停用模块）· outbox 回写 sent_at（消除固定双投递）· drawing 自代理（事务恢复+ECO 双触发消除）· ECR 联动 `link_key` 唯一。
 > v1.30.1（告警邮件渠道）：monitoring 栈加 Alertmanager（v1.30 清单 C10 解锁交付）——compose `configs.content` 插值渲染双模式（未配 env 走 drop 路由零配置起栈），critical/warning 分级分发+恢复随发；孤立栈实测 9 条 ServiceDown 送达 API、特殊字符密码渲染安全。B1 维持门控/B2 暂无需求判定落清单。
 > v1.30.0（A 组小增强与文档活）：Home 工作台测试 3 例（vitest 63→66，R14 全页覆盖收口）· JWT/internal-token 弱密钥长度校验（<32 字节 WARN + `openforge_weak_secret_length` 计数，common 测试 12→17）· 门控项复评制度进《部署约束》§4 · 架构文档三处 HPA 愿景态标注。
 > v1.29.0（测试基线补全）：R14 五批——17 页 36 例，页面测试覆盖 9→23（全页），vitest 27→63；纯测试批次零功能改动。

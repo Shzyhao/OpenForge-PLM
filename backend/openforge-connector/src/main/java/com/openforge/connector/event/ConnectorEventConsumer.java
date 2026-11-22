@@ -92,7 +92,7 @@ public class ConnectorEventConsumer extends AbstractEventConsumer
     private ConsumeConcurrentlyStatus onMessages(List<MessageExt> msgs, ConsumeConcurrentlyContext ctx) {
         for (MessageExt msg : msgs) {
             try {
-                consume(msg).ifPresent(env -> handle(msg.getTopic(), env));
+                process(msg, env -> handle(msg.getTopic(), env));   // v1.31 P0-1：失败补偿删幂等行，重投可再处理
             } catch (Exception e) {
                 log.warn("事件分发基础设施异常将重试: msgId={} — {}", msg.getMsgId(), e.getMessage());
                 return ConsumeConcurrentlyStatus.RECONSUME_LATER;
