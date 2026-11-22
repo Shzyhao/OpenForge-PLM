@@ -36,6 +36,7 @@ export default function DocPage() {
   const [files, setFiles] = useState<DocFile[]>([])
   const [filesLoading, setFilesLoading] = useState(false)
   const [pickedFile, setPickedFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)   // v1.31 P1-9：防双击重复上传（后端无 sha256 去重）
   const [preview, setPreview] = useState<{ url: string; fileName: string; ext: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -77,10 +78,12 @@ export default function DocPage() {
   }
 
   const doUpload = async () => {
+    if (uploading) return   // 双击守卫（v1.31 P1-9）
     if (!filesDoc || !pickedFile) {
       message.warning('请先选择文件')
       return
     }
+    setUploading(true)
     try {
       await uploadDocFile(filesDoc.id, pickedFile)
       message.success('已上传')
@@ -88,6 +91,8 @@ export default function DocPage() {
       setFiles(await fetchDocFiles(filesDoc.id))
     } catch (e) {
       message.error(e instanceof Error ? e.message : '上传失败')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -212,7 +217,7 @@ export default function DocPage() {
             fileList={pickedFile ? [{ uid: 'picked', name: pickedFile.name, status: 'done' }] : []}>
             <Button icon={<UploadOutlined />}>选择文件</Button>
           </Upload>
-          <Button type="primary" disabled={!pickedFile} onClick={doUpload}>上传</Button>
+          <Button type="primary" disabled={!pickedFile || uploading} loading={uploading} onClick={doUpload}>上传</Button>
         </Space>
         <Table<DocFile> rowKey="id" dataSource={files} loading={filesLoading} size="small" pagination={false}
           columns={[

@@ -72,15 +72,22 @@ def _ok(payload):
     return {"code": 0, "message": "ok", "data": payload}
 
 
+# LLM 并发上界（v1.31 P1-7）：sync 端点跑 FastAPI 默认 40 线程池——供应商串行逐家重试时
+# 单请求最长 N×timeout，全链挂时线程被 LLM 占满连 /healthz 也排队。信号量隔离 LLM 调用，
+# 其余端点（healthz/data_query 等）线程保底。
+_LLM_SEMAPHORE = threading.Semaphore(int(__import__("os").getenv("AI_MAX_CONCURRENT_LLM", "8")))
+
+
 @app.post("/api/v1/ai/chat")
 def chat(req: ChatRequest):
     if not llm_client.online:
         return _ok({"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None})
-    try:
-        reply = llm_client.complete(req.messages, model_hint=req.model)
-        return _ok({"reply": reply, "mode": "online", "model": llm_client.model})
-    except LLMOfflineError:
-        return _ok({"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None})
+    with _LLM_SEMAPHORE:
+        try:
+            reply = llm_client.complete(req.messages, model_hint=req.model)
+            return _ok({"reply": reply, "mode": "online", "model": llm_client.model})
+        except LLMOfflineError:
+            return _ok({"reply": OFFLINE_CHAT_REPLY, "mode": "offline", "model": None})
 
 
 @app.post("/api/v1/ai/jobs/doc-parse")

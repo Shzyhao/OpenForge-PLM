@@ -534,11 +534,16 @@ public class BomService {
         if (!"RELEASED".equals(old.getLifecycleState())) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "仅已发布的 BOM 可升版");
         }
+        // 并发升版互斥（v1.31 P1-5）：锁行后按链尾重算版本——原基于 old 版本直算，
+        // 两次并发 revise 会产出两条同号新版 DRAFT（无唯一约束兜底）
+        bomMapper.lockById(bomId);
+        String latest = bomMapper.latestVersion(old.getParentPartId(), old.getBomType(),
+                com.openforge.common.tenant.TenantContext.getTenantId());
         Bom bom = new Bom();
         bom.setBomNumber(numberClient.next(NUMBER_RULE_KEY));
         bom.setParentPartId(old.getParentPartId());
         bom.setBomType(old.getBomType());
-        bom.setVersion(nextVersion(old.getVersion()));
+        bom.setVersion(nextVersion(latest != null ? latest : old.getVersion()));
         bom.setLifecycleState("DRAFT");
         bom.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         bom.setCreatedBy(operatorId);
