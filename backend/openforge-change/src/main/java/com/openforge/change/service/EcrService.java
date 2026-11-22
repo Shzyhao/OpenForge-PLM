@@ -119,6 +119,7 @@ public class EcrService {
         ecr.setChangeType(changeType);
         ecr.setPayload(payload);
         ecr.setApplyState(TYPE_GENERIC.equals(changeType) ? null : "PENDING");
+        ecr.setLinkKey(request.getLinkKey());
         ecr.setInitiatorId(initiatorId);
         ecr.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         mapper.insert(ecr);
@@ -147,9 +148,10 @@ public class EcrService {
             return Map.of("created", false, "title", drawingNumber);
         }
         String title = "图纸发布联动：" + drawingNumber + "@" + version;
+        String linkKey = drawingNumber + "@" + version;
         // 幂等：同图纸同版本的联动单只建一次（含非终态判定——被驳回回 SUBMITTED 也算存在）
         Long existed = mapper.selectCount(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ChangeRequest>()
-                .eq(ChangeRequest::getTitle, title));
+                .eq(ChangeRequest::getLinkKey, linkKey));
         if (existed != null && existed > 0) {
             log.info("drawing released 联动单已存在，跳过: {}", title);
             return Map.of("created", false, "title", title);
@@ -161,7 +163,16 @@ public class EcrService {
         request.setUrgency("NORMAL");
         request.setChangeType(TYPE_GENERIC);
         request.setAffectedItems(toJson(payload.getOrDefault("linkedParts", List.of())));
-        ChangeRequest ecr = create(request, null); // initiatorId=null：系统自动发起
+        request.setLinkKey(linkKey);
+        ChangeRequest ecr;
+        try {
+            ecr = create(request, null); // initiatorId=null：系统自动发起
+        } catch (org.springframework.dao.DuplicateKeyException raced) {
+            // uk_change_request_link_key 兜底（v1.31 P1-4）：双通道/重投并发下 selectCount 互不可见，
+            // 撞唯一键=另一通道已建——幂等达成，不作为失败重试
+            log.info("drawing released 联动单并发已建（唯一键兜底），跳过: {}", title);
+            return Map.of("created", false, "title", title);
+        }
         log.info("drawing released 联动单已创建: {} ← {}", ecr.getEcrNumber(), drawingNumber);
         return Map.of("created", true, "title", title, "ecrId", ecr.getId(), "ecrNumber", ecr.getEcrNumber());
     }
@@ -192,7 +203,20 @@ public class EcrService {
             resp.setFlowCurrentNode(instance.currentNode());
             // 流程终态同步 ECR 状态（COMPLETED→APPROVED / REJECTED→REJECTED，查询时惰性回流）
             if ("SUBMITTED".equals(ecr.getState())) {
-                if ("COMPLETED".equals(instance.state())) {
+                boolean flowCompleted = "COMPLETED".equals(instance.state());
+                if (flowCompleted || "REJECTED".equals(instance.state())) {
+                    // CAS 抢占（v1.31 P0-5）：值不变条件更新，affected=0 说明并发回流者已在处理——
+                    // 本侧只读返回，防双 executeApply（第二次因物料已 FROZEN 报错后 FAILED 覆盖 APPLIED）。
+                    // 占位不改状态故幂等：抢占者中途失败后状态仍 SUBMITTED，下次 detail 可再回流。
+                    int claimed = mapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ChangeRequest>()
+                            .eq(ChangeRequest::getId, ecr.getId())
+                            .eq(ChangeRequest::getState, "SUBMITTED")
+                            .set(ChangeRequest::getState, "SUBMITTED"));
+                    if (claimed == 0) {
+                        return resp;
+                    }
+                }
+                if (flowCompleted) {
                     ecr.setState("APPROVED");
                     if (!TYPE_GENERIC.equals(ecr.getChangeType())) {
                         executeApply(ecr); // 审批回流即执行（D6 同步应用；含 updateById）

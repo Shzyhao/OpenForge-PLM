@@ -73,7 +73,22 @@ public class ModuleRegistryService {
             module.setStatus("ENABLED");
             moduleMapper.insert(module);
         } else {
-            moduleMapper.updateById(module);
+            // 定点更新（v1.31 P1-1）：心跳/重注册不得整行回写——原 updateById 以读时快照覆盖
+            // 管理端并发 disable/enable 的 status（已停用模块被下一次心跳"复活"）。
+            // status 只属于管理操作（evaluateDependencies 的定点 UPDATE 是同类先例）。
+            moduleMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<SysModule>()
+                    .eq(SysModule::getId, module.getId())
+                    .set(SysModule::getModuleType, module.getModuleType())
+                    .set(SysModule::getDisplayName, module.getDisplayName())
+                    .set(SysModule::getVersion, module.getVersion())
+                    .set(SysModule::getRoutes, module.getRoutes())
+                    .set(SysModule::getMenu, module.getMenu())
+                    .set(SysModule::getDependencies, module.getDependencies())
+                    .set(SysModule::getFlywayTable, module.getFlywayTable())
+                    .set(SysModule::getHealthPath, module.getHealthPath())
+                    .set(SysModule::getServiceUri, module.getServiceUri())
+                    .set(SysModule::getOwnerRef, module.getOwnerRef())
+                    .set(SysModule::getHeartbeatAt, module.getHeartbeatAt()));
         }
         securityLogService.audit(null, created ? "MODULE_REGISTER" : "MODULE_HEARTBEAT",
                 "MODULE", moduleKey, version);

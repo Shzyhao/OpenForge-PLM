@@ -117,7 +117,19 @@ public class EventPublisher implements DisposableBean {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    trySend(topic, eventType, body, eventId);
+                    if (trySend(topic, eventType, body, eventId)) {
+                        // 回写 sent_at（v1.31 P1-2）：否则 relay 下轮（≤60s）对已发送行再发一次——
+                        // 每个事务型事件固定重复投递（消费去重吸收语义，但流量×2、relay 指标虚高）。
+                        // 回写失败仅退化为旧行为（relay 补发一次），不阻断。
+                        try {
+                            jdbc.update("UPDATE sys_event_outbox SET sent_at = CURRENT_TIMESTAMP "
+                                    + "WHERE event_id = ? AND producer = ? AND sent_at IS NULL",
+                                    eventId, producerName);
+                        } catch (Exception markFail) {
+                            log.warn("outbox sent_at 回写失败（relay 将补发一次，消费去重吸收）: eventId={} — {}",
+                                    eventId, markFail.getMessage());
+                        }
+                    }
                 }
             });
             return true;
