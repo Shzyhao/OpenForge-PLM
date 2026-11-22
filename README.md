@@ -8,7 +8,7 @@
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/release-v1.20.0-blue)]()
+[![Status](https://img.shields.io/badge/release-v1.30.0-blue)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 [![Backend](https://img.shields.io/badge/Java%2021-Spring%20Boot%203.3-orange)]()
 [![Frontend](https://img.shields.io/badge/React%2018-TypeScript-61dafb)]()
@@ -182,6 +182,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 | [B2 事件总线设计](docs/OpenForge-B2事件总线设计.md) | 信封/拓扑/幂等/outbox 分期 |
 | [F2 动态对象运行时](docs/OpenForge-F2动态对象运行时设计.md) ｜ [F2 模块注册机制](docs/OpenForge-F2模块注册机制设计.md) | 低代码内核与模块化机制 |
 | [mono 单进程设计](docs/OpenForge-mono单进程设计.md) | 10 模块聚合、-78% 内存实测 |
+| [部署约束](docs/OpenForge-部署约束.md) | **单实例语义与 scale-out 前置改造矩阵**（扩容前必读） |
 | [性能与容量画像](docs/OpenForge-性能与容量画像.md) | JVM/池/缓存调优与自检清单 |
 | [二次开发指南](docs/OpenForge-二开指南.md) | 新服务接入/密钥轮换/扩展开发 |
 | [权限体系完善方案](docs/OpenForge-权限体系完善方案.md) ｜ [框架化路线](docs/OpenForge-框架化路线.md) ｜ [替代件与变更设计](docs/OpenForge-替代件与主数据变更设计.md) | 专项设计全集 |
@@ -190,7 +191,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ## 🗺️ Roadmap
 
-**M1~M6 产品主线 + 权限专项 + 框架化 F1~F3 + v1.4~v1.20.0 全部交付** ✅
+**M1~M6 产品主线 + 权限专项 + 框架化 F1~F3 + v1.4~v1.30.0 全部交付** ✅
 
 | 阶段 | 交付内容 |
 |------|---------|
@@ -200,9 +201,32 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 | **v1.10~v1.13 工程治理** | 本地瘦身（RSS 1.86GB/启动 -50%）· 真实网关冒烟修复 · 模块可观测性 · **mono 单进程（RSS 405MB，-78%）** · 替代件与统一变更中心 |
 | **v1.14~v1.16 集成编排器 MVP** | openforge-connector 服务 · HTTP/JDBC 连接器 · 凭据加密+SSRF 防护 · 版本化发布 · AI API 配置器 · EVENT/CRON 触发+死信 · manage 审计 · material 域事件化+主密钥轮换 |
 | **v1.17~v1.20 编排与图纸** | 多步骤链引擎（画布/上下文传参/SpEL 分支）· 分支可视化编辑 · SSRF 根治（出站固定解析）· **图纸管理 openforge-drawing**（档案/版本/审签/物料关联/预览） |
+| **v1.21~v1.23 运维形态与协作** | prod 默认翻转 mono 单进程（RSS -70%）· 通知渠道连接器全家桶（SMTP/钉钉/飞书）· ECO 联动 · 站内通知中心 · 审批委托 · 回收站 |
+| **v1.24~v1.26 补全与健壮性** | 回收站四域+purge/订阅通知/保留期 · 清欠 12 项 · 动态对象回收站 · 渠道模板 · **R23 健壮性专项**（robustness-probe 13 断言） |
+| **v1.27~v1.29 健壮性收口与测试基线** | **R24**：全链路超时/事务边界/outbox 属主/健康指标与告警/孤儿清扫 · **R25**：降级可见/前端补全/三基类收敛 11 拷贝 · **R14**：全页测试 63 例（23/24 页） |
+| **v1.30 A 组小增强与文档活** | Home 工作台测试收口（**24/24 全页**，vitest 66）· JWT/internal-token 弱密钥长度校验（32 字节阈值 + 计数）· 门控项复评制度（《部署约束》§4）· 架构文档 HPA 愿景态标注 |
 
 <details>
-<summary><b>📜 完整版本历史（v1.1.0 → v1.20.0）</b></summary>
+<summary><b>📜 完整版本历史（v1.1.0 → v1.30.0）</b></summary>
+
+> v1.30.0（A 组小增强与文档活）：Home 工作台测试 3 例（vitest 63→66，R14 全页覆盖收口）· JWT/internal-token 弱密钥长度校验（<32 字节 WARN + `openforge_weak_secret_length` 计数，common 测试 12→17）· 门控项复评制度进《部署约束》§4 · 架构文档三处 HPA 愿景态标注。
+> v1.29.0（测试基线补全）：R14 五批——17 页 36 例，页面测试覆盖 9→23（全页），vitest 27→63；纯测试批次零功能改动。
+>
+> v1.28.0（补全与收敛）：流程降级语义区分（BizLookup/flowReachable）· Embedding 降级计数 · 生产形态默认密钥醒目告警 · 物料关联图纸抽屉 · 流程实例详情组件 · RoleAdmin 搜索式选人 · 删 5 个零引用封装 · **common 三基类收敛 11 份同构客户端** · Ecr/MetaPublish 事务重构判停（防线替代）。
+>
+> v1.27.0（健壮性收口 R24）：**InternalRestClientFactory 全链路超时（23 处）** · 通知回退 afterCommit 移出事务 · outbox producer 属主过滤 · 四消费组健康 gauge · 三域孤儿清扫 Job · 审计/事件丢失/死信指标+Prometheus 4 告警 · 前端 fetch 超时+凭据编辑+正式调用入口 · CredentialServiceTest+vitest 首批四页。
+>
+> v1.26.0（动态对象回收站+R23）：动态表回收站探底修正 · 渠道模板预置 · robustness-probe 13 断言（真 bug：agentId≤0 放行）· MinIO 灰度就绪件。
+>
+> v1.25.0（清欠 12 项）：flaky 回路修复 · outbox P3 轻量（EVENT_SCHEMA_VERSION）· notify.created 渠道分发 · 回收站三域 · 图纸审签接流程引擎 · AI 多模型分流 · 链单步重放 · MinIO 双域实现 · vitest 10→14。
+>
+> v1.24.0（回收站补全+订阅通知）：BOM/doc 删除入口与四域回收站+purge 文件 GC · notify_subscription 五发布事件 fan-out · 保留期清理 · prod MQ profile · vitest 基线 · **发版窗口 CI 环境漂移三连修复**（JDK21 attach/jsdom/surefire 类序）。
+>
+> v1.23.0（通知/委托/回收站）：站内通知中心（auth，双通道摄取 MQ/HTTP 回退）· 审批委托（查询期虚拟收件箱）· 物料+图纸回收站 MVP · dev-up EVENT_BUS 开关。
+>
+> v1.22.0（ECO 联动+通知渠道连接器）：drawing.released→自动联动 ECR（幂等键 drawingNumber@version）· SMTP/钉钉（加签）/飞书连接器 · WEBHOOK_SECRET 凭据——零新表零迁移复用全部基建。
+>
+> v1.21.0（运维形态+十一轮收口）：prod 默认翻转 mono（五容器 RSS ~700MB/镜像 -70%/构建 10→2）· 连接器级 ACL · 备份脚本与对账演练 · 组织/租户管理页 · 用户批量启停 · MonoModuleRegistrarsConfig serviceUri 动态化。
 
 > v1.20.0（图纸管理）：物料/BOM 的图纸域补齐——新服务 openforge-drawing（:8095）：图纸档案（DW-*）/三类文件与流式下载/检入检出/状态机（草稿→评审→发布→作废+驳回+大版本升版，发布固化版本快照）/物料多对多关联与反查/PDF·图片内嵌预览；drawing 事件入连接器触发白名单；mono 聚合 10 模块；dev-up 启动期 OOM 根治（[设计文档](docs/OpenForge-图纸管理设计.md)）。
 >

@@ -1,5 +1,12 @@
 # OpenForge v1.27 待办清单与新会话交接（2026-11-21）
 
+> **【2026-11-22 v1.29.0 后复扫注记】全仓 8 维度轻量复扫（对比本清单基线）：零新增欠账**
+> ——0 TODO 标记/0 console.log/0 any/0 裸 RestClient（gateway 内联合法）/0 print/0 md5/0 硬编码密钥/0 吞异常；
+> 事务内 HTTP 命中全为已知模式（Drawing/Bom/Workflow 取号与权限查询——内网快速调用+13s 超时防线，与 §4 判停项同启停）。
+> **EVENT 栈（EVENT_BUS=1）回归补跑**：smoke 35/0 + v123 **33/33**（含 MQ 消费证据段）+
+> 四消费组 openforge_mq_consumer_up gauge 实测全 1.0——v1.27 事件链路改动（relay 属主过滤/健康 gauge/工厂超时）真 MQ 验证通过。
+> v1.30 无候选批次；剩余议题=外部条件门控项与规模化信号（见总账）。
+
 > **【2026-11-21 v1.28.0 已发版（PR #125，merge 1701b89）】v1.27 交接清单全部清欠完成**（同日 v1.27.0 后连发）。批次内容：
 > 已做：P2#12（WorkflowClient.findByBizWithHealth 区分不可达+ECR 详情 flowReachable+前端降级文案）/
 > #13（Embedding 降级 warn+embedding_fallback_total）/ #14（common SecurityDefaultsChecker 非 dev profile 默认密钥醒目 WARN）/
