@@ -16,6 +16,11 @@ spring:
         server-addr: ${NACOS_ADDR:localhost:8848}
         file-extension: yml
     gateway:
+      httpclient:
+        # 响应超时（v1.31 P1-7）：全局 130s——防上游假死时代理连接无限挂起（LLM 链 Java 侧
+        # clamp 120s 为全链最长，普通 API 由前端 30s 断开与后端自身超时兜底）；connect 10s
+        response-timeout: ${GATEWAY_RESPONSE_TIMEOUT_SECONDS:130}s
+        connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_SECONDS:10000}
       routes:
         # 内核兜底路由（A4 设计 4）：仅保留 auth——注册中心宿主，必须永远可达；
         # 其余业务前缀一律由模块注册表动态生成（ModuleRouteRefresher，30s 轮询）。

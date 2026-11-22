@@ -29,7 +29,15 @@ public class DocMinioStorage implements StorageClient {
                            @Value("${openforge.doc.minio.access-key}") String accessKey,
                            @Value("${openforge.doc.minio.secret-key}") String secretKey,
                            @Value("${openforge.doc.minio.bucket:openforge-doc}") String bucket) {
-        this.client = MinioClient.builder().endpoint(endpoint).credentials(accessKey, secretKey).build();
+        // 显式超时（v1.31 P1-10）：裸 builder 走 okhttp 默认（connect 10s/read 10s/write 10s，
+        // 版本间不保证）——大对象/网络抖动时不设上界会挂调用线程（且曾在事务内放大）
+        okhttp3.OkHttpClient httpClient = new okhttp3.OkHttpClient.Builder()
+                .connectTimeout(java.time.Duration.ofSeconds(5))
+                .writeTimeout(java.time.Duration.ofSeconds(60))
+                .readTimeout(java.time.Duration.ofSeconds(60))
+                .build();
+        this.client = MinioClient.builder().endpoint(endpoint).credentials(accessKey, secretKey)
+                .httpClient(httpClient).build();
         this.bucket = bucket;
     }
 
