@@ -521,4 +521,36 @@ class PartBomIntegrationTest {
         bomService.submit(another.getId(), 1L);
         verify(eventPublisher, never()).publish(anyString(), anyString(), org.mockito.ArgumentMatchers.anyMap());
     }
+
+    @Test
+    @DisplayName("v1.31 P0-6 BOM 不可变：已发布 BOM 拒绝加行（防发布后追加破坏快照语义）")
+    void releasedBomRejectsAddLine() {
+        Part parent = releasedPart("发布母件");
+        Part child = releasedPart("发布子件");
+        Bom bom = bomService.create(parent.getId(), 1L);
+        bomService.addLine(bom.getId(), line(child.getId(), "1"));
+        bomService.submit(bom.getId(), 1L);
+        bomService.approve(bom.getId(), 1L);
+
+        assertThatThrownBy(() -> bomService.addLine(bom.getId(), line(child.getId(), "9")))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("草稿");
+    }
+
+    @Test
+    @DisplayName("v1.31 P1-5 连续升版：版本号链尾递增不重复")
+    void sequentialReviseProducesDistinctVersions() {
+        Part parent = releasedPart("升版母件");
+        Part child = releasedPart("升版子件");
+        Bom bom = bomService.create(parent.getId(), 1L);
+        bomService.addLine(bom.getId(), line(child.getId(), "1"));
+        bomService.submit(bom.getId(), 1L);
+        Bom released = bomService.approve(bom.getId(), 1L);
+
+        Bom r1 = bomService.revise(released.getId(), 1L);
+        Bom r2 = bomService.revise(released.getId(), 1L);
+        // 链尾重算：第二次升版基于链尾（r1 的新版本）而非旧基线——不再产出同号 DRAFT
+        assertThat(r1.getVersion()).isNotEqualTo(r2.getVersion());
+        assertThat(r2.getVersion()).isEqualTo("A/3");
+    }
 }

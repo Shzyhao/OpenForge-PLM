@@ -163,6 +163,28 @@ class ChangeApplyIntegrationTest {
     }
 
     @Test
+    @DisplayName("v1.31 P0-5 回流幂等：detail 回流后再次 detail 不重复执行 apply")
+    void detailBackflowExecutesExactlyOnce() {
+        when(materialClient.bom(1L)).thenReturn(new MaterialClient.BomView(1L, "B001", "A/1", "RELEASED", 10L));
+        when(materialClient.line(11L)).thenReturn(new MaterialClient.LineView(11L, 1L, 1, 20L, "P20", "主件"));
+        when(materialClient.substitutes(1L, 11L)).thenReturn(List.of());
+        when(materialClient.part(31L)).thenReturn(new MaterialClient.PartView(31L, "P31", "新增替代件", "RELEASED"));
+        org.mockito.Mockito.doAnswer(i -> null).when(materialClient).applySubstitutes(eq(11L), anyList(), anyLong());
+        ChangeRequest ecr = ecrService.create(request("SUBSTITUTE_CHANGE",
+                "{\"bomId\":1,\"lineId\":11,\"after\":[{\"substitutePartId\":31}]}"), 7L);
+        when(workflowClient.findByBizWithHealth("ECR", ecr.getId())).thenReturn(
+                new WorkflowClient.BizLookup(new WorkflowClient.InstanceView(ecr.getWorkflowInstanceId(), "ecr-review", "COMPLETED", "end"), true));
+
+        EcrDetailResponse first = ecrService.detail(ecr.getId());
+        assertThat(first.getApplyState()).isEqualTo("APPLIED");
+        // 再次 detail：state 已非 SUBMITTED，CAS 抢占不可达——apply 只执行过一次
+        EcrDetailResponse second = ecrService.detail(ecr.getId());
+        assertThat(second.getApplyState()).isEqualTo("APPLIED");
+        org.mockito.Mockito.verify(materialClient, org.mockito.Mockito.times(1))
+                .applySubstitutes(eq(11L), anyList(), eq(ecr.getId()));
+    }
+
+    @Test
     @DisplayName("禁用变更审批通过执行：applyPartLifecycle 被调；SUBMITTED 不执行")
     void partStateApplyAndNoPrematureApply() {
         when(materialClient.part(40L)).thenReturn(new MaterialClient.PartView(40L, "P40", "禁用料", "RELEASED"));

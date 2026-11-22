@@ -203,11 +203,12 @@ public class WorkflowEngine {
         if (probe == null) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");
         }
-        // 同实例办理互斥（v1.31 P0-2）：锁实例行后重读任务——防同任务双击双推进、
-        // ANY 或签 cancelOpenTasks 互覆/行锁互等死锁、ALL 会签末两票并发双等待静默挂死。
-        // 锁顺序单一（都先锁实例行）故无互等；不同实例互不影响。
+        // 同实例办理互斥（v1.31 P0-2，v1.33 修正）：锁实例行 + 锁任务行取最新实体——
+        // 防同任务双击双推进、ANY 或签 cancelOpenTasks 互覆/行锁互等死锁、ALL 会签末两票并发双等待静默挂死。
+        // 锁顺序单一（都先实例后任务）故无互等；任务行经独立 FOR UPDATE 语句获取——
+        // selectById 重读会命中 MyBatis 一级缓存旧快照（锁内重读失效，实测双推进）。
         instanceMapper.lockById(probe.getInstanceId());
-        WorkflowTask task = taskMapper.selectById(taskId);
+        WorkflowTask task = taskMapper.lockById(taskId);
         if (task == null || !task.isOpen()) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");
         }
