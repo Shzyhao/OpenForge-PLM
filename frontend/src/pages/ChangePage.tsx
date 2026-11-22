@@ -58,6 +58,7 @@ export default function ChangePage() {
   const [loading, setLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createType, setCreateType] = useState<string>('GENERIC')
+  const [submitting, setSubmitting] = useState(false)   // v1.31 P1-9：防双击重复提交（后端无幂等键）
   const [form] = Form.useForm()
   // 替代变更创建态：BOM/行选择与快照
   const [loadedBom, setLoadedBom] = useState<BomHeader | null>(null)
@@ -138,7 +139,9 @@ export default function ChangePage() {
   }
 
   const submitCreate = async () => {
+    if (submitting) return   // 双击守卫（v1.31 P1-9）：慢网络下连点会并发创建两张 ECR 各走一条审批流
     const values = await form.validateFields()
+    setSubmitting(true)
     try {
       let payload: string | undefined
       const title = values.title
@@ -168,6 +171,8 @@ export default function ChangePage() {
       load()
     } catch (e) {
       message.error(e instanceof Error ? e.message : '提交失败')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -310,7 +315,7 @@ export default function ChangePage() {
             options={Object.entries(CHANGE_TYPE_LABELS).map(([v, m]) => ({ value: v, label: `类型：${m.label}` }))} />
         }
         open={createOpen} destroyOnClose width={640}
-        onOk={submitCreate} onCancel={closeCreate} okText="提交评审" cancelText="取消"
+        onOk={submitCreate} onCancel={closeCreate} okText="提交评审" cancelText="取消" confirmLoading={submitting}
       >
         <Form form={form} layout="vertical" initialValues={{ urgency: 'NORMAL' }}>
           <Form.Item name="title" label="变更标题" rules={[{ required: true, message: '请输入标题' }]}>

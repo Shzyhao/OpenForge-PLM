@@ -185,8 +185,10 @@ public class DrawingService {
 
     // ===== 文件 =====
 
-    /** 上传（仅 DRAFT；同 kind 的 PREVIEW 可重复上传替换语义由前端管理——文件仅追加）。 */
-    @Transactional
+    /** 上传（仅 DRAFT；同 kind 的 PREVIEW 可重复上传替换语义由前端管理——文件仅追加）。
+     * v1.31 P1-10 去 @Transactional：文件 IO（readAllBytes+落盘/MinIO put）不占 DB 连接——
+     * 事务内上传全程占用连接，mono 单池 8 下大文件可耗尽；行插入 autocommit 失败留孤儿文件
+     * 由周清扫兜底（对齐 DocService.uploadFile 既有模式）。 */
     public DrawingFile uploadFile(Long id, String fileName, InputStream content, String kind) throws Exception {
         DrawingInfo drawing = requireDrawing(id);
         requireDraft(drawing, "上传文件");
@@ -268,10 +270,19 @@ public class DrawingService {
         if (!operatorId.equals(drawing.getCheckedOutBy())) {
             throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "仅检出人可检入");
         }
+        // SQL 级自增条件更新（v1.31 P1-5）：并发双检入的小版本各 +1 不丢——原内存 +1 后整行回写丢递增
+        int bumped = drawingMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DrawingInfo>()
+                .eq(DrawingInfo::getId, id)
+                .eq(DrawingInfo::getCheckedOutBy, operatorId)
+                .setSql("version_minor = version_minor + 1")
+                .set(DrawingInfo::getCheckedOutBy, null)
+                .set(DrawingInfo::getCheckedOutAt, null));
+        if (bumped == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "检入失败：检出状态已被并发变更，请刷新");
+        }
         drawing.setVersionMinor(drawing.getVersionMinor() + 1);
         drawing.setCheckedOutBy(null);
         drawing.setCheckedOutAt(null);
-        drawingMapper.updateById(drawing);
         return drawing;
     }
 

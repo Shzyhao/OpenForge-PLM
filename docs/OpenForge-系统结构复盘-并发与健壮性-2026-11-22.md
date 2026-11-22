@@ -78,6 +78,13 @@
 
 ## 3. P1 —— 高价值修复（v1.31/1.32 搭车）
 
+> **2026-11-22 补注：P1-1~P1-10 已全部实施**（P1-1/2/3/4 随 v1.31.0；P1-5~P1-10 随 v1.32 批次）——
+> ⑤BOM 升版锁行+链尾重算+checkIn SQL 自增；⑥出站客户端默认请求级超时（response 15s/等连接 5s）；
+> ⑦网关全局 response-timeout 130s + ai 网关 LLM 并发信号量（默认 8）；⑧EventRetentionJob（auth，
+> outbox 已发送行/consumed 30 天分批删，EVENT_RETENTION_DAYS=0 关闭）；⑨前端双击守卫（ChangePage
+> confirmLoading/DocPage 上传 busy；**后端真幂等键记为观察项**——需产品级幂等键设计）；⑩drawing
+> uploadFile 去事务（IO 不占连接，孤儿文件清扫兜底）+ 两处 MinIO 客户端显式超时（okhttp 5/60/60s）。
+
 | # | 问题 | 位置 | 修复 |
 |---|---|---|---|
 | P1-1 | 模块注册表心跳整行回写**复活已停用模块**（心跳读到 ENABLED 快照 → 管理端 disable → 心跳写回 ENABLED；`evaluateDependencies` 已修过同类、register/disable 未修）⚡两路交叉 | `ModuleRegistryService.register:56` | 定点 UPDATE（只写 heartbeat_at/serviceUri/version） |
