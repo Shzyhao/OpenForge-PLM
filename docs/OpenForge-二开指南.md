@@ -80,8 +80,19 @@ starter 已带 `/actuator/prometheus`（九服务 + 网关）与 TraceId 贯穿
 
 ```bash
 docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --profile monitoring up -d
-# Prometheus :9090 / Grafana :3001（admin/openforge）
+# Prometheus :9090 / Grafana :3001（admin/openforge）/ Alertmanager :9093
 ```
+
+**告警邮件推送（v1.30 起，可选）**：`prometheus-rules.yml` 的告警规则 firing 后经 Alertmanager 分发；
+默认（不设环境变量）为 drop 路由——告警仅 UI/API 可见不外发，零配置起栈。要启用邮件：
+
+```bash
+SMTP_HOST=smtp.example.com SMTP_PORT=587 SMTP_USER=alerts@example.com SMTP_PASSWORD=secret SMTP_FROM=openforge@example.com ALERT_RECIPIENTS=ops@example.com,oncall@example.com docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --profile monitoring up -d
+```
+
+- 端口约定：587=STARTTLS（默认 `SMTP_TLS=true`）；465=隐式 TLS 需加 `SMTP_TLS=false`；
+- 分发语义：critical 30s 内发出、每 4h 重复；warning 分组 5m、每 12h 重复；恢复通知随发；
+- 配置由 compose `configs.content` 环境插值渲染（密码含 `#&\` 安全；仅单引号需避免）。
 
 ## 5. 多租户
 
