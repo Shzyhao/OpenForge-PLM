@@ -8,7 +8,7 @@
 
 `Open` 开源开放 ｜ `Forge` 锻造熔炉 ｜ `PLM` 产品全生命周期管理
 
-[![Status](https://img.shields.io/badge/release-v1.29.0-blue)]()
+[![Status](https://img.shields.io/badge/release-v1.30.0-blue)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)]()
 [![Backend](https://img.shields.io/badge/Java%2021-Spring%20Boot%203.3-orange)]()
 [![Frontend](https://img.shields.io/badge/React%2018-TypeScript-61dafb)]()
@@ -191,7 +191,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ## 🗺️ Roadmap
 
-**M1~M6 产品主线 + 权限专项 + 框架化 F1~F3 + v1.4~v1.29.0 全部交付** ✅
+**M1~M6 产品主线 + 权限专项 + 框架化 F1~F3 + v1.4~v1.30.0 全部交付** ✅
 
 | 阶段 | 交付内容 |
 |------|---------|
@@ -204,10 +204,12 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 | **v1.21~v1.23 运维形态与协作** | prod 默认翻转 mono 单进程（RSS -70%）· 通知渠道连接器全家桶（SMTP/钉钉/飞书）· ECO 联动 · 站内通知中心 · 审批委托 · 回收站 |
 | **v1.24~v1.26 补全与健壮性** | 回收站四域+purge/订阅通知/保留期 · 清欠 12 项 · 动态对象回收站 · 渠道模板 · **R23 健壮性专项**（robustness-probe 13 断言） |
 | **v1.27~v1.29 健壮性收口与测试基线** | **R24**：全链路超时/事务边界/outbox 属主/健康指标与告警/孤儿清扫 · **R25**：降级可见/前端补全/三基类收敛 11 拷贝 · **R14**：全页测试 63 例（23/24 页） |
+| **v1.30 A 组小增强与文档活** | Home 工作台测试收口（**24/24 全页**，vitest 66）· JWT/internal-token 弱密钥长度校验（32 字节阈值 + 计数）· 门控项复评制度（《部署约束》§4）· 架构文档 HPA 愿景态标注 |
 
 <details>
-<summary><b>📜 完整版本历史（v1.1.0 → v1.29.0）</b></summary>
+<summary><b>📜 完整版本历史（v1.1.0 → v1.30.0）</b></summary>
 
+> v1.30.0（A 组小增强与文档活）：Home 工作台测试 3 例（vitest 63→66，R14 全页覆盖收口）· JWT/internal-token 弱密钥长度校验（<32 字节 WARN + `openforge_weak_secret_length` 计数，common 测试 12→17）· 门控项复评制度进《部署约束》§4 · 架构文档三处 HPA 愿景态标注。
 > v1.29.0（测试基线补全）：R14 五批——17 页 36 例，页面测试覆盖 9→23（全页），vitest 27→63；纯测试批次零功能改动。
 >
 > v1.28.0（补全与收敛）：流程降级语义区分（BizLookup/flowReachable）· Embedding 降级计数 · 生产形态默认密钥醒目告警 · 物料关联图纸抽屉 · 流程实例详情组件 · RoleAdmin 搜索式选人 · 删 5 个零引用封装 · **common 三基类收敛 11 份同构客户端** · Ecr/MetaPublish 事务重构判停（防线替代）。

@@ -50,7 +50,7 @@ describe('DelegatesPage', () => {
       expect(deleteDelegate).toHaveBeenCalledWith(11)
       expect(vi.mocked(fetchDelegates).mock.calls.length).toBeGreaterThanOrEqual(2)   // 初载 + 撤销后刷新
     })
-  })
+  }, 15000)   // 满载（27 文件全量）下 5s 默认超时偶发不够——对齐 CI 慢机 +15s 先例（v1.30 A1 批注）
 
   it('空规则列表展示空态', async () => {
     const { fetchDelegates } = await import('../api/workflow')
