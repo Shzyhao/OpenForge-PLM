@@ -103,10 +103,19 @@ public class DocService {
         if (!doc.getCheckedOutBy().equals(operatorId)) {
             throw new BizException(ErrorCode.FORBIDDEN, "仅检出人可检入");
         }
+        // SQL 级自增条件更新（v1.31 P1-5）：并发双检入的小版本各 +1 不丢——原内存 +1 后整行回写丢递增
+        int bumped = docInfoMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DocInfo>()
+                .eq(DocInfo::getId, id)
+                .eq(DocInfo::getCheckedOutBy, operatorId)
+                .setSql("version_minor = version_minor + 1")
+                .set(DocInfo::getCheckedOutBy, null)
+                .set(DocInfo::getCheckedOutAt, null));
+        if (bumped == 0) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "检入失败：检出状态已被并发变更，请刷新");
+        }
         doc.setVersionMinor(doc.getVersionMinor() + 1);
         doc.setCheckedOutBy(null);
         doc.setCheckedOutAt(null);
-        docInfoMapper.updateById(doc);
         // doc.released（B2 设计 6.2 事件清单：knowledge/search 预留消费）；总线关闭回退站内信订阅通知（v1.24）
         java.util.Map<String, Object> payload = java.util.Map.of(
                 "docId", doc.getId(), "title", doc.getTitle() == null ? "" : doc.getTitle(),
