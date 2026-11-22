@@ -209,4 +209,57 @@ class WorkflowEngineIntegrationTest {
                 .findFirst()
                 .orElseThrow();
     }
+
+    // ===== v1.31 P0-2 并发语义回归（实例行 FOR UPDATE + 锁内重读） =====
+
+    @Test
+    @DisplayName("重复办理：已办任务再 act 被拒（锁内重读语义）")
+    void replayActRejectedAfterCompletion() {
+        engine.deploy("test-flow", "测试流程", DEFINITION, 1L);
+        WorkflowInstance instance = startWith(Map.of("amount", 100));
+        WorkflowTask first = taskOf(instance);
+        engine.act(first.getId(), 7L, "APPROVE", "通过");
+        assertThatThrownBy(() -> engine.act(first.getId(), 7L, "APPROVE", "再次通过"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("已办理");
+    }
+
+    @Test
+    @DisplayName("并发办理：两线程同时 act 同任务，恰好一人推进一人被拒")
+    void concurrentActSingleWinner() throws Exception {
+        engine.deploy("test-flow", "测试流程", DEFINITION, 1L);
+        WorkflowInstance instance = startWith(Map.of("amount", 100));
+        WorkflowTask first = taskOf(instance);
+
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        java.util.List<Object> outcomes = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        Runnable actor = () -> {
+            ready.countDown();
+            try {
+                go.await();
+                engine.act(first.getId(), 7L, "APPROVE", "并发通过");
+                outcomes.add("OK");
+            } catch (Exception e) {
+                outcomes.add(e);
+            }
+        };
+        Thread t1 = new Thread(actor, "act-1");
+        Thread t2 = new Thread(actor, "act-2");
+        t1.start();
+        t2.start();
+        ready.await();
+        go.countDown();
+        t1.join(10_000);
+        t2.join(10_000);
+
+        assertThat(outcomes).hasSize(2);
+        long wins = outcomes.stream().filter("OK"::equals).count();
+        long rejects = outcomes.stream().filter(o -> o instanceof BizException
+                && String.valueOf(((BizException) o).getMessage()).contains("已办理")).count();
+        // 实例行锁串行化：恰好一人推进，另一人锁内重读到已办被拒——不再双推进
+        assertThat(wins).isEqualTo(1);
+        assertThat(rejects).isEqualTo(1);
+        assertThat(engine.instance(first.getInstanceId()).getState()).isEqualTo("COMPLETED");
+    }
 }

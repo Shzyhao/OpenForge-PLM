@@ -53,7 +53,12 @@ public class PermissionQueryClient {
         if (cache.size() >= MAX_CACHE_ENTRIES) {
             long now = System.currentTimeMillis();
             cache.values().removeIf(e -> e.expiresAt() <= now);
-            cache.clear();   // 仍超限（缓存全为热条目）：全清代价仅一轮 auth 回源
+            if (cache.size() >= MAX_CACHE_ENTRIES) {
+                // 仍超限（缓存全为热条目）：全清代价仅一轮 auth 回源。
+                // v1.33 复盘 P2 修复：原无条件 clear 与注释不符——过期清理已腾出空间时不该
+                // 集体失效自造回源风暴（多线程触顶时尤甚）
+                cache.clear();
+            }
         }
         cache.put(userId, new CachedEntry(view, System.currentTimeMillis() + cacheTtlMillis));
         return view;

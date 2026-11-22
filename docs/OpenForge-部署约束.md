@@ -13,7 +13,7 @@
 | 1 | **模块注册表** sys_module（心跳/路由/依赖守护） | auth 服务 | 多实例心跳互相覆盖，路由/依赖状态抖动 |
 | 2 | **编号引擎** JVM 分段锁（`(ruleKey:period)` → synchronized） | `NumberRuleService` | 跨进程锁失效 → 并发取号靠 DB 唯一约束反复重试（取号 500 + 重试风暴） |
 | 3 | **CRON 连接器调度**（每 30s 全量重同步触发） | `CronTriggerScheduler` | 每实例都触发全部 CRON 连接器 → 重复执行 |
-| 4 | **保留期/孤儿清扫 @Scheduled 任务**（日志保留、存储/向量对账） | `LogRetentionJob` / `StorageOrphanSweepJob`×2 / `VectorOrphanSweepJob` / `NotifyRetentionJob` / `ExecLogRetentionJob` | 重复清理（幂等但浪费）与日志互相干扰 |
+| 4 | **保留期/孤儿清扫 @Scheduled 任务**（日志保留、存储/向量对账、事件双表清理） | `LogRetentionJob` / `StorageOrphanSweepJob`×2 / `VectorOrphanSweepJob` / `NotifyRetentionJob` / `ExecLogRetentionJob` / `EventRetentionJob`（v1.32） | 重复清理（幂等但浪费）与日志互相干扰 |
 | 5 | **outbox relay**（属主过滤 `producer=本服务` 后应用内扫描补发） | `EventOutboxRelay` | 同服务多实例并发补发同一行（有消费幂等兜底，重试计数被放大） |
 
 prod 默认形态为 **mono 单进程**（`--profile mono`，v1.21 起），天然满足本约束；`--profile scale-out` 全服务形态同样**每服务单实例**。
