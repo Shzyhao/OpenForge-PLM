@@ -156,13 +156,15 @@ public class KnowledgeService {
             case "DISMISS" -> -5;
             default -> 0;
         };
-        if (delta > 0) {
-            item.setUsageCount(item.getUsageCount() + 1);
-        }
-        item.setQualityScore(BigDecimal.valueOf(
-                Math.max(0, Math.min(100, item.getQualityScore().doubleValue() + delta))));
-        itemMapper.updateById(item);
-        log.debug("knowledge feedback: item={} action={} quality={}", itemId, action, item.getQualityScore());
+        // SQL 级自增（v1.33 复盘 P2 修复）：原内存读改写整行回写——两个 ADOPT 并发各读 60 都写 62，丢一次加分。
+        // quality 用 LEAST/GREATEST 在 SQL 侧夹取 [0,100]，与原语义等价；usage 仅正反馈递增。
+        itemMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KnowledgeItem>()
+                .eq(KnowledgeItem::getId, itemId)
+                .setSql(delta > 0
+                        ? "usage_count = usage_count + 1, "
+                          + "quality_score = LEAST(100, GREATEST(0, quality_score + (" + delta + ")))"
+                        : "quality_score = LEAST(100, GREATEST(0, quality_score + (" + delta + ")))"));
+        log.debug("knowledge feedback: item={} action={} delta={}", itemId, action, delta);
     }
 
     /** 摘要：M5 本地截断；LLM 摘要随 M6 接入（架构文档 4.1 知识自动摘要）。 */
