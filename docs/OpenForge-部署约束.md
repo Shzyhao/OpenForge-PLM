@@ -1,6 +1,6 @@
 # OpenForge 部署约束（单实例语义与扩展前置条件）
 
-> 版本基线：v1.29.0（2026-11-22）｜本文档集中陈述**当前实现的部署形态约束**——此前散落在
+> 版本基线：v1.30.0（2026-11-22）｜本文档集中陈述**当前实现的部署形态约束**——此前散落在
 > 代码注释（LogRetentionJob / NumberRuleService / CronTriggerScheduler / 三个孤儿清扫 Job），
 > scale-out 前必须整体阅读本文档。与《架构文档》"水平扩展"愿景态的差距在 §3 逐项列明。
 
@@ -22,8 +22,9 @@ prod 默认形态为 **mono 单进程**（`--profile mono`，v1.21 起），天�
 
 - **事件总线**（RocketMQ）：`EVENT_BUS=1` 开启（dev）/ prod compose rocketmq profile；默认关闭时通知走 auth HTTP 回退通道，功能完整。消费者启动失败不阻断进程——以 `openforge_mq_consumer_up{group}` gauge + Prometheus 告警观测（v1.27）。
 - **文件存储**：默认 `local`（本地磁盘，键约定 `tenant/{tenantId}/{date}/{uuid}`）；MinIO 实现已就绪（`openforge.{doc,drawing}.storage=minio` + 桶自动初始化），但**仅多节点共享存储场景需要**——单机/mono 形态不应启用（v1.29 复盘结论：单机部署对象存储无收益）。
-- **默认密钥**：`INTERNAL_TOKEN` / `JWT_SECRET` 环境变量必须在生产覆盖——显式非 dev/test/local profile 下仍为默认值时启动打醒目 WARN + `openforge_default_secret_active` 计数（v1.28 `SecurityDefaultsChecker`）。
+- **默认密钥**：`INTERNAL_TOKEN` / `JWT_SECRET` 环境变量必须在生产覆盖（≥32 字节）——显式非 dev/test/local profile 下仍为默认值或长度不足时启动打醒目 WARN + `openforge_default_secret_active` / `openforge_weak_secret_length` 计数（v1.28 `SecurityDefaultsChecker`，v1.30 补长度校验）。
 - **向量存储**：默认内存（`memory`）；`pgvector` 多租户/生产切换（SQL 级租户过滤）。Milvus 为千万级路线项，未启用。
+- **监控告警栈**（monitoring profile，按需起）：Prometheus 抓取 + Alertmanager 分发（v1.30 C10）。Alertmanager 为**基础设施容器**（无 @Scheduled/应用内锁/注册表/共享表扫描，不进 §1 表）；无状态告警分发天然单实例，nflog/silence 落 `alertmanager_data` 卷。邮件路由由 compose `configs.content` 环境插值渲染，未配 `SMTP_HOST`/`ALERT_RECIPIENTS` 时 drop 路由（不外发）。
 
 ## 3. scale-out 前置条件矩阵（扩容前必须逐项改造）
 
