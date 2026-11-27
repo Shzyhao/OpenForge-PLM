@@ -22,6 +22,8 @@ x-java-env: &java-env
   AUTH_SERVICE_URI: ${AUTH_SERVICE_URI:?请在 .env 设置 AUTH_SERVICE_URI（mono=http://mono:8090 / scale-out=http://auth:8081）}
   INTERNAL_TOKEN: ${INTERNAL_TOKEN:?请在 .env 设置 INTERNAL_TOKEN}
   JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET（≥32 字节）}
+  # 管理员初始密码（全新安装引导用，可选）：不设置=沿用公开默认值（与冒烟脚本一致）——生产强烈建议在 .env 显式设置
+  ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
   NACOS_ENABLED: ${NACOS_ENABLED:-false}
   NACOS_ADDR: ${NACOS_ADDR:-nacos:8848}
   # 事件总线（v1.24）：默认关（无 broker 时 publish 进 outbox 重试会拖慢联动），随 rocketmq profile 一起启用

@@ -62,6 +62,7 @@ public class AuthService {
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setDisplayName(request.getDisplayName() == null ? username : request.getDisplayName());
+        UserAdminService.validateEmailFormat(request.getEmail());
         user.setEmail(request.getEmail());
         user.setStatus("ACTIVE");
         user.setUserType("NORMAL");

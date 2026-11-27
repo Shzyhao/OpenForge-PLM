@@ -77,6 +77,7 @@ public class UserAdminService {
             throw new BizException(ErrorCode.USERNAME_ALREADY_EXISTS);
         }
         validatePasswordStrength(request.getPassword());
+        validateEmailFormat(request.getEmail());
 
         SysUser user = new SysUser();
         user.setUsername(request.getUsername());
@@ -160,12 +161,15 @@ public class UserAdminService {
 
     // ===== D3 编辑 =====
 
-    /** 邮箱格式校验（邮箱改造 2026-11）：null/空串放行（空=未填写/清空），非空必须合法。 */
+    /** 邮箱格式校验（邮箱改造 2026-11）：null/空串放行（空=未填写/清空），非空必须合法且 ≤128 字符（与 @Size 对齐）。 */
     static final java.util.regex.Pattern EMAIL_PATTERN =
             java.util.regex.Pattern.compile("^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$");
 
     static void validateEmailFormat(String email) {
-        if (email != null && !email.isBlank() && !EMAIL_PATTERN.matcher(email).matches()) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        if (email.length() > 128 || !EMAIL_PATTERN.matcher(email).matches()) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "邮箱格式不正确");
         }
     }

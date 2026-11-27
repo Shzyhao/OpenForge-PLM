@@ -12,6 +12,7 @@ global:
     password: change-me        # 生产用 externalSecret 注入
   jwtSecret: change-me-jwt-secret-at-least-32-bytes-long!
   internalToken: change-me-internal-token
+  adminInitialPassword: ""   # 管理员初始密码（全新安装引导用）；空=公开默认值，生产必须显式设置
   nacos:
     enabled: false
     addr: nacos:8848

@@ -23,6 +23,8 @@ app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
   value: {{ $.Values.global.internalToken | quote }}
 - name: JWT_SECRET
   value: {{ $.Values.global.jwtSecret | quote }}
+- name: ADMIN_INITIAL_PASSWORD
+  value: {{ $.Values.global.adminInitialPassword | quote }}
 - name: NACOS_ENABLED
   value: {{ $.Values.global.nacos.enabled | quote }}
 - name: NACOS_ADDR

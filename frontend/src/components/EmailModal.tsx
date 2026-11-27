@@ -19,7 +19,12 @@ export default function EmailModal({ open, currentEmail, onSuccess, onCancel }: 
   }, [open, currentEmail, form])
 
   const submit = async () => {
-    const values = await form.validateFields()
+    let values: { email: string }
+    try {
+      values = await form.validateFields()
+    } catch {
+      return // 校验失败：antd 已在表单项下展示错误，无需额外处理
+    }
     setLoading(true)
     try {
       await updateMyEmail(values.email.trim())

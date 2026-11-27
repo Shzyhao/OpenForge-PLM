@@ -40,11 +40,11 @@ mvn -pl openforge-gateway spring-boot:run
 
 # 4. 冒烟验证
 # 自助注册默认关闭（OPEN_REGISTRATION=true 可打开），用户由管理员创建；
-# admin 初始密码打印在 auth 服务启动日志（首登强制改密）
+# admin 初始密码默认 smoke-test-2026（可用环境变量 ADMIN_INITIAL_PASSWORD 单独设置，首登强制改密）
 # 登录
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"<auth 启动日志中的初始密码>"}'
+  -d '{"username":"admin","password":"smoke-test-2026"}'
 ```
 
 ## 约定

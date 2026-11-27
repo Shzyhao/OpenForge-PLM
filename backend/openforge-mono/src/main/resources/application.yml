@@ -61,6 +61,9 @@ openforge:
     open-registration: ${OPEN_REGISTRATION:false}
     password-expiry-days: ${PASSWORD_EXPIRY_DAYS:180}
     password-expiring-soon-days: ${PASSWORD_EXPIRING_SOON_DAYS:7}
+    # 管理员初始密码（A1 改造，与 auth 模块同键——mono fat jar 会遮蔽 auth 的 application.yml，须在此重复声明）：
+    # 环境变量 ADMIN_INITIAL_PASSWORD 可按部署环境单独设置；未设置时沿用公开默认值（与冒烟脚本一致）——生产部署必须显式设置
+    admin-initial-password: ${ADMIN_INITIAL_PASSWORD:smoke-test-2026}
     login-max-failures: 5
     login-lock-minutes: 15
     log-retention-days: ${LOG_RETENTION_DAYS:180}

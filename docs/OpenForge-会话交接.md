@@ -18,6 +18,7 @@
 
 1. **管理员密码独立设置（完成）**：管理员初始密码可按部署环境单独设置——环境变量 `ADMIN_INITIAL_PASSWORD` 或配置项 `openforge.security.admin-initial-password`（支持 Nacos 远程配置），未设置时沿用原默认值；仍以哈希形式存 `sys_user.password_hash`，首登强制改密保留，初始密码明文不再打印启动日志。冒烟/探针四脚本（smoke/authz-probe/v123-probe/robustness-probe）改为读环境变量，README、dev-up.sh、连接器长任务书同步更新。
 2. **邮箱改造（完成）**：仓库 `CODE_OF_CONDUCT.md` 举报联系方式改为 GitHub 渠道（@Shzyhao，不再公开个人邮箱）；系统内新增联系邮箱自助接口 `PUT /api/v1/users/me`（登录即可，本人数据自助维护），`GET /users/me` 响应增加 email 字段；邮箱格式全链路校验（创建/注册 DTO `@Email`、管理员编辑与自助设置服务层校验、前端表单校验）；前端新增「设置/修改邮箱」入口（EmailModal + 用户菜单）。git 提交身份已改用 GitHub 隐私邮箱，提交历史重写与推送方案待用户确认后执行。
+3. **独立审查收口（2026-11-28）**：debug-coder 审查确认功能无阻塞问题，四处收口修复已落盘——mono/生产部署路径补齐 `ADMIN_INITIAL_PASSWORD` 透传（mono fat jar 遮蔽 auth 的 application.yml：mono yml、docker-compose.prod.yml、.env.example、helm values+helpers 四处补键）；邮箱格式校验口径统一（创建/注册并入服务层校验并加 128 字符上限）；补 AdminBootstrap/UserAdminService/EmailModal 测试用例 8 例；backend/README 登录说明修正。mono 路径经空库实纱验证（显式密码登录成功/默认密码拒绝/日志无明文）。
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
