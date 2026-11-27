@@ -24,7 +24,7 @@ vi.mock('../api/workflow', () => ({
 
 function permOf(): PermContextValue {
   return {
-    user: { id: 1, username: 'admin', displayName: '管理员', roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    user: { id: 1, username: 'admin', displayName: '管理员', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
     hasPerm: () => true,
     hasMenu: () => true,
   }

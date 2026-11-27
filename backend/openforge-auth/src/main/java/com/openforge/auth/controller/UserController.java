@@ -55,7 +55,7 @@ public class UserController {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
         }
         return ApiResponse.ok(new UserInfoResponse(
-                user.getId(), user.getUsername(), user.getDisplayName(),
+                user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
                 rbacService.getRoleCodesOfUser(userId),
                 permissionService.menuCodesOfUser(user),
                 permissionService.getPermissionCodesOfUser(userId),
@@ -149,6 +149,15 @@ public class UserController {
         java.util.List<Long> ids = rawIds.stream().map(Number::longValue).toList();
         boolean enable = Boolean.TRUE.equals(body.get("enable"));
         userAdminService.changeStatusBatch(ids, currentUserId(httpRequest), enable);
+        return ApiResponse.ok();
+    }
+
+    /** 修改自己的联系邮箱（邮箱改造 2026-11）：本人数据自助维护，无需权限点。body: {"email": "..."} */
+    @PutMapping("/me")
+    public ApiResponse<Void> updateMyEmail(
+            @org.springframework.web.bind.annotation.RequestBody Map<String, String> body,
+            HttpServletRequest httpRequest) {
+        userAdminService.updateMyEmail(currentUserId(httpRequest), body.get("email"));
         return ApiResponse.ok();
     }
 

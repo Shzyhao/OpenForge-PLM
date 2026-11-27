@@ -160,10 +160,21 @@ public class UserAdminService {
 
     // ===== D3 编辑 =====
 
+    /** 邮箱格式校验（邮箱改造 2026-11）：null/空串放行（空=未填写/清空），非空必须合法。 */
+    static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$");
+
+    static void validateEmailFormat(String email) {
+        if (email != null && !email.isBlank() && !EMAIL_PATTERN.matcher(email).matches()) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "邮箱格式不正确");
+        }
+    }
+
     @Transactional
     public SysUser update(Long id, Long operatorId, String displayName, String email, Long orgId) {
         SysUser target = require(id);
         assertCanOperate(operatorId, target, true);
+        validateEmailFormat(email);
         if (displayName != null && !displayName.isBlank()) {
             target.setDisplayName(displayName);
         }
@@ -175,6 +186,21 @@ public class UserAdminService {
         }
         userMapper.updateById(target);
         return target;
+    }
+
+    // ===== 联系邮箱自助维护（邮箱改造 2026-11）：每个用户可自行设置自己的邮箱 =====
+
+    @Transactional
+    public void updateMyEmail(Long userId, String email) {
+        SysUser user = require(userId);
+        if (email == null || email.isBlank()) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "邮箱不能为空");
+        }
+        validateEmailFormat(email);
+        user.setEmail(email.trim());
+        userMapper.updateById(user);
+        securityLogService.audit(userId, "EMAIL_CHANGE", "USER",
+                String.valueOf(userId), "用户 " + user.getUsername() + " 更新了自己的联系邮箱");
     }
 
     // ===== D4 启停用 =====

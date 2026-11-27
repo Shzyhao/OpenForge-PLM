@@ -21,7 +21,7 @@ vi.mock('../api/recycle', async (importOriginal) => {
 
 function permOf(): PermContextValue {
   return {
-    user: { id: 1, username: 'admin', displayName: 'admin', roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    user: { id: 1, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
     hasPerm: () => true,
     hasMenu: () => true,
   }

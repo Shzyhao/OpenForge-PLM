@@ -7,6 +7,7 @@ export interface UserInfo {
   id: number
   username: string
   displayName: string
+  email: string | null
   roles: string[]
   menus: string[]
   permissions: string[]
@@ -19,6 +20,11 @@ export function fetchCurrentUser(): Promise<UserInfo> {
 
 export function changeMyPassword(oldPassword: string, newPassword: string): Promise<void> {
   return put('/api/v1/users/me/password', { oldPassword, newPassword })
+}
+
+/** 联系邮箱自助设置（邮箱改造 2026-11）：每个用户可自行维护自己的邮箱。 */
+export function updateMyEmail(email: string): Promise<void> {
+  return put('/api/v1/users/me', { email })
 }
 
 export interface UserOption {

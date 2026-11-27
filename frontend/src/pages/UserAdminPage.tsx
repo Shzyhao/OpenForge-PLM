@@ -165,7 +165,9 @@ export default function UserAdminPage() {
               addonAfter={<a onClick={() => form.setFieldValue('password', randomPassword())}>随机</a>} />
           </Form.Item>
           <Form.Item name="displayName" label="姓名"><Input /></Form.Item>
-          <Form.Item name="email" label="邮箱"><Input /></Form.Item>
+          <Form.Item name="email" label="邮箱" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
+            <Input placeholder="name@example.com" />
+          </Form.Item>
           <Form.Item name="roleIds" label="角色">
             <Select mode="multiple" placeholder="选择角色（可稍后分配）"
               options={roles.map(r => ({ value: r.id, label: `${r.roleName}(${r.roleCode})` }))} />

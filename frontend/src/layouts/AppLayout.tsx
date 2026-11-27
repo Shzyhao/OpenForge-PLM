@@ -3,13 +3,14 @@ import { Avatar, Button, Dropdown, Layout, Menu, Result, Spin, Tag, theme, Typog
 import {
   ApiOutlined, ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined,
   CloudOutlined, DeleteOutlined, FileImageOutlined, FileTextOutlined, NumberOutlined, HomeOutlined, KeyOutlined,
-  LogoutOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
+  LogoutOutlined, MailOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearToken, getPasswordStatus } from '../api/client'
 import { fetchCurrentUser, type UserInfo } from '../api/user'
 import { fetchEnabledModules } from '../api/modules'
 import AiAssistant from '../components/AiAssistant'
+import EmailModal from '../components/EmailModal'
 import Logo from '../components/Logo'
 import NotificationBell from '../components/NotificationBell'
 import PasswordModal from '../components/PasswordModal'
@@ -84,6 +85,8 @@ export default function AppLayout() {
   const [pwModal, setPwModal] = useState<'FORCE_CHANGE' | 'EXPIRING_SOON' | 'VOLUNTARY' | null>(
     savedStatus === 'FORCE_CHANGE' || savedStatus === 'EXPIRED' ? 'FORCE_CHANGE'
       : savedStatus === 'EXPIRING_SOON' ? 'EXPIRING_SOON' : null)
+  // 联系邮箱自助设置弹窗（邮箱改造 2026-11）
+  const [emailOpen, setEmailOpen] = useState(false)
 
   useEffect(() => {
     fetchCurrentUser()
@@ -172,6 +175,8 @@ export default function AppLayout() {
                   items: [
                     { key: 'password', icon: <KeyOutlined />, label: '修改密码',
                       onClick: () => setPwModal('VOLUNTARY') },
+                    { key: 'email', icon: <MailOutlined />, label: user.email ? '修改邮箱' : '设置邮箱',
+                      onClick: () => setEmailOpen(true) },
                     { type: 'divider' },
                     { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true,
                       onClick: () => { clearToken(); navigate('/login') } },
@@ -206,6 +211,16 @@ export default function AppLayout() {
           onCancel={() => setPwModal(null)}
         />
       )}
+
+      <EmailModal
+        open={emailOpen}
+        currentEmail={user?.email ?? null}
+        onSuccess={() => {
+          setEmailOpen(false)
+          fetchCurrentUser().then(setUser).catch(() => {})
+        }}
+        onCancel={() => setEmailOpen(false)}
+      />
     </PermContext.Provider>
   )
 }

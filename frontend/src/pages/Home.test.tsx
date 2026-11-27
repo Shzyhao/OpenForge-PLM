@@ -13,7 +13,7 @@ vi.mock('echarts', () => ({
 vi.mock('../api/client', () => ({ get: vi.fn() }))
 vi.mock('../api/user', () => ({
   fetchCurrentUser: vi.fn(async () => ({
-    id: 1, username: 'admin', displayName: '锻造管理员', roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL',
+    id: 1, username: 'admin', displayName: '锻造管理员', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL',
   })),
 }))
 

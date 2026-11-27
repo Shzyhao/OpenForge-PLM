@@ -26,7 +26,7 @@ vi.mock('../api/org', () => ({ fetchOrgTree: vi.fn(async () => []) }))
 
 function permOf(userId = 1): PermContextValue {
   return {
-    user: { id: userId, username: 'admin', displayName: 'admin', roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    user: { id: userId, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
     hasPerm: () => true,
     hasMenu: () => true,
   }
