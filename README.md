@@ -166,7 +166,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 ./scripts/dev-down.sh
 ```
 
-> 首登：`admin`，初始密码打印在 auth 启动日志（`/tmp/openforge-auth.log`），首登强制改密。
+> 首登：`admin`，初始密码默认 smoke-test-2026（可用环境变量 `ADMIN_INITIAL_PASSWORD` 按部署环境单独设置），首登强制改密。
 
 ---
 

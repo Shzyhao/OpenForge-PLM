@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 越权与租户隔离探针（R10 沉淀，工程约定 #8 同类合并门工具化）
-# 用法：./scripts/authz-probe.sh [admin密码]（默认 smoke-test-2026；前置：dev-up 已起栈）
+# 用法：./scripts/authz-probe.sh [admin密码]（默认取环境变量 ADMIN_INITIAL_PASSWORD，未设置用公开默认值；前置：dev-up 已起栈）
 # 依赖：docker exec（向 dev 库写入探针用户）、python、cygpath（Git Bash）
 # 断言面：
 #   1) 双租户按对象 ID 直取/改/删（IDOR）——物料/文档/图纸/ECR/项目/连接器/流程实例/文件下载
@@ -13,7 +13,7 @@
 set +e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GW="${GW:-http://localhost:8080}"
-PASSWORD="${1:-smoke-test-2026}"
+PASSWORD="${1:-${ADMIN_INITIAL_PASSWORD:-smoke-test-2026}}"
 PSQL="docker exec openforge-pg psql -U openforge -d openforge -t -A"
 PASS=0; SUSPECT=0
 

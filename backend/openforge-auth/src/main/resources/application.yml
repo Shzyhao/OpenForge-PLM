@@ -49,6 +49,9 @@ openforge:
     # 密码有效期（天）与临期提醒窗口（天）——方案 E2
     password-expiry-days: ${PASSWORD_EXPIRY_DAYS:180}
     password-expiring-soon-days: ${PASSWORD_EXPIRING_SOON_DAYS:7}
+    # 管理员初始密码（A1 改造）：环境变量 ADMIN_INITIAL_PASSWORD 可按部署环境单独设置；
+    # 未设置时沿用公开默认值（与冒烟脚本 smoke.sh 一致）——生产部署必须显式设置
+    admin-initial-password: ${ADMIN_INITIAL_PASSWORD:smoke-test-2026}
     # 登录失败锁定（方案 E9）
     login-max-failures: 5
     login-lock-minutes: 15

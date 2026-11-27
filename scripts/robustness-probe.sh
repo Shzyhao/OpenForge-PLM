@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # R23 健壮性专项探针（v1.26 设计 §4）：畸形输入 / 重复操作幂等 / 越界分页 / 长字符串 /
 # 并发通知 burst / 无效订阅事件 / 重启持久性——全部经网关真栈执行，验证"错误可承接不 500"。
-# 用法：./scripts/robustness-probe.sh [admin密码]；重启持久性段需 EVENT 栈运行（单服务重启 auth）。
+# 用法：./scripts/robustness-probe.sh [admin密码]（默认取环境变量 ADMIN_INITIAL_PASSWORD，未设置用公开默认值）；重启持久性段需 EVENT 栈运行（单服务重启 auth）。
 set +e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 GW="${GW:-http://localhost:8080}"
-PASSWORD="${1:-smoke-test-2026}"
+PASSWORD="${1:-${ADMIN_INITIAL_PASSWORD:-smoke-test-2026}}"
 PSQL="docker exec openforge-pg psql -U openforge -d openforge -t -A"
 PASS=0; FAIL=0
 ok()  { echo "  PASS [$1]"; PASS=$((PASS+1)); }

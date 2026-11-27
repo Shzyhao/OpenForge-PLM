@@ -16,7 +16,7 @@
 - 全栈启停（Git Bash）：
   - `./scripts/dev-up.sh`（PG 容器 + 11 Java 服务；无源码改动自动跳过构建；`PROFILE=mono` 两进程最省 / `PROFILE=core` 主链路）
   - `./scripts/dev-down.sh` 停栈
-  - 冒烟：`./scripts/smoke.sh smoke-test-2026`（35 断言；admin 密码即参数值，dev 库）
+  - 冒烟：`./scripts/smoke.sh`（35 断言；admin 密码可传参或环境变量 ADMIN_INITIAL_PASSWORD，未设置用公开默认值，dev 库）
   - 前端：`cd frontend && npm run dev`（:5173，代理 /api → 网关 :8080）；构建验证 `npm run build`
 - dev-up 已注入：出站白名单 `localhost,127.0.0.1` + 允许私网（`OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE=true`）+ 凭据主密钥默认值——本地测试凭据可解密。
 

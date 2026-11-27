@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # OpenForge 网关链路冒烟（工程约定 #8 合并门工具化，#90/#101 冒烟实践沉淀）
-# 用法：./scripts/smoke.sh [admin密码]（默认 smoke-test-2026；前置：dev-up 已起栈，full/mono 均可）
+# 用法：./scripts/smoke.sh [admin密码]（默认取环境变量 ADMIN_INITIAL_PASSWORD，未设置用公开默认值；前置：dev-up 已起栈，full/mono 均可）
 # 断言：登录→JWT→module-routes 自检→10 业务域经网关返回业务码 0（动态路由/注册表/信任头链路全穿）
 #       + 连接器域 6 断言（集成编排器）+ 触发/死信/链/审计 8 断言（P2-2/R8）
 #       + 图纸域 6 断言（档案/文件/发布/快照/物料关联/下载）——共 35 项
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GW="${GW:-http://localhost:8080}"
-PASSWORD="${1:-smoke-test-2026}"
+PASSWORD="${1:-${ADMIN_INITIAL_PASSWORD:-smoke-test-2026}}"
 PASS=0; FAIL=0
 
 fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }

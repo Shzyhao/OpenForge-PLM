@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # v1.23 三模块端到端探针（R17~R20 收口）：审批委托闭环 → 站内通知（含 MQ 通道证据）→ 回收站往返
-# 用法：./scripts/v123-probe.sh [admin密码]（默认 smoke-test-2026；前置：dev-up 已起栈，EVENT_BUS=1 时同时验证 MQ 通道）
+# 用法：./scripts/v123-probe.sh [admin密码]（默认取环境变量 ADMIN_INITIAL_PASSWORD，未设置用公开默认值；前置：dev-up 已起栈，EVENT_BUS=1 时同时验证 MQ 通道）
 # 断言：委托规则 CRUD+代办办理+delegated_from 追溯；通知 unread/list/markRead/readAll；
 #       sys_event_consumed 出现 openforge-notify 消费记录（MQ 通道实锤，EVENT_BUS=0 时此项 SKIP）；
 #       回收站 软删→可见→恢复→业务侧回归；/users/options 轻量选人。
@@ -9,7 +9,7 @@ set +e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"   # MSYS/原生工具路径统一：curl 与 python 共用相对路径（实纱④同族）
 GW="${GW:-http://localhost:8080}"
-PASSWORD="${1:-smoke-test-2026}"
+PASSWORD="${1:-${ADMIN_INITIAL_PASSWORD:-smoke-test-2026}}"
 PSQL="docker exec openforge-pg psql -U openforge -d openforge -t -A"
 # 事件总线判定：脚本进程拿不到 dev-up 的 export，按 broker 容器是否在运行判定
 EVENTBUS=$(docker ps --format "{{.Names}}" 2>/dev/null | grep -qx openforge-mq-broker && echo 1 || echo 0)

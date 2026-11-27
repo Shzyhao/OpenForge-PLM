@@ -201,7 +201,7 @@ fi
 echo "  前端: cd frontend && npm install && npm run dev   (http://localhost:5173)"
 echo ""
 if [ "${PROFILE:-full}" = "mono" ]; then
-  echo "完成。管理员账号 admin 的初始密码打印在 mono 启动日志（/tmp/openforge-mono.log），首登强制改密；自助注册默认关闭。"
+  echo "完成。管理员账号 admin 的初始密码：默认 smoke-test-2026（可用环境变量 ADMIN_INITIAL_PASSWORD 单独设置），首登强制改密；自助注册默认关闭。"
 else
-  echo "完成。管理员账号 admin 的初始密码打印在 auth 启动日志（/tmp/openforge-auth.log），首登强制改密；自助注册默认关闭。"
+  echo "完成。管理员账号 admin 的初始密码：默认 smoke-test-2026（可用环境变量 ADMIN_INITIAL_PASSWORD 单独设置），首登强制改密；自助注册默认关闭。"
 fi
