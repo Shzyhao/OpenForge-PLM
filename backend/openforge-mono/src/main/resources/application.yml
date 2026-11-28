@@ -92,6 +92,11 @@ openforge:
     log-retention-cron: ${CONN_LOG_RETENTION_CRON:0 45 3 * * *}
   workflow:
     base-url: ${WORKFLOW_SERVICE_URI:http://localhost:${server.port}}
+    # 提交人回避（批三-B，默认关）——mono fat jar 遮蔽模块 yml，须在此重复声明（同 admin-initial-password 教训）
+    submitter-recusal: ${SUBMITTER_RECUSAL:false}
+  drawing:
+    # 审签接流程引擎（v1.25 §6，默认关）——同上：mono 下必须重复声明否则恒为默认值
+    workflow-review: ${DRAWING_WORKFLOW_REVIEW:false}
   material:
     base-url: ${MATERIAL_SERVICE_URI:http://localhost:${server.port}}   # 刀2 变更执行通道（mono 回环）
   integration:

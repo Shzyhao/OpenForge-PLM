@@ -1,5 +1,4 @@
-import { get, post, del } from './client'
-import { getToken, upload } from './client'
+import { get, post, del, getToken, upload } from './client'
 import type { PageData } from './material'
 
 /** 图纸档案（v1.20.0；对应后端 openforge-drawing DrawingInfo） */
@@ -128,4 +127,9 @@ export async function downloadDrawingFile(id: number, fileId: number): Promise<{
   const match = /filename\*=UTF-8''([^;]+)/.exec(disposition)
   const fileName = match ? decodeURIComponent(match[1]) : `drawing-${fileId}`
   return { blob: await res.blob(), fileName }
+}
+
+/** 审签开关（批三-B）：true=审签流程启用——REVIEWING 状态须经评审流任务办理，页面隐藏「直接发布」。 */
+export function fetchDrawingReviewConfig(): Promise<{ workflowReview: boolean }> {
+  return get<{ workflowReview: boolean }>('/api/v1/drawings/review-config')
 }

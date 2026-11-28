@@ -1,14 +1,14 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-11-28（v1.35.0 发版收口）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-11-28（批三收口——分类码段+提交人回避，待发版）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.35.0**（tag + GitHub Release；审查清欠——批一 10 项高严重度（mono 上传上限/回收站/登录提示/ECR 角色/权限点/权限缺口/容器时区/委托时间/AI 启停/@Valid）+ 批二（BOM 查环/CAS×2+唯一索引/上传预检/编号引擎/九页按钮门控/前端状态对齐）） |
-| dev 最新 | 与 main 同步（v1.35.0 发版后回灌，ec4f9d2）；无在途功能（第三批=物料编码分类码段+提交人回避开关未动工） |
-| main vs dev | v1.35.0 合入后同步（PR #133，ec4f9d2） |
+| dev 最新 | 在途：批三（物料编码分类码段+提交人回避开关）已收口待发版；基线=与 main 同步（v1.35.0 回灌 4a32f1b） |
+| main vs dev | v1.35.0 合入后同步（PR #133，ec4f9d2）；批三待 PR |
 | 工作区 | 冒烟 `./scripts/smoke.sh`（10 业务域 + 连接器/触发/死信/审计 + **图纸域 6 断言，共 35 项**）；admin 初始密码可按部署环境单独设置（环境变量 `ADMIN_INITIAL_PASSWORD`，未设置沿用默认） |
 | 全量测试 | CI 全绿；drawing DrawingIntegrationTest 4 + mono MonoSmoke **10 模块** + connector 68；真实栈 11 服务（drawing :8095）；v1.20.0 浏览器级巡检（图纸菜单/三 Tab/PDF 内嵌预览/关联交互/状态流转，DOM 断言）|
 
@@ -23,6 +23,14 @@
 3. **独立审查收口（2026-11-28）**：debug-coder 审查确认功能无阻塞问题，四处收口修复已落盘——mono/生产部署路径补齐 `ADMIN_INITIAL_PASSWORD` 透传（mono fat jar 遮蔽 auth 的 application.yml：mono yml、docker-compose.prod.yml、.env.example、helm values+helpers 四处补键）；邮箱格式校验口径统一（创建/注册并入服务层校验并加 128 字符上限）；补 AdminBootstrap/UserAdminService/EmailModal 测试用例 8 例；backend/README 登录说明修正。mono 路径经空库实纱验证（显式密码登录成功/默认密码拒绝/日志无明文）。
 
 ## 2026-11-28 审查修复批次（批一+批二，已发版 v1.35.0 · PR #133）
+
+## 批三（2026-11-28 收口，待发版）：物料编码分类码段 + 提交人回避开关
+
+> 按用户既定方向落地的两项产品改进（第三批）：
+
+1. **物料编码分类码段（A）**：编号引擎新增 `CATEGORY` 段类型——物料编码可配置为 `{分类码}-{流水}`，流水按 `part_category.category_code` 独立计数（周期重置策略可叠加为 分类-日期）；取号链路全透传（PartService→InternalNumberClient→internal 端点带 categoryCode 查询参数）；规则未配置分类码段时该参数被忽略（**新旧并存，已发布物料编码不变**）；规则启用分类码段但取号未携带分类时硬拒绝；编号规则管理页新增「分类码段」勾选。已发布物料编码不受影响（既有 part 规则不变）。
+2. **提交人回避开关（B）**：新增 `openforge.workflow.submitter-recusal`（env `SUBMITTER_RECUSAL`，**默认关**保持轻量直批语义）——开启后发起人不能办理自己发起实例的审批任务（先于权限判定，2004）；图纸审签开关（`openforge.drawing.workflow-review`）新增读取端点 `GET /api/v1/drawings/review-config`，前端据此在审签启用时隐藏 REVIEWING 状态的「直接发布/驳回」按钮（改为提示走我的待办办理）。**mono fat jar 遮蔽修复**：mono yml 补 `workflow.submitter-recusal` 与 `drawing.workflow-review` 两键（审签开关在 mono 形态此前恒为默认值——与 v1.34 admin-initial-password 同类教训）。
+3. **验证**：全仓 mvn verify 绿（17 模块）+ 前端 tsc 0 / vitest 72 / build 绿；单测新增 4 例（分类独立计数/缺分类拒绝/双分类段拒绝/回避开关开关两态）；真栈实纱——CATEGORY 规则取号 ELEC/MECH 独立计数（T-ELEC001/T-MECH001/T-ELEC002）、缺分类 1000 硬拒绝、回避开启后发起人自批 2004、审签端点回读 false；冒烟 35/35（默认栈回归）。
 
 > 2026-11-24 前端/前后端契约审查确认的缺陷按已定批次清欠（第三批=物料编码分类码段+提交人回避开关，方向已定未动工）。摘要如下（脱敏）：
 

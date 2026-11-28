@@ -181,6 +181,12 @@ public class DrawingController {
         return ApiResponse.ok(null);
     }
 
+    /** 审签开关（批三-B）：前端据此隐藏「直接发布」——开启后 REVIEWING 状态须经评审流任务办理。 */
+    @GetMapping("/review-config")
+    public ApiResponse<java.util.Map<String, Object>> reviewConfig() {
+        return ApiResponse.ok(java.util.Map.of("workflowReview", drawingService.workflowReviewEnabled()));
+    }
+
     @GetMapping("/{id}/parts")
     public ApiResponse<List<DrawingPart>> parts(@PathVariable Long id) {
         return ApiResponse.ok(drawingService.parts(id));

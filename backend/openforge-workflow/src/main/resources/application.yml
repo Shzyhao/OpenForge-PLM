@@ -45,6 +45,9 @@ openforge:
   security:
     auth-base-url: ${AUTH_SERVICE_URI:http://localhost:8081}
     internal-token: ${INTERNAL_TOKEN:openforge-internal-dev-token}
+  workflow:
+    # 提交人回避（批三-B，默认关）：开启后发起人不能办理自己发起实例的审批任务
+    submitter-recusal: ${SUBMITTER_RECUSAL:false}
 
 management:
   metrics:

@@ -14,6 +14,7 @@ vi.mock('../api/drawing', () => ({
   deleteDrawing: vi.fn(async () => undefined),
   drawingAction: vi.fn(async () => undefined),
   uploadDrawingFile: vi.fn(),
+  fetchDrawingReviewConfig: vi.fn(async () => ({ workflowReview: false })),
   downloadDrawingFile: vi.fn(async () => ({ blob: new Blob(), fileName: 'd.pdf' })),
   linkPart: vi.fn(async () => undefined),
   unlinkPart: vi.fn(async () => undefined),
