@@ -116,7 +116,11 @@ public class ProjectService {
     }
 
     public ProjectTask addTask(Long projectId, String title, Long assigneeId, java.time.LocalDate dueDate) {
-        require(projectId);
+        // 2026-11-28 复核②实锤：未校验状态——已结项（CLOSED）项目仍可添加任务
+        Project project = require(projectId);
+        if (!"ACTIVE".equals(project.getStatus())) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "已结项项目不能添加任务");
+        }
         ProjectTask task = new ProjectTask();
         task.setProjectId(projectId);
         task.setTitle(title);

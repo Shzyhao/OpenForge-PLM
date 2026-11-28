@@ -7,7 +7,7 @@
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.36.0**（tag + GitHub Release；批三——物料编码分类码段（CATEGORY 段+按分类独立计数，新旧并存）+ 提交人回避开关（SUBMITTER_RECUSAL 默认关）+ 审签开关读取端点与前端隐藏直接发布 + mono yml 补 workflow/drawing 键） |
-| dev 最新 | 与 main 同步（v1.36.0 发版后回灌，7c9594d）；无在途功能 |
+| dev 最新 | 在途：审查遗留 4 项复核修复（2026-11-28，待发版）；基线=与 main 同步（v1.36.0 回灌 f88938d） |
 | main vs dev | v1.36.0 合入后同步（PR #134，7c9594d） |
 | 工作区 | 冒烟 `./scripts/smoke.sh`（10 业务域 + 连接器/触发/死信/审计 + **图纸域 6 断言，共 35 项**）；admin 初始密码可按部署环境单独设置（环境变量 `ADMIN_INITIAL_PASSWORD`，未设置沿用默认） |
 | 全量测试 | CI 全绿；drawing DrawingIntegrationTest 4 + mono MonoSmoke **10 模块** + connector 68；真实栈 11 服务（drawing :8095）；v1.20.0 浏览器级巡检（图纸菜单/三 Tab/PDF 内嵌预览/关联交互/状态流转，DOM 断言）|
@@ -25,6 +25,15 @@
 ## 2026-11-28 审查修复批次（批一+批二，已发版 v1.35.0 · PR #133）
 
 ## 批三（2026-11-28 收口，已发版 v1.36.0 · PR #134）：物料编码分类码段 + 提交人回避开关
+
+## 审查遗留 4 项复核修复（2026-11-28，待发版）
+
+> 「未逐条复核」子代理报告项按纪律先核后修——四项全部属实并修复（各附真栈/单测钉子）：
+
+1. **JDBC 连接器绕过出站白名单**：白名单只挂在 HTTP 客户端 DNS 解析器，JDBC 池直连任意 host——按 jdbcUrl 解析 host:port 走同一 `EgressGuard.checkHost`（真栈：invoke db.host 6011）；连带发现池初始化 fail-fast 异常会裸 500 → 建池移入 try（fail 承接）。
+2. **已结项项目仍可加任务**：addTask 补状态校验（真栈 3007 已结项项目不能添加任务）。
+3. **链分支表达式仅运行期校验**：parseBranches 设计态用同一 SpEL parser 只解析不求值（真栈 6006 分支表达式语法不合法）。
+4. **持 role:assign 可操作 ADMINS 成员**（提权进管理员组/把 admin 移出）：ADMINS 成员变更仅 SUPER 可操作（真栈双 2004：加人与移出 admin 均拒；admin 本人放行）。
 
 > 按用户既定方向落地的两项产品改进（第三批）：
 

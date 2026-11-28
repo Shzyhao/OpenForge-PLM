@@ -1,6 +1,7 @@
 package com.openforge.auth.service;
 
 import com.openforge.auth.entity.SysRole;
+import com.openforge.auth.entity.SysUser;
 import com.openforge.auth.entity.SysUserRole;
 import com.openforge.auth.mapper.RoleMapper;
 import com.openforge.auth.mapper.UserMapper;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -44,6 +46,33 @@ class RbacServiceTest {
     @BeforeEach
     void setUp() {
         rbacService = new RbacService(roleMapper, userRoleMapper, userMapper, rolePermissionMapper, securityLogService);
+    }
+
+    @Test
+    @DisplayName("复核④：ADMINS 成员变更仅 SUPER 可操作（防提权/防踢出 admin）")
+    void adminsMemberChangeOnlyBySuper() {
+        SysRole admins = new SysRole();
+        admins.setId(1L);
+        admins.setRoleCode("ADMINS");
+        when(roleMapper.selectById(1L)).thenReturn(admins);
+
+        SysUser normal = new SysUser();
+        normal.setId(2L);
+        normal.setUserType("NORMAL");
+        when(userMapper.selectById(2L)).thenReturn(normal);
+        assertThatThrownBy(() -> rbacService.addMembers(1L, 2L, List.of(3L)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("仅固定 admin");
+        assertThatThrownBy(() -> rbacService.removeMember(1L, 2L, 3L))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("仅固定 admin");
+
+        SysUser superUser = new SysUser();
+        superUser.setId(1L);
+        superUser.setUserType("SUPER");
+        when(userMapper.selectById(1L)).thenReturn(superUser);
+        when(userMapper.selectById(3L)).thenReturn(new SysUser());
+        assertThatCode(() -> rbacService.addMembers(1L, 1L, List.of(3L))).doesNotThrowAnyException();
     }
 
     @Test

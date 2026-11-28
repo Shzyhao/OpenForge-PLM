@@ -64,4 +64,14 @@ class ProjectIntegrationTest {
         assertThatThrownBy(() -> projectService.close(project.getId()))
                 .isInstanceOf(BizException.class);
     }
+
+    @Test
+    @DisplayName("复核②：已结项项目不能添加任务（INVALID_STATE_TRANSITION）")
+    void addTaskRejectedOnClosedProject() {
+        Project project = projectService.create("复核项目", "已结项加任务拒绝", 7L, null, null, 1L);
+        projectService.close(project.getId());
+        assertThatThrownBy(() -> projectService.addTask(project.getId(), "迟到的任务", 7L, null))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("已结项项目不能添加任务");
+    }
 }

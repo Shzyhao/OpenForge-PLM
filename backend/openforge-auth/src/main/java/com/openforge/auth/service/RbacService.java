@@ -97,8 +97,9 @@ public class RbacService {
     }
 
     @Transactional
-    public void addMembers(Long roleId, List<Long> userIds) {
-        requireRole(roleId);
+    public void addMembers(Long roleId, Long operatorId, List<Long> userIds) {
+        SysRole role = requireRole(roleId);
+        assertAdminsMemberChangeAllowed(operatorId, role);
         for (Long userId : userIds) {
             SysUser user = userMapper.selectById(userId);
             if (user == null) {
@@ -116,10 +117,23 @@ public class RbacService {
     }
 
     @Transactional
-    public void removeMember(Long roleId, Long userId) {
-        requireRole(roleId);
+    public void removeMember(Long roleId, Long operatorId, Long userId) {
+        SysRole role = requireRole(roleId);
+        assertAdminsMemberChangeAllowed(operatorId, role);
         userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>()
                 .eq(SysUserRole::getRoleId, roleId).eq(SysUserRole::getUserId, userId));
+    }
+
+    /** ADMINS 组完整性（2026-11-28 复核④实锤）：持 role:assign 者可对任意角色增删成员——
+     *  可把普通用户提权进管理员组、或把固定 admin 移出管理员组。ADMINS 成员变更仅 SUPER 可操作。 */
+    private void assertAdminsMemberChangeAllowed(Long operatorId, SysRole role) {
+        if (!"ADMINS".equals(role.getRoleCode())) {
+            return;
+        }
+        SysUser operator = operatorId == null ? null : userMapper.selectById(operatorId);
+        if (operator == null || !"SUPER".equals(operator.getUserType())) {
+            throw new BizException(ErrorCode.FORBIDDEN, "管理员组（ADMINS）成员仅固定 admin 可维护");
+        }
     }
 
     private SysRole requireRole(Long roleId) {

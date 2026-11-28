@@ -171,7 +171,18 @@ public final class ChainSpecs {
             Map<String, Object> normalized = new LinkedHashMap<>(raw);
             normalized.put("from", from);
             normalized.put("to", to);
-            if (str(normalized.get("expr")).isEmpty()) {
+            // 分支表达式设计态语法校验（2026-11-28 复核③实锤：原仅运行期求值才报错）——
+            // 与运行期同一 SpEL parser 仅解析不求值（无上下文变量，只抓语法错误）
+            String expr = str(normalized.get("expr"));
+            if (!expr.isEmpty()) {
+                try {
+                    new org.springframework.expression.spel.standard.SpelExpressionParser().parseExpression(expr);
+                } catch (org.springframework.expression.ExpressionException e) {
+                    throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                            "分支表达式语法不合法（" + from + "→" + to + "）: " + e.getMessage());
+                }
+            }
+            if (expr.isEmpty()) {
                 normalized.remove("expr");
                 defaultCount.merge(from, 1, Integer::sum);
                 if (defaultCount.get(from) > 1) {
