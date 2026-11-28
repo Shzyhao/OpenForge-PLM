@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { PermContext, type PermContextValue } from '../perm/PermContext'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OrgAdminPage from './OrgAdminPage'
 
@@ -19,6 +20,16 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+
+// 写按钮权限门控（2026-11-28 审查批二残留）依赖 PermContext——测试注入全权限上下文保持原断言
+function permOf(): PermContextValue {
+  return {
+    user: { id: 1, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    hasPerm: () => true,
+    hasMenu: () => true,
+  }
+}
+
 describe('OrgAdminPage', () => {
   it('加载组织树并挂载 Tree 容器（jsdom 虚拟列表零高度不渲染节点，断言数据面）', async () => {
     const { fetchOrgTree } = await import('../api/org')
@@ -30,7 +41,7 @@ describe('OrgAdminPage', () => {
         ],
       },
     ] as never)
-    const { container } = render(<OrgAdminPage />)
+    const { container } = render(<PermContext.Provider value={permOf()}><OrgAdminPage /></PermContext.Provider>)
     await vi.waitFor(() => {
       expect(fetchOrgTree).toHaveBeenCalledTimes(1)
     })
@@ -40,7 +51,7 @@ describe('OrgAdminPage', () => {
   })
 
   it('空树时 Tree 容器仍在、无组织节点', async () => {
-    const { container } = render(<OrgAdminPage />)
+    const { container } = render(<PermContext.Provider value={permOf()}><OrgAdminPage /></PermContext.Provider>)
     await vi.waitFor(() => {
       expect(container.querySelector('.ant-tree')).toBeTruthy()
     })

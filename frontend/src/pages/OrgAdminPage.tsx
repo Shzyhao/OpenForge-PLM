@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Select, Space, Table, Tree, Typography, message } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { usePerm } from '../perm/PermContext'
 import {
   createOrg, deleteOrg, fetchOrgTree, fetchOrgUsers, updateOrg,
   type OrgNode, type OrgUser,
@@ -10,6 +11,8 @@ import { assignUserOrg, fetchUsers, type AdminUser } from '../api/user'
 
 /** 组织架构管理（十轮收口：OrgController 全量接线 + 用户挂接） */
 export default function OrgAdminPage() {
+  const { hasPerm } = usePerm()
+  const canManage = hasPerm('org:manage')
   const [tree, setTree] = useState<OrgNode[]>([])
   const [selected, setSelected] = useState<OrgNode | null>(null)
   const [users, setUsers] = useState<OrgUser[]>([])
@@ -154,13 +157,13 @@ export default function OrgAdminPage() {
     >
       <Space size="large" align="start" style={{ width: '100%' }}>
         <Card type="inner" title="组织树" style={{ width: 360, minHeight: 420 }}
-          extra={<Button size="small" icon={<PlusOutlined />} onClick={() => openCreate(null)}>根组织</Button>}>
+          extra={<Button size="small" icon={<PlusOutlined />} disabled={!canManage} onClick={() => openCreate(null)}>根组织</Button>}>
           <Tree treeData={treeData} onSelect={onSelect} blockNode />
           {selected && (
             <Space style={{ marginTop: 12 }} wrap>
-              <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => openCreate(selected)}>子组织</Button>
-              <Button size="small" onClick={() => openRename(selected)}>重命名</Button>
-              <Button size="small" danger onClick={() => doDelete(selected)}>删除</Button>
+              <Button size="small" type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => openCreate(selected)}>子组织</Button>
+              <Button size="small" disabled={!canManage} onClick={() => openRename(selected)}>重命名</Button>
+              <Button size="small" danger disabled={!canManage} onClick={() => doDelete(selected)}>删除</Button>
             </Space>
           )}
         </Card>

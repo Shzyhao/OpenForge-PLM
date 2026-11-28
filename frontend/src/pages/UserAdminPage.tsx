@@ -22,7 +22,8 @@ function flattenOrgs(nodes: OrgNode[], depth = 0): { value: number; label: strin
 
 /** 用户管理页（方案 D 组；十轮补批量启停 + 组织挂接 + 租户可见性） */
 export default function UserAdminPage() {
-  const { user: me } = usePerm()
+  const { user: me, hasPerm } = usePerm()
+  const canManage = hasPerm('user:manage')
   const [data, setData] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -98,10 +99,10 @@ export default function UserAdminPage() {
             {!isSuper && (
               <>
                 {u.status === 'ACTIVE'
-                  ? <Button size="small" disabled={me?.id === u.id} onClick={() => act(() => disableUser(u.id))}>停用</Button>
-                  : <Button size="small" onClick={() => act(() => enableUser(u.id))}>启用</Button>}
-                <Button size="small" icon={<KeyOutlined />} onClick={() => resetPwd(u)}>重置密码</Button>
-                <Button size="small" danger disabled={me?.id === u.id} onClick={() => act(() => deleteUser(u.id))}>删除</Button>
+                  ? <Button size="small" disabled={me?.id === u.id || !canManage} onClick={() => act(() => disableUser(u.id))}>停用</Button>
+                  : <Button size="small" disabled={!canManage} onClick={() => act(() => enableUser(u.id))}>启用</Button>}
+                <Button size="small" icon={<KeyOutlined />} disabled={!canManage} onClick={() => resetPwd(u)}>重置密码</Button>
+                <Button size="small" danger disabled={me?.id === u.id || !canManage} onClick={() => act(() => deleteUser(u.id))}>删除</Button>
               </>
             )}
           </Space>
@@ -142,9 +143,9 @@ export default function UserAdminPage() {
           <Input.Search placeholder="按用户名搜索" allowClear style={{ width: 180 }}
             onSearch={(v) => { setPage(1); setUsername(v) }} />
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button disabled={!selectedRowKeys.length} onClick={() => batch(true)}>批量启用</Button>
-          <Button danger disabled={!selectedRowKeys.length} onClick={() => batch(false)}>批量停用</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建用户</Button>
+          <Button disabled={!selectedRowKeys.length || !canManage} onClick={() => batch(true)}>批量启用</Button>
+          <Button danger disabled={!selectedRowKeys.length || !canManage} onClick={() => batch(false)}>批量停用</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => setCreateOpen(true)}>新建用户</Button>
         </Space>
       }
     >

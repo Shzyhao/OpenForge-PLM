@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Form, Input, List, Modal, Rate, Space, Tag, Typography, message } from 'antd'
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { usePerm } from '../perm/PermContext'
 import {
   createKnowledge, feedbackKnowledge, fetchKnowledge, searchKnowledge,
   type KnowledgeItem, type SearchHit,
@@ -8,6 +9,8 @@ import {
 
 /** 知识库页（M5）：语义搜索（带采纳/无感反馈）+ 条目管理 */
 export default function KnowledgePage() {
+  const { hasPerm } = usePerm()
+  const canManage = hasPerm('knowledge:manage')
   const [items, setItems] = useState<KnowledgeItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -58,7 +61,7 @@ export default function KnowledgePage() {
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={() => { setHits(null); load() }} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新增知识</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => setCreateOpen(true)}>新增知识</Button>
         </Space>
       }
     >

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { usePerm } from '../perm/PermContext'
 import {
   createNumberRule, fetchNumberCounters, fetchNumberRules, previewNumber, toggleNumberRule,
   type NumberCounter, type NumberRule, type NumberSegment,
@@ -22,6 +23,8 @@ function describeSegments(json: string): string {
 
 /** 编号规则管理（十轮收口：平台模板 + 计数器水位，此前只能 SQL 手查） */
 export default function NumberRuleAdminPage() {
+  const { hasPerm } = usePerm()
+  const canManage = hasPerm('number:manage')
   const [rules, setRules] = useState<NumberRule[]>([])
   const [counters, setCounters] = useState<NumberCounter[]>([])
   const [loading, setLoading] = useState(false)
@@ -93,8 +96,8 @@ export default function NumberRuleAdminPage() {
     {
       title: '操作', width: 170, render: (_, r) => (
         <Space size={4}>
-          <Button size="small" onClick={() => doPreview(r)}>取号预览</Button>
-          <Button size="small" onClick={() => doToggle(r)}>{r.status === 'ACTIVE' ? '停用' : '启用'}</Button>
+          <Button size="small" disabled={!canManage} onClick={() => doPreview(r)}>取号预览</Button>
+          <Button size="small" disabled={!canManage} onClick={() => doToggle(r)}>{r.status === 'ACTIVE' ? '停用' : '启用'}</Button>
         </Space>
       ),
     },
@@ -112,7 +115,7 @@ export default function NumberRuleAdminPage() {
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => {
             form.setFieldsValue({ ruleKey: '', ruleName: '', prefix: '', datePattern: 'yyyyMMdd', seqLength: 5, resetPolicy: 'DAILY' })
             setOpen(true)
           }}>新建规则</Button>

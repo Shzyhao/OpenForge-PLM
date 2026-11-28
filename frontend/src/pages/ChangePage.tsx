@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { usePerm } from '../perm/PermContext'
 import {
   Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message,
 } from 'antd'
@@ -49,6 +50,8 @@ function WhereUsedTable({ rows }: { rows: WhereUsedRow[] }) {
 
 /** 变更中心（刀2 统一变更模块）：通用 ECR + 替代件变更 + 物料禁用启用，审批通过即执行 */
 export default function ChangePage() {
+  const { hasPerm } = usePerm()
+  const canManage = hasPerm('change:manage')
   const location = useLocation()
   const navigate = useNavigate()
   const [data, setData] = useState<ChangeRequest[]>([])
@@ -283,7 +286,7 @@ export default function ChangePage() {
               {APPLY_STATE_LABELS[r.applyState]?.label ?? r.applyState}
             </Tag>
             {r.applyState === 'FAILED' && (
-              <Button size="small" danger onClick={() => doRetry(r.id)}>重试</Button>
+              <Button size="small" danger disabled={!canManage} onClick={() => doRetry(r.id)}>重试</Button>
             )}
           </Space>
         )
@@ -302,7 +305,7 @@ export default function ChangePage() {
             onChange={(v) => { setPage(1); setTypeFilter(v) }}
           />
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('GENERIC')}>发起变更</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => openCreate('GENERIC')}>发起变更</Button>
         </Space>
       }
     >

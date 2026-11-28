@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Checkbox, Form, Input, List, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined, SafetyOutlined } from '@ant-design/icons'
+import { usePerm } from '../perm/PermContext'
 import {
   addRoleMembers, createRole, deleteRole, fetchAllPermissions, fetchRoleMembers,
   fetchRolePermissionIds, fetchRoles, removeRoleMember, saveRolePermissions, updateRole,
@@ -10,6 +11,10 @@ import {
 
 /** 角色与权限管理页（方案 B/C 组：角色 CRUD + 成员 + 权限矩阵） */
 export default function RoleAdminPage() {
+  const { hasPerm } = usePerm()
+  const canCreate = hasPerm('role:create')
+  const canAssign = hasPerm('role:assign')
+  const canPerm = hasPerm('perm:manage')
   const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -95,7 +100,7 @@ export default function RoleAdminPage() {
       render: (_, r) => (
         <Space size="small">
           <a onClick={() => openMembers(r)}>成员</a>
-          <a onClick={() => openPerms(r)}><SafetyOutlined /> 权限配置</a>
+          <a onClick={() => canPerm && openPerms(r)} style={canPerm ? undefined : { color: '#bbb', pointerEvents: 'none' }}><SafetyOutlined /> 权限配置</a>
           <a onClick={() => {
             form.setFieldsValue({ id: r.id, roleName: r.roleName, description: r.description })
             setCreateOpen(true)
@@ -120,7 +125,7 @@ export default function RoleAdminPage() {
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateOpen(true) }}>新建角色</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canCreate} onClick={() => { form.resetFields(); setCreateOpen(true) }}>新建角色</Button>
         </Space>
       }
     >
@@ -170,7 +175,7 @@ export default function RoleAdminPage() {
             showSearch filterOption={false} onSearch={(k) => void searchUsers(k)}
             value={pendingAdd} onChange={setPendingAdd}
             options={allUsers.filter(u => !members.some(m => m.id === u.id)).map(u => ({ value: u.id, label: u.username }))} />
-          <Button type="primary" disabled={pendingAdd.length === 0} onClick={async () => {
+          <Button type="primary" disabled={pendingAdd.length === 0 || !canAssign} onClick={async () => {
             if (!memberRole) return
             await addRoleMembers(memberRole.id, pendingAdd)
             setPendingAdd([])
@@ -181,12 +186,12 @@ export default function RoleAdminPage() {
           size="small" dataSource={members} rowKey="id" locale={{ emptyText: '暂无成员' }}
           renderItem={(m) => (
             <List.Item actions={[
-              <a key="add" onClick={async () => {
-                if (!memberRole) return
+              <a key="add" style={canAssign ? undefined : { color: '#bbb', pointerEvents: 'none' }} onClick={async () => {
+                if (!memberRole || !canAssign) return
                 await addRoleMembers(memberRole.id, [m.id]); setMembers(await fetchRoleMembers(memberRole.id))
               }}>＋</a>,
-              <a key="remove" style={{ color: '#ff4d4f' }} onClick={async () => {
-                if (!memberRole) return
+              <a key="remove" style={{ color: canAssign ? '#ff4d4f' : '#bbb', pointerEvents: canAssign ? undefined : 'none' }} onClick={async () => {
+                if (!memberRole || !canAssign) return
                 await removeRoleMember(memberRole.id, m.id); setMembers(await fetchRoleMembers(memberRole.id))
               }}>移除</a>,
             ]}>
@@ -199,7 +204,7 @@ export default function RoleAdminPage() {
       {/* 权限矩阵 */}
       <Modal
         title={`权限配置 — ${permRole?.roleName ?? ''}`} open={!!permRole} width={620}
-        onOk={saveMatrix} confirmLoading={saving} onCancel={() => setPermRole(null)} okText="保存配置"
+        onOk={saveMatrix} confirmLoading={saving} onCancel={() => setPermRole(null)} okText="保存配置" okButtonProps={{ disabled: !canPerm }}
       >
         <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
           菜单权限控制界面可见；操作权限控制界面内按钮（每个界面具备独立的增删改查权限）。

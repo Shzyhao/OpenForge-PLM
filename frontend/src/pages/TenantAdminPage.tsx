@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { usePerm } from '../perm/PermContext'
 import { Button, Card, Form, Input, Modal, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -10,6 +11,8 @@ function randomPassword(): string {
 
 /** 租户管理（十轮收口：平台级操作 + 开通流水线 = 建租户+初始管理员+绑定 ADMINS 单事务） */
 export default function TenantAdminPage() {
+  const { hasPerm } = usePerm()
+  const canManage = hasPerm('tenant:manage')
   const [data, setData] = useState<SysTenant[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
@@ -78,7 +81,7 @@ export default function TenantAdminPage() {
     {
       title: '操作', width: 100,
       render: (_, t) => (
-        <Button size="small" danger={t.enabled === 1} onClick={() => doToggle(t)}>
+        <Button size="small" danger={t.enabled === 1} disabled={!canManage} onClick={() => doToggle(t)}>
           {t.enabled === 1 ? '停用' : '启用'}
         </Button>
       ),
@@ -91,7 +94,7 @@ export default function TenantAdminPage() {
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => {
             form.setFieldsValue({ tenantCode: '', tenantName: '', remark: '', adminUsername: '', adminPassword: randomPassword(), adminDisplayName: '' })
             setOpen(true)
           }}>开通租户</Button>
