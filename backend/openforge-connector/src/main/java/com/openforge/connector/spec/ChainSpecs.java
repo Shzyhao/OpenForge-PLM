@@ -94,10 +94,15 @@ public final class ChainSpecs {
             }
             Map<String, Object> stepSpec = cast(raw.get("spec"));
             // 每步 spec 复用 v1 单步解析校验（设计态同时完成占位符闭包/超时/重试等约束）
+            // 步骤类型仅限链内两型（2026-11-28 审查实锤：checkType 放行全量连接器类型，未知类型原实现
+            // 会静默落入 JDBC 分支按 JDBC 解析，报错失真）
             if (ConnectorSpecs.TYPE_HTTP_REST.equals(type)) {
                 ConnectorSpecs.parseHttpRest(stepSpec, mapper, credExists(stepSpec, "credentialRef", credChecker));
-            } else {
+            } else if (ConnectorSpecs.TYPE_JDBC_READONLY.equals(type)) {
                 ConnectorSpecs.parseJdbcReadonly(stepSpec, mapper, credExists(stepSpec, "passwordRef", credChecker));
+            } else {
+                throw new BizException(ErrorCode.CONN_SPEC_INVALID,
+                        "步骤 " + key + " 不支持的步骤类型: " + type + "（链内仅 HTTP_REST / JDBC_READONLY）");
             }
             Map<String, Object> params = raw.get("params") == null ? Map.of()
                     : requireMap(raw.get("params"), "步骤 " + key + " 的 params");

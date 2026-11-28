@@ -51,8 +51,10 @@ export default function DelegatesPage() {
       await createDelegate({
         agentId: values.agentId,
         defKey: values.defKey,
-        startTime: range[0].startOf('day').toISOString(),
-        endTime: range[1] ? range[1].endOf('day').toISOString() : undefined,
+        // 2026-11-28 审查实锤：toISOString() 发 UTC 瞬时（带 Z），后端 LocalDateTime 按 UTC 落地
+        // → 委托末日 16:00 即失效。改发本地墙钟时间串（配合服务端 TZ=Asia/Shanghai 统一）。
+        startTime: range[0].startOf('day').format('YYYY-MM-DDTHH:mm:ss'),
+        endTime: range[1] ? range[1].endOf('day').format('YYYY-MM-DDTHH:mm:ss') : undefined,
         remark: values.remark,
       })
       message.success('委托规则已创建')

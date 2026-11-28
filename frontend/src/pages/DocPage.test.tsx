@@ -1,6 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DocPage from './DocPage'
+import { PermContext, type PermContextValue } from '../perm/PermContext'
+
+// 检入判本人（2026-11-28 审查）依赖 PermContext 的当前用户——与 UserAdminPage.test 同款包裹
+function permOf(userId = 1): PermContextValue {
+  return {
+    user: { id: userId, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    hasPerm: () => true,
+    hasMenu: () => true,
+  }
+}
 
 // R14 第二批（v1.28）：文档页列表/空态
 vi.mock('../api/doc', () => ({
@@ -26,13 +36,13 @@ describe('DocPage', () => {
       ] as never,
       total: 1, page: 1, pageSize: 10,
     })
-    render(<DocPage />)
+    render(<PermContext.Provider value={permOf()}><DocPage /></PermContext.Provider>)
     expect(await screen.findByText('DOC-001')).toBeInTheDocument()
     expect(screen.getByText('规格书')).toBeInTheDocument()
   })
 
   it('空列表展示空态', async () => {
-    render(<DocPage />)
+    render(<PermContext.Provider value={permOf()}><DocPage /></PermContext.Provider>)
     expect(await screen.findAllByText('No data')).not.toHaveLength(0)
   })
 })

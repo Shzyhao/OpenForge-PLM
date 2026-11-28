@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { PermContext, type PermContextValue } from '../perm/PermContext'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import MaterialPage from './MaterialPage'
@@ -20,8 +21,20 @@ beforeEach(() => {
 })
 
 function renderPage() {
-  return render(<MemoryRouter><MaterialPage /></MemoryRouter>)
+  return render(<PermContext.Provider value={permOf()}><MemoryRouter><MaterialPage /></MemoryRouter></PermContext.Provider>)
 }
+
+
+// 写按钮权限门控（2026-11-28 审查批二残留）依赖 PermContext——测试注入全权限上下文保持原断言
+function permOf(): PermContextValue {
+  return {
+    user: { id: 1, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    hasPerm: () => true,
+    hasMenu: () => true,
+  }
+}
+
+
 
 describe('MaterialPage', () => {
   it('列表渲染物料编号与状态 Tag', async () => {

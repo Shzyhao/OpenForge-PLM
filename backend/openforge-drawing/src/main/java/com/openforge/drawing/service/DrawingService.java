@@ -312,8 +312,16 @@ public class DrawingService {
         if (!"REVIEWING".equals(drawing.getLifecycleState())) {
             throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "仅评审中的图纸可发布");
         }
+        // CAS 流转（2026-11-28 审查实锤：原 updateById 无条件更新——双击并发双快照双事件；
+        // 条件更新 affected=0 即并发被抢占，配合 drw_drawing_version (drawing_id,version) 唯一索引兜底）
+        int claimed = drawingMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DrawingInfo>()
+                .eq(DrawingInfo::getId, id)
+                .eq(DrawingInfo::getLifecycleState, "REVIEWING")
+                .set(DrawingInfo::getLifecycleState, "RELEASED"));
+        if (claimed == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "图纸已被并发发布，请刷新查看");
+        }
         drawing.setLifecycleState("RELEASED");
-        drawingMapper.updateById(drawing);
         saveSnapshot(drawing, operatorId);
         auditClient.record(operatorId, "DRW_PUBLISH", "DRAWING", drawing.getDrawingNumber(),
                 "发布版本 " + drawing.version());

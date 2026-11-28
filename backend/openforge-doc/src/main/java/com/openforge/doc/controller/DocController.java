@@ -30,7 +30,7 @@ public class DocController {
 
     @PostMapping
     @RequirePermission("doc:create")
-    public ApiResponse<DocInfo> create(@RequestBody CreateDocRequest request,
+    public ApiResponse<DocInfo> create(@jakarta.validation.Valid @RequestBody CreateDocRequest request,
                                        HttpServletRequest httpRequest) {
         return ApiResponse.ok(docService.create(request.getTitle(), request.getDocType(),
                 currentUserId(httpRequest)));

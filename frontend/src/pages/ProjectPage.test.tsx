@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { PermContext, type PermContextValue } from '../perm/PermContext'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectPage from './ProjectPage'
 
@@ -21,11 +22,21 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+
+// 写按钮权限门控（2026-11-28 审查批二残留）依赖 PermContext——测试注入全权限上下文保持原断言
+function permOf(): PermContextValue {
+  return {
+    user: { id: 1, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    hasPerm: () => true,
+    hasMenu: () => true,
+  }
+}
+
 describe('ProjectPage', () => {
   it('列表渲染项目编号/名称', async () => {
     const { fetchProjects } = await import('../api/project')
     vi.mocked(fetchProjects).mockResolvedValueOnce({ list: [PROJECT] as never, total: 1, page: 1, pageSize: 10 })
-    render(<ProjectPage />)
+    render(<PermContext.Provider value={permOf()}><ProjectPage /></PermContext.Provider>)
     expect(await screen.findByText('平台迁移')).toBeInTheDocument()
     expect(screen.getByText('PRJ-001')).toBeInTheDocument()
   })
@@ -36,7 +47,7 @@ describe('ProjectPage', () => {
     vi.mocked(fetchProjectTasks).mockResolvedValueOnce([
       { id: 9, title: '迁移数据库', status: 'TODO', projectId: 1, assigneeId: null, dueDate: null },
     ] as never)
-    render(<ProjectPage />)
+    render(<PermContext.Provider value={permOf()}><ProjectPage /></PermContext.Provider>)
     fireEvent.click(await screen.findByText('打开'))
     await waitFor(() => {
       expect(fetchProjectTasks).toHaveBeenCalledWith(1)
@@ -45,7 +56,7 @@ describe('ProjectPage', () => {
   })
 
   it('空列表展示空态', async () => {
-    render(<ProjectPage />)
+    render(<PermContext.Provider value={permOf()}><ProjectPage /></PermContext.Provider>)
     expect(await screen.findAllByText('No data')).not.toHaveLength(0)
   })
 })

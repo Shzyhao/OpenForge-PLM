@@ -298,7 +298,7 @@ const ConnectorConfigPanel = forwardRef<ConnectorConfigPanelHandle, Props>(
                   options={httpCreds.map((c) => ({ value: c.credCode, label: `${c.credName}（${c.credCode}）` }))} />
               </Form.Item>
               <Form.Item name="smtpTimeoutMs" label="超时(ms)" style={{ marginBottom: 0 }}>
-                <InputNumber min={1000} max={60000} style={{ width: 120 }} />
+                <InputNumber min={1000} max={30000} style={{ width: 120 }} />
               </Form.Item>
             </Space>
           </>

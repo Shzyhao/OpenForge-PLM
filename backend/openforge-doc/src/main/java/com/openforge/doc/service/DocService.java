@@ -194,11 +194,26 @@ public class DocService {
 
     // ===== 文件 =====
 
-    /** 上传文件到文档（追加新文件记录，存储层落盘，SHA256 校验值入库）。 */
+    /** 上传文件到文档（追加新文件记录，存储层落盘，SHA256 校验值入库）。
+     *  上传预检（2026-11-28 审查实锤：超长文件名先落盘后失败——留存孤儿文件且报错难定位）：
+     *  文件名 ≤255（对齐图纸域 R11 收口与 DB 列宽）；大小上限 100MB 与 multipart yml 对齐；
+     *  内容类型白名单需产品定义，未擅自引入。 */
+    private static final int MAX_FILE_NAME_LENGTH = 255;
+    private static final long MAX_FILE_SIZE_BYTES = 100L * 1024 * 1024;
+
     public DocFile uploadFile(Long docId, String fileName, InputStream content) {
         detail(docId);
+        if (fileName == null || fileName.isBlank()) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "文件名不能为空");
+        }
+        if (fileName.length() > MAX_FILE_NAME_LENGTH) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "文件名过长（上限 255 字符）");
+        }
         try {
             byte[] bytes = content.readAllBytes();
+            if (bytes.length > MAX_FILE_SIZE_BYTES) {
+                throw new BizException(ErrorCode.INVALID_ARGUMENT, "文件过大（上限 100MB）");
+            }
             String sha256 = sha256(bytes);
             String storageKey = storageClient.save(fileName, new java.io.ByteArrayInputStream(bytes));
             DocFile file = new DocFile();
@@ -209,6 +224,8 @@ public class DocService {
             file.setSha256(sha256);
             docFileMapper.insert(file);
             return file;
+        } catch (BizException e) {
+            throw e;
         } catch (Exception e) {
             throw new BizException(ErrorCode.INTERNAL_ERROR, "文件保存失败: " + e.getMessage());
         }

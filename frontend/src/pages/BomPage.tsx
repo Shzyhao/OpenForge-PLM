@@ -103,19 +103,19 @@ export default function BomPage() {
     if (!bomId) return
     setLoading(true)
     try {
-      const [header, lineRows, root] = await Promise.all([
+      // 域间独立加载（2026-11-28 审查实锤：Promise.all 一损俱损——展开树失败曾把整页清空且无法自救）
+      const [header, lineRows, root] = await Promise.allSettled([
         fetchBom(bomId),
         fetchBomLines(bomId),
         get<BomExpandNode>(`/api/v1/boms/expand?bomId=${bomId}&level=10`),
       ])
-      setBom(header)
-      setLines(lineRows)
-      setTree([toTree(root, '')])
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : '查询失败')
-      setBom(null)
-      setLines([])
-      setTree([])
+      setBom(header.status === 'fulfilled' ? header.value : null)
+      setLines(lineRows.status === 'fulfilled' ? lineRows.value : [])
+      setTree(root.status === 'fulfilled' ? [toTree(root.value, '')] : [])
+      const failed = [header, lineRows, root].filter(r => r.status === 'rejected') as PromiseRejectedResult[]
+      if (failed.length > 0) {
+        message.warning(`部分数据加载失败：${failed[0].reason instanceof Error ? failed[0].reason.message : '请稍后重试'}`)
+      }
     } finally {
       setLoading(false)
     }

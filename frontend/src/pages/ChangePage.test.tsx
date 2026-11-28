@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { PermContext, type PermContextValue } from '../perm/PermContext'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import ChangePage from './ChangePage'
@@ -33,8 +34,20 @@ beforeEach(() => {
 })
 
 function renderPage() {
-  return render(<MemoryRouter initialEntries={['/change']}><ChangePage /></MemoryRouter>)
+  return render(<PermContext.Provider value={permOf()}><MemoryRouter initialEntries={['/change']}><ChangePage /></MemoryRouter></PermContext.Provider>)
 }
+
+
+// 写按钮权限门控（2026-11-28 审查批二残留）依赖 PermContext——测试注入全权限上下文保持原断言
+function permOf(): PermContextValue {
+  return {
+    user: { id: 1, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    hasPerm: () => true,
+    hasMenu: () => true,
+  }
+}
+
+
 
 describe('ChangePage', () => {
   it('列表渲染 ECR 编号/标题链接/状态', async () => {

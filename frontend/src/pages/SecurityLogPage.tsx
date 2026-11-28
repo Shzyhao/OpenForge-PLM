@@ -39,7 +39,12 @@ export default function SecurityLogPage() {
     { title: '原因', dataIndex: 'reason', width: 130,
       render: (r: string) => r === 'OK' ? <Tag color="green">{r}</Tag>
         : r === 'LOCKED' ? <Tag color="orange">锁定</Tag>
-        : r === 'DISABLED' ? <Tag color="default">已停用</Tag> : <Tag>凭证错误</Tag> },
+        : r === 'DISABLED' ? <Tag color="default">已停用</Tag>
+        : r === 'TENANT_DISABLED' ? <Tag color="red">租户停用</Tag>
+        : r === 'FORCE_CHANGE' ? <Tag color="blue">首登改密</Tag>
+        : r === 'EXPIRED' ? <Tag color="blue">密码过期</Tag>
+        : r === 'EXPIRING_SOON' ? <Tag color="blue">密码临期</Tag>
+        : <Tag>凭证错误</Tag> },
     { title: 'IP', dataIndex: 'ip' },
   ]
 

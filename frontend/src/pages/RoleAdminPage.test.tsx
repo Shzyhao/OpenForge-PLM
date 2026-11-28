@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { PermContext, type PermContextValue } from '../perm/PermContext'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RoleAdminPage from './RoleAdminPage'
 
@@ -23,11 +24,21 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+
+// 写按钮权限门控（2026-11-28 审查批二残留）依赖 PermContext——测试注入全权限上下文保持原断言
+function permOf(): PermContextValue {
+  return {
+    user: { id: 1, username: 'admin', displayName: 'admin', email: null, roles: ['ADMINS'], menus: [], permissions: [], userType: 'NORMAL' },
+    hasPerm: () => true,
+    hasMenu: () => true,
+  }
+}
+
 describe('RoleAdminPage', () => {
   it('列表渲染角色与内置 Tag；分页计数可见（v1.28 P3#20）', async () => {
     const { fetchRoles } = await import('../api/user')
     vi.mocked(fetchRoles).mockResolvedValueOnce([ROLE] as never)
-    render(<RoleAdminPage />)
+    render(<PermContext.Provider value={permOf()}><RoleAdminPage /></PermContext.Provider>)
     expect(await screen.findByText('ADMINS')).toBeInTheDocument()
     expect(screen.getAllByText('内置').length).toBeGreaterThan(0)
     expect(screen.getByText('共 1 条')).toBeInTheDocument()
@@ -43,7 +54,7 @@ describe('RoleAdminPage', () => {
       list: [{ id: 3, username: 'bob', displayName: null, userType: 'NORMAL', status: 'ACTIVE', orgName: null }] as never,
       total: 1, page: 1, pageSize: 50,
     })
-    render(<RoleAdminPage />)
+    render(<PermContext.Provider value={permOf()}><RoleAdminPage /></PermContext.Provider>)
     fireEvent.click(await screen.findByText('成员'))
     await waitFor(() => {
       expect(fetchRoleMembers).toHaveBeenCalledWith(1)

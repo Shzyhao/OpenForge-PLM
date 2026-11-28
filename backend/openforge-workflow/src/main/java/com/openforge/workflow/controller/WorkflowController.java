@@ -42,6 +42,7 @@ public class WorkflowController {
     }
 
     @PostMapping("/instances")
+    @RequirePermission("workflow:manage")
     public ApiResponse<WorkflowInstance> start(@jakarta.validation.Valid @RequestBody StartRequest request,
                                                HttpServletRequest httpRequest) {
         return ApiResponse.ok(engine.start(request.getDefKey(), request.getBizType(),

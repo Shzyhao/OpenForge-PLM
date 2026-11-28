@@ -25,19 +25,27 @@ export default function RecycleBinPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [p, b, d, dr, k, c, pr] = await Promise.all([
+      // 域间独立加载（2026-11-28 审查实锤：Promise.all 一损俱损，单域 404 把整页打空）
+      const [p, b, d, dr, k, c, pr] = await Promise.allSettled([
         fetchTrashedParts(), fetchTrashedBoms(), fetchTrashedDocs(), fetchTrashedDrawings(),
         fetchTrashedKnowledge(), fetchTrashedChanges(), fetchTrashedProjects(),
       ])
-      setParts(p)
-      setBoms(b)
-      setDocs(d)
-      setDrawings(dr)
-      setKnowledge(k)
-      setChanges(c)
-      setProjects(pr)
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : '加载失败')
+      setParts(p.status === 'fulfilled' ? p.value : [])
+      setBoms(b.status === 'fulfilled' ? b.value : [])
+      setDocs(d.status === 'fulfilled' ? d.value : [])
+      setDrawings(dr.status === 'fulfilled' ? dr.value : [])
+      setKnowledge(k.status === 'fulfilled' ? k.value : [])
+      setChanges(c.status === 'fulfilled' ? c.value : [])
+      setProjects(pr.status === 'fulfilled' ? pr.value : [])
+      const settled: [string, PromiseSettledResult<unknown>][] = [
+        ['物料', p], ['BOM', b], ['文档', d], ['图纸', dr],
+        ['知识库', k], ['变更', c], ['项目', pr],
+      ]
+      const failed = settled.filter(([, r]) => r.status === 'rejected')
+      if (failed.length > 0) {
+        const first = failed[0][1] as PromiseRejectedResult
+        message.warning(`${failed.map(([name]) => name).join('、')}加载失败：${first.reason instanceof Error ? first.reason.message : '请稍后重试'}`)
+      }
     } finally {
       setLoading(false)
     }

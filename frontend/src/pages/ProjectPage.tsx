@@ -5,6 +5,7 @@ import {
   addProjectTask, closeProject, createProject, fetchProjectTasks, fetchProjects, moveTask,
   type Project, type ProjectTask,
 } from '../api/project'
+import { usePerm } from '../perm/PermContext'
 
 const TASK_ACTIONS: Record<string, { next: string; label: string }> = {
   TODO: { next: 'DOING', label: '开始' },
@@ -13,6 +14,8 @@ const TASK_ACTIONS: Record<string, { next: string; label: string }> = {
 
 /** 项目管理页（M6）：项目列表 + 任务看板（轻量三态流转） */
 export default function ProjectPage() {
+  const { hasPerm } = usePerm()
+  const canManage = hasPerm('project:manage')
   const [projects, setProjects] = useState<Project[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -52,7 +55,7 @@ export default function ProjectPage() {
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建项目</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => setCreateOpen(true)}>新建项目</Button>
         </Space>
       }
     >
@@ -66,7 +69,8 @@ export default function ProjectPage() {
               actions={[
                 ...(p.status === 'ACTIVE'
                   ? [<a key="open" onClick={() => openProject(p)}>打开</a>,
-                     <a key="close" onClick={async () => { await closeProject(p.id); message.success('已结项'); load() }}>结项</a>]
+                     <a key="close" style={canManage ? undefined : { color: '#bbb', pointerEvents: 'none' }}
+                     onClick={async () => { await closeProject(p.id); message.success('已结项'); load() }}>结项</a>]
                   : [<Tag key="closed" color="default">已结项</Tag>]),
               ]}
             >
@@ -83,7 +87,7 @@ export default function ProjectPage() {
             <Space.Compact>
               <Input size="small" placeholder="新任务标题" style={{ width: 180 }}
                 value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} />
-              <Button size="small" type="primary" icon={<PlusOutlined />}
+              <Button size="small" type="primary" icon={<PlusOutlined />} disabled={!canManage}
                 onClick={async () => {
                   if (!taskTitle.trim()) return
                   await addProjectTask(selected.id, taskTitle.trim())
@@ -100,7 +104,7 @@ export default function ProjectPage() {
                 return (
                   <List.Item
                     actions={action
-                      ? [<Button key="move" size="small" type={t.status === 'DOING' ? 'primary' : 'default'}
+                      ? [<Button key="move" size="small" disabled={!canManage} type={t.status === 'DOING' ? 'primary' : 'default'}
                           icon={t.status === 'DOING' ? <CheckOutlined /> : <RightOutlined />}
                           onClick={async () => { await moveTask(t.id, action.next); setTasks(await fetchProjectTasks(selected.id)) }}>
                           {action.label}

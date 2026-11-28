@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { usePerm } from '../perm/PermContext'
 import { Button, Card, Descriptions, Drawer, Empty, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -14,6 +15,8 @@ import { ApiError } from '../api/client'
 /** 物料管理页（M2）：列表 + 筛选 + 新建 + 状态流转（禁用/启用走统一变更中心，刀2） */
 export default function MaterialPage() {
   const navigate = useNavigate()
+  const { hasPerm } = usePerm()
+  const canCreate = hasPerm('part:create')
   const [data, setData] = useState<Part[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -146,7 +149,7 @@ export default function MaterialPage() {
             onChange={(v) => { setPage(1); setStateFilter(v) }}
           />
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建物料</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canCreate} onClick={() => setCreateOpen(true)}>新建物料</Button>
         </Space>
       }
     >

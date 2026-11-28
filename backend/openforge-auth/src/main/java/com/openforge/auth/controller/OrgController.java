@@ -46,7 +46,7 @@ public class OrgController {
     @PutMapping("/{id}")
     @RequirePermission("org:manage")
     public ApiResponse<SysOrg> update(@PathVariable Long id,
-                                      @RequestBody UpdateOrgRequest request) {
+                                      @jakarta.validation.Valid @RequestBody UpdateOrgRequest request) {
         return ApiResponse.ok(orgService.updateOrg(id, request.getOrgName(), request.getSortOrder()));
     }
 

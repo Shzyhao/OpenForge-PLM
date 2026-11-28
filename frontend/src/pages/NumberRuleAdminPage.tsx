@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { usePerm } from '../perm/PermContext'
 import {
-  createNumberRule, fetchNumberCounters, fetchNumberRules, previewNumber,
+  createNumberRule, fetchNumberCounters, fetchNumberRules, previewNumber, toggleNumberRule,
   type NumberCounter, type NumberRule, type NumberSegment,
 } from '../api/number'
 
@@ -22,6 +23,8 @@ function describeSegments(json: string): string {
 
 /** 编号规则管理（十轮收口：平台模板 + 计数器水位，此前只能 SQL 手查） */
 export default function NumberRuleAdminPage() {
+  const { hasPerm } = usePerm()
+  const canManage = hasPerm('number:manage')
   const [rules, setRules] = useState<NumberRule[]>([])
   const [counters, setCounters] = useState<NumberCounter[]>([])
   const [loading, setLoading] = useState(false)
@@ -46,10 +49,19 @@ export default function NumberRuleAdminPage() {
   const doPreview = async (rule: NumberRule) => {
     try {
       const next = await previewNumber(rule.ruleKey)
-      Modal.info({ title: `预览取号：${rule.ruleKey}`, content: <Typography.Text copyable code style={{ fontSize: 16 }}>{next}</Typography.Text> })
+      Modal.info({ title: `预览下一个编号（不消费）：${rule.ruleKey}`, content: <Typography.Text copyable code style={{ fontSize: 16 }}>{next}</Typography.Text> })
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '预览失败')
+    }
+  }
+
+  const doToggle = async (rule: NumberRule) => {
+    try {
+      await toggleNumberRule(rule.id, rule.status !== 'ACTIVE')
+      message.success(rule.status === 'ACTIVE' ? '规则已停用' : '规则已启用')
       await load()
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '取号失败')
+      message.error(e instanceof Error ? e.message : '操作失败')
     }
   }
 
@@ -81,7 +93,14 @@ export default function NumberRuleAdminPage() {
       title: '状态', dataIndex: 'status', width: 80,
       render: (s: string) => s === 'ACTIVE' ? <Tag color="green">ACTIVE</Tag> : <Tag>{s}</Tag>,
     },
-    { title: '操作', width: 100, render: (_, r) => <Button size="small" onClick={() => doPreview(r)}>取号预览</Button> },
+    {
+      title: '操作', width: 170, render: (_, r) => (
+        <Space size={4}>
+          <Button size="small" disabled={!canManage} onClick={() => doPreview(r)}>取号预览</Button>
+          <Button size="small" disabled={!canManage} onClick={() => doToggle(r)}>{r.status === 'ACTIVE' ? '停用' : '启用'}</Button>
+        </Space>
+      ),
+    },
   ]
 
   const counterColumns: ColumnsType<NumberCounter> = [
@@ -96,7 +115,7 @@ export default function NumberRuleAdminPage() {
       extra={
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+          <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => {
             form.setFieldsValue({ ruleKey: '', ruleName: '', prefix: '', datePattern: 'yyyyMMdd', seqLength: 5, resetPolicy: 'DAILY' })
             setOpen(true)
           }}>新建规则</Button>
@@ -135,7 +154,7 @@ export default function NumberRuleAdminPage() {
           </Space>
           <Space size="middle" style={{ display: 'flex' }}>
             <Form.Item name="seqLength" label="流水号位数">
-              <InputNumber min={1} max={10} style={{ width: 100 }} />
+              <InputNumber min={1} max={9} style={{ width: 100 }} />
             </Form.Item>
             <Form.Item name="resetPolicy" label="重置策略">
               <Select style={{ width: 120 }} options={[
