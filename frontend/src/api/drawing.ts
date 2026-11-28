@@ -1,5 +1,5 @@
 import { get, post, del } from './client'
-import { getToken } from './client'
+import { getToken, upload } from './client'
 import type { PageData } from './material'
 
 /** 图纸档案（v1.20.0；对应后端 openforge-drawing DrawingInfo） */
@@ -108,21 +108,12 @@ export function drawingAction(id: number, action: 'check-out' | 'check-in' | 'su
   return post<DrawingInfo>(`/api/v1/drawings/${id}/${action}`)
 }
 
-/** 上传图纸文件（multipart；浏览器自动设置 boundary，不手工指定 Content-Type）。 */
+/** 上传图纸文件（multipart，不手工指定 Content-Type；经 client.upload 统一收口）。 */
 export async function uploadDrawingFile(id: number, file: File, kind: string): Promise<DrawingFile> {
   const form = new FormData()
   form.append('file', file)
   form.append('kind', kind)
-  const res = await fetch(`/api/v1/drawings/${id}/files`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-    body: form,
-  })
-  const body = await res.json()
-  if (!res.ok || body.code !== 0) {
-    throw new Error(body.message ?? '上传失败')
-  }
-  return body.data as DrawingFile
+  return upload<DrawingFile>(`/api/v1/drawings/${id}/files`, form)
 }
 
 /** 下载/预览源：blob + 从 Content-Disposition 解析文件名。 */

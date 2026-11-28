@@ -115,7 +115,7 @@ export default function ObjectDataPage() {
     return [
       { title: 'ID', dataIndex: 'id', width: 70, sorter: true },
       ...fieldCols,
-      { title: '创建时间', dataIndex: 'createdAt', width: 170,
+      { title: '创建时间', dataIndex: 'created_at', width: 170,
         render: (v: string) => (v ?? '').replace('T', ' ').slice(0, 19) },
       {
         title: '操作', width: 140,

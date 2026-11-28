@@ -221,6 +221,8 @@ export default function ChangePage() {
         : null
       Modal.info({
         title: `${detail.ecrNumber} — ${detail.title}`, width: 720,
+        // 查看详情可能触发惰性回流（流程终态同步/执行），关闭后刷新列表让行内状态立即回流
+        onOk: () => { load() },
         content: (
           <div style={{ marginTop: 12 }}>
             <p><Tag color={CHANGE_TYPE_LABELS[detail.changeType]?.color}>{CHANGE_TYPE_LABELS[detail.changeType]?.label ?? detail.changeType}</Tag>

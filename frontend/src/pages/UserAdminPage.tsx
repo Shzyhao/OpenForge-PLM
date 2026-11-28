@@ -110,19 +110,28 @@ export default function UserAdminPage() {
     },
   ]
 
-  const resetPwd = async (u: AdminUser) => {
-    const pwd = randomPassword()
-    try {
-      await resetUserPassword(u.id, pwd)
-      Modal.info({
-        title: `已重置 ${u.username} 的密码`,
-        content: <div><p>新密码（一次性展示，请立即转交）：</p>
-          <Typography.Text copyable code style={{ fontSize: 16 }}>{pwd}</Typography.Text>
-          <p style={{ color: '#888', marginTop: 8, fontSize: 12 }}>该用户下次登录将被强制修改密码。</p></div>,
-      })
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : '重置失败')
-    }
+  const resetPwd = (u: AdminUser) => {
+    // 二次确认 + 防重（2026-11-28 审查实锤：重置即让对方会话密码失效，误触代价高；连点会连发随机密码）
+    Modal.confirm({
+      title: `确认重置 ${u.username} 的密码？`,
+      content: '将生成新的随机初始密码，该用户当前密码立即失效（下次登录强制改密）。',
+      okText: '确认重置',
+      cancelText: '取消',
+      onOk: async () => {
+        const pwd = randomPassword()
+        try {
+          await resetUserPassword(u.id, pwd)
+          Modal.info({
+            title: `已重置 ${u.username} 的密码`,
+            content: <div><p>新密码（一次性展示，请立即转交）：</p>
+              <Typography.Text copyable code style={{ fontSize: 16 }}>{pwd}</Typography.Text>
+              <p style={{ color: '#888', marginTop: 8, fontSize: 12 }}>该用户下次登录将被强制修改密码。</p></div>,
+          })
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : '重置失败')
+        }
+      },
+    })
   }
 
   return (

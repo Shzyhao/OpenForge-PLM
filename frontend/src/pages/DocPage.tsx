@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Drawer, Form, Input, Modal, Select, Space, Table, Tag, Typography, Upload, message } from 'antd'
+import { Button, Card, Drawer, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, Upload, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DownloadOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { usePerm } from '../perm/PermContext'
 import {
   checkIn, checkOut, createDoc, downloadDocFile, fetchDocFiles, fetchDocs, uploadDocFile,
   type DocFile, type DocInfo,
@@ -24,6 +25,7 @@ function formatSize(bytes: number): string {
 
 /** 文档管理页（M2）：列表 + 新建 + 检入检出；十轮补文件上传/下载/内嵌预览（此前上传后无法取回） */
 export default function DocPage() {
+  const { user } = usePerm()
   const [data, setData] = useState<DocInfo[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -156,7 +158,10 @@ export default function DocPage() {
         <Space size="small">
           {doc.checkedOutBy === null
             ? <Button size="small" onClick={() => act(doc.id, 'check-out')}>检出</Button>
-            : <Button size="small" type="primary" onClick={() => act(doc.id, 'check-in')}>检入</Button>}
+            : <Tooltip title={doc.checkedOutBy === user?.id ? undefined : `仅检出人（${doc.checkedOutBy}）可检入`}>
+                <Button size="small" type="primary" disabled={doc.checkedOutBy !== user?.id}
+                  onClick={() => act(doc.id, 'check-in')}>检入</Button>
+              </Tooltip>}
           <Button size="small" onClick={() => openFiles(doc)}>文件</Button>
         </Space>
       ),

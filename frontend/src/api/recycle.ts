@@ -109,15 +109,17 @@ export interface TrashedProject {
 }
 
 export function fetchTrashedKnowledge(): Promise<TrashedKnowledge[]> {
-  return get<TrashedKnowledge[]>('/api/v1/knowledge/items/recycle')
+  // 2026-11-28 审查实锤：原路径多一段 /items（后端是 /api/v1/knowledge/recycle|{id}/restore|{id}/purge），
+  // 知识库域整域 404，叠加页面 Promise.all 一损俱损 → 回收站整页不可用
+  return get<TrashedKnowledge[]>('/api/v1/knowledge/recycle')
 }
 
 export function restoreKnowledge(id: number): Promise<TrashedKnowledge> {
-  return post<TrashedKnowledge>(`/api/v1/knowledge/items/${id}/restore`)
+  return post<TrashedKnowledge>(`/api/v1/knowledge/${id}/restore`)
 }
 
 export function purgeKnowledge(id: number): Promise<TrashedKnowledge> {
-  return post<TrashedKnowledge>(`/api/v1/knowledge/items/${id}/purge`)
+  return post<TrashedKnowledge>(`/api/v1/knowledge/${id}/purge`)
 }
 
 export function fetchTrashedChanges(): Promise<TrashedChange[]> {

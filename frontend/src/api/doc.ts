@@ -1,4 +1,4 @@
-import { get, post } from './client'
+import { get, post, upload } from './client'
 import { getToken } from './client'
 import type { PageData } from './material'
 
@@ -48,20 +48,11 @@ export function fetchDocFiles(id: number): Promise<DocFile[]> {
   return get<DocFile[]>(`/api/v1/docs/${id}/files`)
 }
 
-/** 上传文档文件（multipart；浏览器自动设置 boundary）。 */
+/** 上传文档文件（multipart；经 client.upload 统一收口——超时/401 分流/错误体兜底）。 */
 export async function uploadDocFile(id: number, file: File): Promise<DocFile> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`/api/v1/docs/${id}/files`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-    body: form,
-  })
-  const body = await res.json()
-  if (!res.ok || body.code !== 0) {
-    throw new Error(body.message ?? '上传失败')
-  }
-  return body.data as DocFile
+  return upload<DocFile>(`/api/v1/docs/${id}/files`, form)
 }
 
 /** 下载/预览源：blob + 从 Content-Disposition 解析文件名。 */
