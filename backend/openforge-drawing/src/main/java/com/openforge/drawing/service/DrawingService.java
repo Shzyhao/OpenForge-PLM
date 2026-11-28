@@ -64,6 +64,11 @@ public class DrawingService {
     /** 审签接流程引擎（v1.25 §6）：默认关（轻量直批语义不变）；开启后 submit 启流程、查询惰性回流终态 */
     @org.springframework.beans.factory.annotation.Value("${openforge.drawing.workflow-review:false}")
     private boolean workflowReview;
+
+    /** 审签开关读取（批三-B：前端据此隐藏「直接发布」，走评审流办理）。 */
+    public boolean workflowReviewEnabled() {
+        return workflowReview;
+    }
     private final com.openforge.drawing.client.DrawingNotifyClient notifyClient;
     /** 自代理（v1.31 P1-3）：syncWorkflowReview 调 approve/reject 须经代理走事务——
      * 原 this 直调使 @Transactional 失效（RELEASED 提交后快照失败不可恢复、无事务路径 ECO 通知双触发） */

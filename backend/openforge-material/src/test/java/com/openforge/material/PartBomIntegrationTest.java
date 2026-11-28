@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -78,6 +79,8 @@ class PartBomIntegrationTest {
     @BeforeEach
     void stubNumbers() {
         // @MockBean 每个测试方法后重置，统一在此 stub：part/bom 规则各自递增
+        // 批三-A：PartService 取号携带分类编码（双参）；单参 stub 保留兜底
+        when(numberClient.next(eq("part"), any())).thenAnswer(i -> "P" + String.format("%010d", partSeq.incrementAndGet()));
         when(numberClient.next("part")).thenAnswer(i -> "P" + String.format("%010d", partSeq.incrementAndGet()));
         when(numberClient.next("bom")).thenAnswer(i -> "B" + String.format("%010d", bomSeq.incrementAndGet()));
     }

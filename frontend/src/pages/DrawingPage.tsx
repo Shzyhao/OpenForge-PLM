@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons'
 import {
   createDrawing, deleteDrawing, drawingAction, downloadDrawingFile, fetchDrawing, fetchDrawingFiles,
-  fetchDrawingParts, fetchDrawingVersions, fetchDrawings, linkPart, unlinkPart, uploadDrawingFile,
+  fetchDrawingParts, fetchDrawingReviewConfig, fetchDrawingVersions, fetchDrawings, linkPart, unlinkPart, uploadDrawingFile,
   type DrawingFile, type DrawingInfo, type DrawingPartLink, type DrawingVersion,
 } from '../api/drawing'
 import { fetchParts, type Part } from '../api/material'
@@ -92,6 +92,9 @@ export default function DrawingPage() {
   }, [page, titleFilter, stateFilter])
 
   useEffect(() => { void load(1) /* eslint-disable-line react-hooks/exhaustive-deps */ }, [])
+  // 审签开关（批三-B）：开启后 REVIEWING 状态须走评审流任务办理，隐藏「直接发布/驳回」
+  const [reviewFlow, setReviewFlow] = useState(false)
+  useEffect(() => { fetchDrawingReviewConfig().then((c) => setReviewFlow(c.workflowReview)).catch(() => {}) }, [])
 
   const loadParts = useCallback(async (name: string) => {
     try {
@@ -325,13 +328,18 @@ export default function DrawingPage() {
                     onClick={() => void doAction('submit', '已提交评审')}>提交评审</Button>
                 </>
               )}
-              {current.lifecycleState === 'REVIEWING' && canManage && (
+              {current.lifecycleState === 'REVIEWING' && canManage && !reviewFlow && (
                 <>
                   <Button size="small" type="primary" onClick={() => void doAction('approve', '已发布（版本快照已固化）')}>
                     发布
                   </Button>
                   <Button size="small" onClick={() => void doAction('reject', '已驳回回草稿')}>驳回</Button>
                 </>
+              )}
+              {current.lifecycleState === 'REVIEWING' && reviewFlow && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  审签流程已启用：请在「我的待办」中办理评审任务，通过后自动发布回流。
+                </Typography.Text>
               )}
               {current.lifecycleState === 'RELEASED' && canManage && (
                 <>

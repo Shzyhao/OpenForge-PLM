@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,9 +51,10 @@ public class InternalController {
 
     @PostMapping("/numbers/next/{ruleKey}")
     public ApiResponse<String> nextNumber(@PathVariable String ruleKey,
+                                          @RequestParam(value = "categoryCode", required = false) String categoryCode,
                                           @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         requireInternal(token);
-        return ApiResponse.ok(numberRuleService.nextNumber(ruleKey));
+        return ApiResponse.ok(numberRuleService.nextNumber(ruleKey, java.time.LocalDate.now(), categoryCode));
     }
 
     @GetMapping("/permissions/{userId}")

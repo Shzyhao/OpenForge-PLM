@@ -3,7 +3,7 @@ import { get, post } from './client'
 // ===== 编号规则管理（十轮收口：规则为平台模板 + 计数器水位可见） =====
 
 export interface NumberSegment {
-  type: 'CONST' | 'DATE' | 'SEQ'
+  type: 'CONST' | 'DATE' | 'SEQ' | 'CATEGORY'
   value?: string
   pattern?: string
   length?: number

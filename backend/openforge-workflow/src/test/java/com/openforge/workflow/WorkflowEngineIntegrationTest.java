@@ -262,4 +262,29 @@ class WorkflowEngineIntegrationTest {
         assertThat(rejects).isEqualTo(1);
         assertThat(engine.instance(first.getInstanceId()).getState()).isEqualTo("COMPLETED");
     }
+
+    @Test
+    @DisplayName("批三-B 提交人回避：开启后发起人办理自己发起的实例被拒；默认关时不拦")
+    void submitterRecusalToggle() {
+        org.springframework.test.util.ReflectionTestUtils.setField(engine, "submitterRecusal", true);
+        try {
+            engine.deploy("test-flow", "测试流程", DEFINITION, 1L);
+            WorkflowInstance instance = startWith(Map.of("amount", 100));
+            WorkflowTask first = taskOf(instance);
+            assertThatThrownBy(() -> engine.act(first.getId(), 1L, "APPROVE", "自批"))
+                    .isInstanceOf(BizException.class)
+                    .hasMessageContaining("提交人回避");
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(engine, "submitterRecusal", false);
+        }
+        // 默认关：既有轻量直批语义不变（与 highAmountGoesThroughRoleApproval 同构链路）
+        WorkflowInstance instance = startWith(Map.of("amount", 5000));
+        WorkflowTask first = taskOf(instance);
+        engine.act(first.getId(), 7L, "APPROVE", "初审通过");
+        WorkflowTask second = engine.myTasks(1L).stream()
+                .filter(t -> t.getInstanceId().equals(instance.getId()) && t.isOpen())
+                .findFirst().orElseThrow();
+        engine.act(second.getId(), 1L, "APPROVE", "发起人直批（默认关）");
+    }
+
 }

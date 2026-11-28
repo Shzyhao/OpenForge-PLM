@@ -45,6 +45,10 @@ public class WorkflowEngine {
     private final DelegateService delegateService;
     private final com.openforge.workflow.client.WorkflowNotifyClient notifyClient;
 
+    /** 提交人回避（批三-B，默认关）：开启后发起人不能办理自己发起实例的审批任务。 */
+    @org.springframework.beans.factory.annotation.Value("${openforge.workflow.submitter-recusal:false}")
+    private boolean submitterRecusal;
+
     // ===== 定义 =====
 
     @Transactional
@@ -217,6 +221,14 @@ public class WorkflowEngine {
         String normalized = action == null ? "" : action.trim().toUpperCase();
         if (!"APPROVE".equals(normalized) && !"REJECT".equals(normalized)) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "action 须为 APPROVE/REJECT: " + action);
+        }
+        // 提交人回避（批三-B，默认关）：先于权限判定——即使发起人恰好是指派人/角色成员也不放行自批
+        if (submitterRecusal) {
+            WorkflowInstance probeInst = instanceMapper.selectById(probe.getInstanceId());
+            if (probeInst != null && probeInst.getInitiatorId() != null
+                    && probeInst.getInitiatorId().equals(userId)) {
+                throw new BizException(ErrorCode.FORBIDDEN, "提交人回避：发起人不能办理自己发起的审批任务");
+            }
         }
         boolean assignedToMe = userId.equals(task.getAssigneeId());
         boolean myRole = task.getCandidateRole() != null
