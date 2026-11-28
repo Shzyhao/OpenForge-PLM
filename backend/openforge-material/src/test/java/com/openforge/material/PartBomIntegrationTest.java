@@ -191,12 +191,20 @@ class PartBomIntegrationTest {
         assertThat(tree.children().get(0).children()).hasSize(1);
         assertThat(tree.children().get(0).children().get(0).partNumber()).isEqualTo(c.getPartNumber());
 
-        // 环检测: B 的 BOM 引用 A → 展开 A 应报循环
-        bomService.addLine(bomB.getId(), line(a.getId(), "1"));
-        assertThatThrownBy(() -> bomService.expand(bomA.getId(), 5))
+        // 环检测（2026-11-28 审查修复：加行即查环——草稿期直接拒绝，不再等到发布 expand 才 500）
+        // B 的 BOM 引用 A（A 已是 B 的祖先）→ addLine 即拒绝
+        assertThatThrownBy(() -> bomService.addLine(bomB.getId(), line(a.getId(), "1")))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
                         .isEqualTo(ErrorCode.BOM_CYCLE));
+        // 自引用同样拒绝
+        assertThatThrownBy(() -> bomService.addLine(bomB.getId(), line(b.getId(), "1")))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.BOM_CYCLE));
+        // expand 兜底检测保留：无环时正常展开
+        BomService.BomNode treeAfterGuard = bomService.expand(bomA.getId(), 5);
+        assertThat(treeAfterGuard.children()).hasSize(1);
 
         // 反查 C
         List<java.util.Map<String, Object>> where = bomService.whereUsed(c.getId());

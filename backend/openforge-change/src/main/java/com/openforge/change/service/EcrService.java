@@ -237,7 +237,9 @@ public class EcrService {
         return resp;
     }
 
-    /** FAILED/PENDING 变更单人工重试执行（change:retry-apply，默认审批人）。 */
+    /** FAILED/PENDING 变更单人工重试执行（change:retry-apply，默认审批人）。
+     *  CAS 抢占（2026-11-28 审查实锤：原仅读态检查，双击并发双双通过检查 → executeApply 双执行；
+     *  先条件更新占位 APPLYING，抢不到即拒绝——executeApply 的终态回写覆盖 APPLYING）。 */
     public ChangeRequest retryApply(Long id) {
         ChangeRequest ecr = require(id);
         if (!"APPROVED".equals(ecr.getState())) {
@@ -248,6 +250,15 @@ public class EcrService {
         }
         if ("APPLIED".equals(ecr.getApplyState())) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "变更已执行成功，无需重试");
+        }
+        int claimed = mapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ChangeRequest>()
+                .eq(ChangeRequest::getId, ecr.getId())
+                .and(w -> w.eq(ChangeRequest::getApplyState, "PENDING")
+                        .or().isNull(ChangeRequest::getApplyState)
+                        .or().eq(ChangeRequest::getApplyState, "FAILED"))
+                .set(ChangeRequest::getApplyState, "APPLYING"));
+        if (claimed == 0) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "变更正在执行中，请勿重复操作");
         }
         executeApply(ecr);
         return require(id);

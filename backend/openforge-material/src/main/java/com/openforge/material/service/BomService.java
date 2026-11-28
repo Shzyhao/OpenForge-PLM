@@ -103,7 +103,7 @@ public class BomService {
      * 在本事务提交后才能进行，防"向已发布 BOM 追加行"破坏发布不可变语义。 */
     @Transactional
     public BomLine addLine(Long bomId, BomLineRequest request) {
-        requireDraftBom(bomId);
+        Bom bom = requireDraftBom(bomId);
         claimDraftBom(bomId);
         Part child = requireReferenceablePart(request.getChildPartId(), "BOM 行");
         List<BomLine> existing = lines(bomId);
@@ -111,6 +111,9 @@ public class BomService {
         if (dup) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "该子件已存在于 BOM 中");
         }
+        // 加行查环（2026-11-28 审查实锤：此前仅 approve expand 时检测——草稿期自引用/成环可提交，
+        // 直到发布才 500，且 BomPage 全量加载一损俱损无自救面）
+        assertNoCycle(bom.getParentPartId(), request.getChildPartId());
         BomLine line = new BomLine();
         line.setBomId(bomId);
         line.setChildPartId(request.getChildPartId());
@@ -123,6 +126,34 @@ public class BomService {
         line.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         bomLineMapper.insert(line);
         return line;
+    }
+
+    /** 加行查环：把 child 挂到 parent 下成环 ⇔ parent 已在 child 的 BOM 子树中。沿 child 子树 BFS 找 parent。 */
+    private void assertNoCycle(Long parentPartId, Long childPartId) {
+        if (parentPartId.equals(childPartId)) {
+            throw new BizException(ErrorCode.BOM_CYCLE, "子件不能与父件相同（自引用）");
+        }
+        java.util.Deque<Long> queue = new java.util.ArrayDeque<>();
+        Set<Long> visited = new HashSet<>();
+        queue.add(childPartId);
+        visited.add(childPartId);
+        while (!queue.isEmpty()) {
+            Long current = queue.poll();
+            List<Bom> childBoms = bomMapper.selectList(
+                    new LambdaQueryWrapper<Bom>().eq(Bom::getParentPartId, current));
+            for (Bom childBom : childBoms) {
+                for (BomLine line : bomLineMapper.selectList(
+                        new LambdaQueryWrapper<BomLine>().eq(BomLine::getBomId, childBom.getId()))) {
+                    Long next = line.getChildPartId();
+                    if (next.equals(parentPartId)) {
+                        throw new BizException(ErrorCode.BOM_CYCLE, "该子件的 BOM 子树中已包含父件，加入将形成循环引用");
+                    }
+                    if (visited.add(next)) {
+                        queue.add(next);
+                    }
+                }
+            }
+        }
     }
 
     public List<BomLine> lines(Long bomId) {
@@ -662,11 +693,12 @@ public class BomService {
         }
     }
 
-    private void requireDraftBom(Long bomId) {
+    private Bom requireDraftBom(Long bomId) {
         Bom bom = requireBom(bomId);
         if (!"DRAFT".equals(bom.getLifecycleState())) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "仅草稿状态的 BOM 可编辑行");
         }
+        return bom;
     }
 
     // ===== 私有辅助 =====

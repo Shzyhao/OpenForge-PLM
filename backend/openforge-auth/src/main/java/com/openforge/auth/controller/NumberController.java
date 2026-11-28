@@ -47,11 +47,31 @@ public class NumberController {
                 request.getSegments(), request.getResetPolicy()));
     }
 
-    /** 生成下一个编号（预览/调试用；业务大批量取号走服务间调用） */
+    /** 停用/启用（2026-11-28 审查补齐：坏规则此前只能留着继续取号）。 */
+    @PostMapping("/rules/{id}/enable")
+    @RequirePermission("number:manage")
+    public ApiResponse<SysNumberRule> enable(@PathVariable Long id) {
+        return ApiResponse.ok(numberRuleService.toggleRule(id, true));
+    }
+
+    @PostMapping("/rules/{id}/disable")
+    @RequirePermission("number:manage")
+    public ApiResponse<SysNumberRule> disable(@PathVariable Long id) {
+        return ApiResponse.ok(numberRuleService.toggleRule(id, false));
+    }
+
+    /** 生成下一个编号（**真实取号**，消费计数器；业务大批量取号走服务间调用） */
     @PostMapping("/next/{ruleKey}")
     @RequirePermission("number:manage")
     public ApiResponse<String> next(@PathVariable String ruleKey) {
         return ApiResponse.ok(numberRuleService.nextNumber(ruleKey));
+    }
+
+    /** 真预览（2026-11-28 审查实锤：原管理页"取号预览"走 POST /next，实测吃掉真实流水）——不落计数器。 */
+    @GetMapping("/preview/{ruleKey}")
+    @RequirePermission("number:manage")
+    public ApiResponse<String> preview(@PathVariable String ruleKey) {
+        return ApiResponse.ok(numberRuleService.previewNumber(ruleKey));
     }
 
     @Data

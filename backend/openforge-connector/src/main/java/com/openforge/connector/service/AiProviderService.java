@@ -65,7 +65,7 @@ public class AiProviderService {
             throw new BizException(ErrorCode.CONN_MASTER_KEY_MISSING);
         }
         AiProvider provider = new AiProvider();
-        applyRequest(provider, request);
+        applyRequest(provider, request, true);
         provider.setApiKeyEnc(cipher.encrypt(request.getApiKey()));
         provider.setTenantId(TenantContext.getTenantId());
         provider.setCreatedBy(userId);
@@ -81,7 +81,7 @@ public class AiProviderService {
     public AiProviderResponse update(Long id, SaveAiProviderRequest request, Long userId) {
         AiProvider provider = requireProvider(id);
         Integer oldEnabled = provider.getEnabled();
-        applyRequest(provider, request);
+        applyRequest(provider, request, false);
         if (request.getApiKey() != null && !request.getApiKey().isBlank()) {
             provider.setApiKeyEnc(cipher.encrypt(request.getApiKey()));
         }
@@ -160,7 +160,10 @@ public class AiProviderService {
                 .toList();
     }
 
-    private void applyRequest(AiProvider provider, SaveAiProviderRequest request) {
+    /** create=true：缺省字段落默认值（timeoutMs=60s/enabled=1/priority=100）；
+     *  create=false（更新）：缺省=保持原值——2026-11-28 审查 #10 实锤：前端启停只发 {enabled}，
+     *  原实现把 timeoutMs/priority 重置回默认值。 */
+    private void applyRequest(AiProvider provider, SaveAiProviderRequest request, boolean create) {
         if (request.getProviderCode() != null) {
             provider.setProviderCode(request.getProviderCode());
         }
@@ -173,10 +176,22 @@ public class AiProviderService {
         if (request.getModel() != null) {
             provider.setModel(request.getModel().trim());
         }
-        provider.setTimeoutMs(request.getTimeoutMs() == null ? 60_000
-                : Math.max(1_000, Math.min(request.getTimeoutMs(), 120_000)));
-        provider.setEnabled(request.getEnabled() == null || request.getEnabled() == 1 ? 1 : 0);
-        provider.setPriority(request.getPriority() == null ? 100 : request.getPriority());
+        if (create) {
+            provider.setTimeoutMs(request.getTimeoutMs() == null ? 60_000
+                    : Math.max(1_000, Math.min(request.getTimeoutMs(), 120_000)));
+            provider.setEnabled(request.getEnabled() == null || request.getEnabled() == 1 ? 1 : 0);
+            provider.setPriority(request.getPriority() == null ? 100 : request.getPriority());
+        } else {
+            if (request.getTimeoutMs() != null) {
+                provider.setTimeoutMs(Math.max(1_000, Math.min(request.getTimeoutMs(), 120_000)));
+            }
+            if (request.getEnabled() != null) {
+                provider.setEnabled(request.getEnabled() == 1 ? 1 : 0);
+            }
+            if (request.getPriority() != null) {
+                provider.setPriority(request.getPriority());
+            }
+        }
     }
 
     private AiProvider requireProvider(Long id) {
