@@ -1,14 +1,14 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-11-28（v1.34.0 发版收口）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-11-28（审查修复批一+批二收口，待发版）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
 | 最新发布版 | **v1.34.0**（tag + GitHub Release；专项收口——管理员密码独立设置（ADMIN_INITIAL_PASSWORD，未设置沿用公开默认，mono/生产路径透传补齐）+ 联系邮箱改造（自助接口 + 全链路校验 + 前端入口 + CODE_OF_CONDUCT 改 GitHub 渠道）+ 提交身份与历史重写为隐私邮箱 + 审查收口测试 8 例） |
-| dev 最新 | 与 main 同步（v1.34.0 发版后回灌，124aa6f）；无在途功能 |
-| main vs dev | v1.34.0 合入后同步（PR #132，124aa6f） |
+| dev 最新 | 在途：审查修复批一+批二（2026-11-28 收口，待发版）；基线=与 main 同步（v1.34.0 回灌 46d98af） |
+| main vs dev | v1.34.0 合入后同步（PR #132，124aa6f）；批一/批二修复待 PR |
 | 工作区 | 冒烟 `./scripts/smoke.sh`（10 业务域 + 连接器/触发/死信/审计 + **图纸域 6 断言，共 35 项**）；admin 初始密码可按部署环境单独设置（环境变量 `ADMIN_INITIAL_PASSWORD`，未设置沿用默认） |
 | 全量测试 | CI 全绿；drawing DrawingIntegrationTest 4 + mono MonoSmoke **10 模块** + connector 68；真实栈 11 服务（drawing :8095）；v1.20.0 浏览器级巡检（图纸菜单/三 Tab/PDF 内嵌预览/关联交互/状态流转，DOM 断言）|
 
@@ -19,6 +19,14 @@
 1. **管理员密码独立设置（完成）**：管理员初始密码可按部署环境单独设置——环境变量 `ADMIN_INITIAL_PASSWORD` 或配置项 `openforge.security.admin-initial-password`（支持 Nacos 远程配置），未设置时沿用原默认值；仍以哈希形式存 `sys_user.password_hash`，首登强制改密保留，初始密码明文不再打印启动日志。冒烟/探针四脚本（smoke/authz-probe/v123-probe/robustness-probe）改为读环境变量，README、dev-up.sh、连接器长任务书同步更新。
 2. **邮箱改造（完成）**：仓库 `CODE_OF_CONDUCT.md` 举报联系方式改为 GitHub 渠道（@Shzyhao，不再公开个人邮箱）；系统内新增联系邮箱自助接口 `PUT /api/v1/users/me`（登录即可，本人数据自助维护），`GET /users/me` 响应增加 email 字段；邮箱格式全链路校验（创建/注册 DTO `@Email`、管理员编辑与自助设置服务层校验、前端表单校验）；前端新增「设置/修改邮箱」入口（EmailModal + 用户菜单）。git 提交身份已改用 GitHub 隐私邮箱，全部提交历史已重写并强推（旧 SHA 全部失效，需重新克隆；旧 PR 引用的提交由平台逐步回收）。
 3. **独立审查收口（2026-11-28）**：debug-coder 审查确认功能无阻塞问题，四处收口修复已落盘——mono/生产部署路径补齐 `ADMIN_INITIAL_PASSWORD` 透传（mono fat jar 遮蔽 auth 的 application.yml：mono yml、docker-compose.prod.yml、.env.example、helm values+helpers 四处补键）；邮箱格式校验口径统一（创建/注册并入服务层校验并加 128 字符上限）；补 AdminBootstrap/UserAdminService/EmailModal 测试用例 8 例；backend/README 登录说明修正。mono 路径经空库实纱验证（显式密码登录成功/默认密码拒绝/日志无明文）。
+
+## 2026-11-28 审查修复批次（批一+批二，待发版）
+
+> 2026-11-24 前端/前后端契约审查确认的缺陷按已定批次清欠（第三批=物料编码分类码段+提交人回避开关，方向已定未动工）。摘要如下（脱敏）：
+
+- **批一**：①mono multipart 键修正（`server.servlet.multipart`→`spring.servlet.multipart`，mono 形态上传上限实为 1MB）；②Dockerfile 补 TZ/-Duser.timezone（容器 JVM 曾为 UTC）；③auth V35 迁移——ADMINS 补绑 menu:notify/delegate/recycle/doc:delete（V32/V34 按旧名 ADMIN 绑定落空）+收回 ENGINEER/VIEWER 的 menu:system；④workflow V6 迁移——ecr-review 定义 JSON 与悬挂待办 ADMIN→ADMINS（全新库 ECR 审批无人可办）；⑤TENANT_DISABLED(2007)+登录读 sys_tenant.enabled（停用租户拦截承诺落空）；⑥workflow/projects 两处写端点补权限注解；⑦前端 client.ts——401 按 body.code 分流（登录/改密错误不再被登出吞掉）、非标准错误体兜底、multipart upload 统一收口、aiChat 130s 对齐网关 clamp；⑧回收站知识域路径修正+七域 allSettled 独立加载；⑨委托生效期改发本地时间串（UTC 瞬时曾偏 8h）；⑩AI 供应商启停不再重置 timeoutMs/priority（更新缺省=保持原值）；⑪5 处 @Valid 补齐。
+- **批二**：①BOM 加行查环（自引用/子树含父件即拒，草稿期不再等到发布才 500）+BomPage 三域独立加载；②ECR retryApply CAS 抢占（APPLYING 占位防双执行）；③图纸发布 CAS 条件流转+drw_drawing_version (drawing_id,version) 唯一索引（V2 迁移含去重）；④文档上传预检（文件名空/255、大小 100MB）；⑤编号引擎——段定义全量校验（段类型/CONST 值/DATE pattern/SEQ 位数 1-9/重置策略+周期重置必须含 DATE 段）、先渲染后落号（失败不跳号）、真预览端点 GET /numbers/preview（原 POST /next 名为预览实为真取号）、规则停用/启用端点、SEQ 溢出显式告警；⑥前端状态对齐——安全日志原因映射（首登改密/密码过期/临期/租户停用）、动态数据创建时间键修正、文档检入按钮仅检出人可用、变更单详情关闭即刷新列表（惰性回流可见）、重置密码二次确认+防重、SMTP 超时上限对齐后端 30000、链步骤类型显式拒绝非链内类型。
+- **验证**：全仓 mvn verify 绿（17 模块）+ 前端 tsc 0 / vitest 72（28 文件，含 client.ts 401 分流与非标准体兜底 4 新例）/ build 绿；真栈冒烟 35/35；实纱——2MB 文档上传成功（修复前 500）、编号预览不落水位（266→266）、停用租户登录 2007/恢复后 code=0、三迁移落库核对（def JSON=ADMINS/悬挂待办清零/ADMINS 4 权限点/ENGINEER+VIEWER menu:system=0/唯一索引在位）；浏览器验收——登录错误提示、回收站七域、编号预览弹窗、重置密码确认弹窗。
 
 ## v1.3.0 → 当前完成的全部工作（按 PR 序）
 
