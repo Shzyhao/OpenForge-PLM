@@ -52,8 +52,12 @@ public class JdbcReadonlyConnector implements ConnectorSpi {
                 }
             };
 
-    public JdbcReadonlyConnector(ObjectMapper objectMapper) {
+    private final com.openforge.connector.security.EgressGuard egressGuard;
+
+    public JdbcReadonlyConnector(ObjectMapper objectMapper,
+                                 com.openforge.connector.security.EgressGuard egressGuard) {
         this.objectMapper = objectMapper;
+        this.egressGuard = egressGuard;
     }
 
     @Override
@@ -68,6 +72,11 @@ public class JdbcReadonlyConnector implements ConnectorSpi {
         if (credential == null || credential.secret() == null) {
             return ConnectorResult.fail(null, "JDBC_PASSWORD 凭据缺失");
         }
+        // 出站防护（2026-11-28 复核①实锤：JDBC 连接此前完全绕过出站白名单——白名单只挂在 HTTP 客户端
+        // 的 DNS 解析器上，任意内网数据库可探测）。按 jdbcUrl 解析 host:port 后走与 HTTP 同一校验；
+        // checkHost 抛 BizException 直接上抛（白名单违规不应伪装成"查询失败"）。
+        JdbcTarget target = jdbcTarget(spec.jdbcUrl());
+        egressGuard.checkHost(target.host(), target.port());
         String sql = spec.sqlTemplate();
         Set<String> paramOrder = new LinkedHashSet<>();
         Matcher m = PARAM.matcher(sql);
@@ -76,9 +85,11 @@ public class JdbcReadonlyConnector implements ConnectorSpi {
         }
         String positionalSql = PARAM.matcher(sql).replaceAll("?");
 
-        HikariDataSource pool = poolOf(spec, credential.secret());
         long start = System.currentTimeMillis();
-        try (Connection connection = pool.getConnection()) {
+        try {
+            // 建池纳入 try（2026-11-28 测试揭示：fail-fast 初始化失败此前会裸 500——错误应承接为 fail）
+            HikariDataSource pool = poolOf(spec, credential.secret());
+            try (Connection connection = pool.getConnection()) {
             connection.setReadOnly(true);
             try (PreparedStatement statement = connection.prepareStatement(positionalSql)) {
                 int index = 1;
@@ -100,10 +111,34 @@ public class JdbcReadonlyConnector implements ConnectorSpi {
                     return new ConnectorResult(true, null, rows.size(), body, truncated, null);
                 }
             }
+            }
         } catch (Exception e) {
             return ConnectorResult.fail(null, "查询失败: " + sanitize(e.getMessage(), credential.secret())
                     + " (" + (System.currentTimeMillis() - start) + "ms)");
         }
+    }
+
+    /** JDBC 目标（批三后续·复核①）：从 jdbcUrl 解析 host:port（缺省端口按方言 5432/3306）。 */
+    record JdbcTarget(String host, int port) {
+    }
+
+    static JdbcTarget jdbcTarget(String jdbcUrl) {
+        String rest = jdbcUrl == null ? "" : jdbcUrl;
+        boolean mysql = rest.startsWith("jdbc:mysql://");
+        for (String prefix : new String[]{"jdbc:postgresql://", "jdbc:mysql://"}) {
+            if (rest.startsWith(prefix)) {
+                rest = rest.substring(prefix.length());
+                break;
+            }
+        }
+        int slash = rest.indexOf('/');
+        String hostPort = slash >= 0 ? rest.substring(0, slash) : rest;
+        int colon = hostPort.indexOf(':');
+        if (colon >= 0) {
+            return new JdbcTarget(hostPort.substring(0, colon),
+                    Integer.parseInt(hostPort.substring(colon + 1)));
+        }
+        return new JdbcTarget(hostPort, mysql ? 3306 : 5432);
     }
 
     private List<Map<String, Object>> readRows(ResultSet resultSet, int limit) throws Exception {

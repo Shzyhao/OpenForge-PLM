@@ -7,6 +7,7 @@ import com.openforge.auth.service.PermissionService;
 import com.openforge.auth.service.RbacService;
 import com.openforge.common.annotation.RequirePermission;
 import com.openforge.common.api.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -69,15 +70,17 @@ public class RoleController {
     @PostMapping("/{id}/members")
     @RequirePermission("role:assign")
     public ApiResponse<Void> addMembers(@PathVariable Long id,
-                                        @RequestBody Map<String, List<Long>> body) {
-        rbacService.addMembers(id, body.getOrDefault("userIds", List.of()));
+                                        @RequestBody Map<String, List<Long>> body,
+                                        HttpServletRequest httpRequest) {
+        rbacService.addMembers(id, currentUserId(httpRequest), body.getOrDefault("userIds", List.of()));
         return ApiResponse.ok();
     }
 
     @DeleteMapping("/{id}/members/{userId}")
     @RequirePermission("role:assign")
-    public ApiResponse<Void> removeMember(@PathVariable Long id, @PathVariable Long userId) {
-        rbacService.removeMember(id, userId);
+    public ApiResponse<Void> removeMember(@PathVariable Long id, @PathVariable Long userId,
+                                          HttpServletRequest httpRequest) {
+        rbacService.removeMember(id, currentUserId(httpRequest), userId);
         return ApiResponse.ok();
     }
 
@@ -109,5 +112,17 @@ public class RoleController {
                                     @Valid @RequestBody AssignRolesRequest request) {
         rbacService.assignRoles(userId, request.getRoleIds());
         return ApiResponse.ok();
+    }
+
+    private Long currentUserId(HttpServletRequest request) {
+        String header = request.getHeader("X-User-Id");
+        if (header == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(header);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

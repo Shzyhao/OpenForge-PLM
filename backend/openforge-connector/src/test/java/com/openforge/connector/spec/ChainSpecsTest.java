@@ -52,6 +52,20 @@ class ChainSpecsTest {
     }
 
     @Test
+    @DisplayName("分支表达式设计态语法校验（复核③）：非法 SpEL 在 parse 即拒绝")
+    void branchExprSyntaxValidatedAtDesignTime() {
+        Map<String, Object> spec = Map.of(
+                "schemaVersion", 2,
+                "steps", List.of(
+                        httpStep("a", "http://localhost:8080/a"),
+                        httpStep("b", "http://localhost:8080/b")),
+                "branches", List.of(Map.of("from", "a", "to", "b", "expr", "this is( not &&spel")));
+        assertThatThrownBy(() -> ChainSpecs.parse(spec, MAPPER, null))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("分支表达式语法不合法");
+    }
+
+    @Test
     @DisplayName("校验拒绝矩阵：空 steps/超上限/key 重复非法/缺 spec/分支端点未声明/空 expr")
     void validationRejections() {
         Map<String, Object> base = Map.of("schemaVersion", 2,
