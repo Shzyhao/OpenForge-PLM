@@ -1,14 +1,14 @@
 # OpenForge PLM 会话交接文档
 
-> 最后更新：2026-11-28（批三收口——分类码段+提交人回避，待发版）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
+> 最后更新：2026-11-28（v1.36.0 发版收口——审查三批全部清欠）｜ 本文档由 Agent 会话结束前写入，下个会话开始时先读本文件恢复上下文
 
 ## 当前状态快照
 
 | 维度 | 值 |
 |------|-----|
-| 最新发布版 | **v1.35.0**（tag + GitHub Release；审查清欠——批一 10 项高严重度（mono 上传上限/回收站/登录提示/ECR 角色/权限点/权限缺口/容器时区/委托时间/AI 启停/@Valid）+ 批二（BOM 查环/CAS×2+唯一索引/上传预检/编号引擎/九页按钮门控/前端状态对齐）） |
-| dev 最新 | 在途：批三（物料编码分类码段+提交人回避开关）已收口待发版；基线=与 main 同步（v1.35.0 回灌 4a32f1b） |
-| main vs dev | v1.35.0 合入后同步（PR #133，ec4f9d2）；批三待 PR |
+| 最新发布版 | **v1.36.0**（tag + GitHub Release；批三——物料编码分类码段（CATEGORY 段+按分类独立计数，新旧并存）+ 提交人回避开关（SUBMITTER_RECUSAL 默认关）+ 审签开关读取端点与前端隐藏直接发布 + mono yml 补 workflow/drawing 键） |
+| dev 最新 | 与 main 同步（v1.36.0 发版后回灌，7c9594d）；无在途功能 |
+| main vs dev | v1.36.0 合入后同步（PR #134，7c9594d） |
 | 工作区 | 冒烟 `./scripts/smoke.sh`（10 业务域 + 连接器/触发/死信/审计 + **图纸域 6 断言，共 35 项**）；admin 初始密码可按部署环境单独设置（环境变量 `ADMIN_INITIAL_PASSWORD`，未设置沿用默认） |
 | 全量测试 | CI 全绿；drawing DrawingIntegrationTest 4 + mono MonoSmoke **10 模块** + connector 68；真实栈 11 服务（drawing :8095）；v1.20.0 浏览器级巡检（图纸菜单/三 Tab/PDF 内嵌预览/关联交互/状态流转，DOM 断言）|
 
@@ -24,7 +24,7 @@
 
 ## 2026-11-28 审查修复批次（批一+批二，已发版 v1.35.0 · PR #133）
 
-## 批三（2026-11-28 收口，待发版）：物料编码分类码段 + 提交人回避开关
+## 批三（2026-11-28 收口，已发版 v1.36.0 · PR #134）：物料编码分类码段 + 提交人回避开关
 
 > 按用户既定方向落地的两项产品改进（第三批）：
 
@@ -104,6 +104,7 @@
 | #119 | **v1.23.0 三模块发布**（通知中心/审批委托/回收站）：①通知中心落 auth 零新增服务——双通道摄取（MQ 组 openforge-notify 即 B2 预留组落地 / 总线关闭时 workflow NotifyClient HTTP 回退）、task.created→assignee（ROLE 按租户 fan-out≤50）、task.completed→发起人（payload 补 initiatorId/candidateRole）、收件箱 API+铃铛 30s 轮询、/users/options 轻量选人；②审批委托——查询期虚拟收件箱（myTasks 单嵌套 and 并集防 OR 优先级破坏 action IS NULL）、delegated_from 追溯、def_key 范围过滤；③回收站 MVP=物料+图纸（盘点：doc 无删除 API、BOM 无整册删除）。**EVENT_BUS 真栈首跑修 RocketMQ compose 四处缺口**（healthcheck 指向不存在端点恒 52 卡死依赖门/端口未发布/brokerIP1=127.0.0.1/JAVA_OPT_EXT 收堆）——rocketmq profile 此前从未真正起过。收口：verify 绿、smoke 35/35×3 ERROR=0、authz-probe 21 断言、新增 v123-probe 25 断言（MQ 实锤 sys_event_consumed）、docker-audit 净。实纱：两域同名 RecycleMapper → mono bean 冲突第三例（域前缀命名）；MSYS mktemp vs 原生 python 路径分歧；curl 内联中文 ANSI 转码；python `v or ''` 吞 falsy 0 | v1.23.0 |
 | #121 | **v1.24.0 发布**（回收站补全+订阅通知+保留期+vitest 基线+生产 MQ）：①回收站四域化与 purge 彻底删除（StorageClient.delete 文件 GC、MinIO 同签名承接、BOM 引用护栏、doc:delete 新权限）；②notify_subscription 显式订阅制五发布事件 fan-out≤50+三域 NotifyClient 回退+通知设置 Tab+**消费者订阅面修复**（原只订 openforge-task 致发布类事件静默丢通知——真栈探针实锤）；③NotifyRetentionJob 只清已读超期（原生 JDBC 绕租户拦截器）；④vitest 基线 10 用例入 CI；⑤prod compose rocketmq profile（内网不发布端口+共享 env 默认关）。**CI 环境漂移三修**：JDK 21.0.13 attach 收紧/jsdom30 Node20 不兼容/surefire 类序平台差异跨类污染。实纱：mono 同名 bean 第五例（四域 NotifyClient→域前缀改名）；LocalDiskStorage 相对路径 startsWith 防逃逸误伤（GC 静默失效）→toAbsolutePath().normalize()；GitHub git-receive 间歇 502 需退避重试+ls-remote 双确认 | v1.24.0 |
 | #122 | **v1.25.0 清欠批次**（12 项待办一次清完）：flaky 回路 180s 修复；outbox P3 重启轻量（EVENT_SCHEMA_VERSION=1+容忍规则）；notify.created 渠道分发（连接器订阅即 SMTP/钉钉/飞书站外渠道，零新增渠道代码）；回收站三域（knowledge/change/project+变更单在途护栏，metadata 判停）；图纸审签接流程（flag 门控+ECR 同款惰性回流+V5 种子）；AI 多模型分流（hint 重排保降级）；链重放按钮（断点续跑判停）；MinIO 双域就绪（真实容器测试门控——CI 匿名拉 minio 镜像 404 限流实锤）；vitest 10→14。实纱：@TableLogic 三域接入以 create 方法签名作锚会吞 @Transactional（编译错实锤）；knowledge_feedback.query_text NOT NULL；MinIOContainer 用 getS3URL()；Testcontainers 命名 *IT 不会被 surefire 跑；Docker Desktop 途中掉线重启自愈 | v1.25.0 |
+| #134 | **v1.36.0 发布**（批三，3 笔提交含验收补钉）：①A 物料编码分类码段——编号引擎 CATEGORY 段（流水按 part_category.category_code 独立计数，周期重置可叠加 分类-日期），取号链路全透传（PartService→InternalNumberClient→internal 端点 categoryCode 参数），规则未配置时参数忽略（新旧并存，已发布编码不变）、启用未携带 1000 硬拒绝、至多一个 CATEGORY 段校验、规则页勾选。②B 提交人回避开关——openforge.workflow.submitter-recusal（SUBMITTER_RECUSAL 默认关），开启后发起人办理自己发起实例一律 2004（**先于权限判定**，指派人/角色成员也不放行自批）；审签开关读取端点 GET /drawings/review-config + 前端审签启用时隐藏 REVIEWING 直接发布/驳回（DrawingPage 用例钉住）；**mono yml 补 workflow/drawing 两键**（审签开关 mono 形态此前恒默认值——admin-initial-password 同类教训）。验证：全仓 verify 绿（17 模块）+vitest 73（含审签态用例）+新增 5 单测；真栈实纱——T-ELEC001/T-MECH001 独立计数/缺分类 1000/自批 2004/review-config 回读；浏览器验收 ENGINEER 视角（首登改密/系统菜单隐藏/按钮禁用）与 admin 分类码段交互。实纱：**Windows python 写 /tmp 实际落 D:	mp**（curl -F 000 根因）；drawing submit→startReview mono 事务内回环 30s 超时→事务回滚（强一致正确），直打 93ms 成功——**事务内回环死锁窗口实锤再现**（v1.32 评审实锤面，判停风险待观察）。无迁移 | v1.36.0 |
 | #133 | **v1.35.0 发布**（审查清欠批一+批二，5 笔提交）：批一 10 项高严重度——mono multipart 键修正（上传上限实为 1MB）、Dockerfile TZ、auth V35/workflow V6 迁移（ADMINS 补绑 4 点+收回只读 menu:system；ECR 角色 ADMIN→ADMINS 含悬挂待办）、TENANT_DISABLED(2007)+登录读租户停用、workflow/projects 写端点注解、client.ts 401 按 body.code 分流（登录/改密提示不再被登出吞掉）、回收站知识域路径+七域 allSettled、委托本地时间、AI 启停保持原值、5 处 @Valid、aiChat 130s+upload 统一收口。批二——BOM 加行查环（草稿期即拒）、retryApply CAS(APPLYING 抢占)、图纸发布 CAS+版本唯一索引(V2)、文档上传预检(255/100MB)、编号引擎全量校验/停用/真预览(GET preview 不落号)/先渲染后落号、九页写按钮 hasPerm 门控、重置密码二次确认防重、检入判本人、安全日志原因映射、动态数据 created_at、SMTP 上限 30000、链类型显式拒绝。验证：全仓 verify 绿（17 模块）+vitest 72+build+冒烟 35/35；实纱——2MB 上传成功（修复前 500）、预览不落水位、停用租户登录 2007、迁移落库核对、浏览器四项验收。实纱沉淀：**Windows python 写 /tmp 实际落 D:	mp（cygpath 指向 MSYS tmp 不存在）**——curl -F 大文件 000 三连的根因；批二残留「九页按钮门控」由完成审计驱动补齐（75c96e6）。无破坏性迁移 | v1.35.0 |
 | #132 | **v1.34.0 发布**（专项：管理员密码独立设置 + 联系邮箱改造 + 提交身份隐私化，4 笔提交）：①管理员初始密码可单独设置——`ADMIN_INITIAL_PASSWORD` / `openforge.security.admin-initial-password`，未设置沿用公开默认 smoke-test-2026（用户既定决策），哈希存 sys_user、明文不打印日志、首登强制改密保留；**mono fat jar 遮蔽 auth 的 application.yml（P1 审查实锤）**→ mono yml / prod compose / .env.example / helm 四处补齐透传。②联系邮箱改造：自助 `PUT /users/me` + `GET /users/me` 返 email + EmailModal 菜单入口；邮箱校验四路同口径（@Email+服务层正则+128 上限）；CODE_OF_CONDUCT 改 GitHub 渠道。③冒烟/探针四脚本改读环境变量。④新增测试 8 例（AdminBootstrap 3 / UserAdminService 3 / EmailModal 2）+ validateFields try/catch 防 unhandled rejection。验证：全仓 mvn verify 绿（17 模块）+ 前端 tsc/vitest 68/build 绿 + 冒烟 35/35 + 全新安装三路空库实纱（auth 显式/默认 + mono 显式）+ 网关五断言 + 浏览器全流程。实纱：**mono fat jar 会遮蔽模块内 application.yml——模块级新配置键必须在 mono yml 重复声明**；独立构建单模块须 `-am`（.m2 过期构件致 NotifyEventConsumer 编译错）；管道取 mvn 退出码须 `set -o pipefail`。无迁移 | v1.34.0 |
 | #131 | **v1.33.0 发布**（复盘收尾+并发回归测试，2 笔提交含 README）：①**审批互斥实现修正（关键）**——concurrentActSingleWinner 真线程测试实锤 v1.31 P0-2 缺陷：lockById 后 selectById 重读命中 MyBatis 一级缓存返回旧快照（锁内重读失效；H2LockProbe 双连接实验证明 H2 行锁本身有效阻塞 1514ms，PG 同样会双推进）；修正为 WorkflowTaskMapper.lockById（SELECT * FOR UPDATE 独立 statement 穿透缓存返回锁定后最新实体）。②并发回归测试 7 例：act 并发单赢家（CountDownLatch 双线程）/重复办理拒绝/doc 并发检出单赢家/并发检入恰好一次小版本+1/BOM 发布后拒绝加行/连续升版链尾递增（A/2→A/3）/ECR 回流 detail 恰好执行一次（verify times(1)）。③P2 真_bug 三处：PermissionQueryClient clear 对齐注释（清过期后仍超限才全清）；AuthService.recordLoginFailure SQL 自增+读回判锁定；KnowledgeService.feedback setSql LEAST/GREATEST 夹取。④制度补漏：部署约束 §1 第 4 行登记 EventRetentionJob。验证：全仓 mvn 绿（18 模块）。实纱：**MyBatis 一级缓存使"锁后重读同 statement"必然读到旧快照——悲观锁方案必须用独立 FOR UPDATE 语句取实体**；python heredoc 写 Java 转义字符串 \\" 双重转义坑；GitHub 502 风暴间歇式（tag push 后台循环第 1 轮即过、确认等 150s）。无迁移 | v1.33.0 |
