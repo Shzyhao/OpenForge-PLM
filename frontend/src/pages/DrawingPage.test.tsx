@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DrawingPage from './DrawingPage'
 import { PermContext, type PermContextValue } from '../perm/PermContext'
@@ -60,4 +60,29 @@ describe('DrawingPage', () => {
     renderPage()
     expect(await screen.findAllByText('No data')).not.toHaveLength(0)
   })
+
+  it('审签启用时隐藏「直接发布/驳回」并提示走待办（批三-B）', async () => {
+    const { fetchDrawings, fetchDrawing, fetchDrawingFiles, fetchDrawingReviewConfig } = await import('../api/drawing')
+    vi.mocked(fetchDrawingReviewConfig).mockResolvedValueOnce({ workflowReview: true })
+    vi.mocked(fetchDrawings).mockResolvedValueOnce({
+      list: [{ id: 9, drawingNumber: 'DW202611280004', title: 'review-flow-verify', lifecycleState: 'REVIEWING', versionMajor: 'A', versionMinor: 0, checkedOutBy: null }] as never,
+      total: 1, page: 1, pageSize: 10,
+    })
+    vi.mocked(fetchDrawing).mockResolvedValueOnce({
+      id: 9, drawingNumber: 'DW202611280004', title: 'review-flow-verify', lifecycleState: 'REVIEWING', versionMajor: 'A', versionMinor: 0, checkedOutBy: null,
+    } as never)
+    vi.mocked(fetchDrawingFiles).mockResolvedValueOnce([])
+    vi.mocked(await import('../api/drawing')).fetchDrawingVersions.mockResolvedValueOnce([])
+    vi.mocked(await import('../api/drawing')).fetchDrawingParts.mockResolvedValueOnce([])
+    renderPage()
+    fireEvent.click(await screen.findByText('review-flow-verify'))
+    // 行内「详情」按钮打开抽屉
+    const row = screen.getByText('review-flow-verify').closest('tr')
+    const detailBtn = Array.from(row?.querySelectorAll('button') ?? []).find(b => (b.textContent || '').replace(/\s/g, '').includes('详情'))
+    fireEvent.click(detailBtn!)
+    await waitFor(() => expect(screen.getByText(/审签流程已启用/)).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /发\s*布/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /驳\s*回/ })).toBeNull()
+  })
+
 })
