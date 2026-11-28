@@ -9,6 +9,7 @@ import com.openforge.auth.entity.SysRole;
 import com.openforge.auth.entity.SysUser;
 import com.openforge.auth.entity.SysUserRole;
 import com.openforge.auth.mapper.RoleMapper;
+import com.openforge.auth.mapper.TenantMapper;
 import com.openforge.auth.mapper.UserMapper;
 import com.openforge.auth.mapper.UserRoleMapper;
 import com.openforge.common.api.BizException;
@@ -27,6 +28,7 @@ public class AuthService {
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
+    private final TenantMapper tenantMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final SecurityLogService securityLogService;
@@ -99,6 +101,16 @@ public class AuthService {
         if (!"ACTIVE".equals(user.getStatus())) {
             securityLogService.recordLogin(request.getUsername(), false, "DISABLED", ip, userAgent);
             throw new BizException(ErrorCode.ACCOUNT_DISABLED);
+        }
+
+        // 停用租户拦截（2026-11-28 审查 #6：TenantService.toggle 注释承诺"归属用户随登录校验被拒"，
+        // 但 login 此前从不读 sys_tenant.enabled，承诺落空）。平台租户(0)不校验。
+        if (user.getTenantId() != null && user.getTenantId() != 0L) {
+            com.openforge.auth.entity.SysTenant tenant = tenantMapper.selectById(user.getTenantId());
+            if (tenant == null || !Integer.valueOf(1).equals(tenant.getEnabled())) {
+                securityLogService.recordLogin(request.getUsername(), false, "TENANT_DISABLED", ip, userAgent);
+                throw new BizException(ErrorCode.TENANT_DISABLED);
+            }
         }
 
         // 成功：清零失败计数

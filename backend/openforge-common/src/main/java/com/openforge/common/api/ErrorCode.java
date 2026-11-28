@@ -21,6 +21,7 @@ public enum ErrorCode {
     FORBIDDEN(2004, "无操作权限"),
     ACCOUNT_LOCKED(2005, "账号已锁定，请稍后再试"),
     WEAK_PASSWORD(2006, "密码不符合策略（≥8位且包含字母与数字）"),
+    TENANT_DISABLED(2007, "所属租户已停用，请联系管理员"),
 
     // 3xxx 业务规则
     USERNAME_ALREADY_EXISTS(3001, "用户名已存在"),

@@ -91,7 +91,7 @@ public class MetaObjectController {
     @RequirePermission("meta:manage")
     public ApiResponse<java.util.Map<String, Object>> saveLayout(
             @PathVariable Long id, @PathVariable String layoutType,
-            @RequestBody SaveLayoutRequest request, HttpServletRequest http) {
+            @jakarta.validation.Valid @RequestBody SaveLayoutRequest request, HttpServletRequest http) {
         return ApiResponse.ok(metaLayoutService.saveLayout(id, layoutType, request.getFields(), currentUserId(http)));
     }
 

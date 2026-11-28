@@ -58,7 +58,7 @@ public class ProjectController {
 
     @PostMapping
     @RequirePermission("project:manage")
-    public ApiResponse<Project> create(@RequestBody CreateProjectRequest request,
+    public ApiResponse<Project> create(@jakarta.validation.Valid @RequestBody CreateProjectRequest request,
                                        HttpServletRequest httpRequest) {
         return ApiResponse.ok(projectService.create(request.getName(), request.getDescription(),
                 request.getOwnerId(), request.getPlannedStart(), request.getPlannedEnd(),
@@ -85,7 +85,7 @@ public class ProjectController {
     @PostMapping("/{id}/tasks")
     @RequirePermission("project:manage")
     public ApiResponse<ProjectTask> addTask(@PathVariable Long id,
-                                            @RequestBody CreateTaskRequest request) {
+                                            @jakarta.validation.Valid @RequestBody CreateTaskRequest request) {
         return ApiResponse.ok(projectService.addTask(id, request.getTitle(),
                 request.getAssigneeId(), request.getDueDate()));
     }
@@ -96,6 +96,7 @@ public class ProjectController {
     }
 
     @PostMapping("/tasks/{taskId}/move")
+    @RequirePermission("project:manage")
     public ApiResponse<ProjectTask> moveTask(@PathVariable Long taskId,
                                              @RequestBody Map<String, String> body) {
         return ApiResponse.ok(projectService.moveTask(taskId, body.get("status")));

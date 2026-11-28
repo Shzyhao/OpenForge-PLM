@@ -33,13 +33,15 @@ class AuthServiceTest {
     @Mock
     private com.openforge.auth.mapper.UserRoleMapper userRoleMapper;
     @Mock
+    private com.openforge.auth.mapper.TenantMapper tenantMapper;
+    @Mock
     private SecurityLogService securityLogService;
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userMapper, roleMapper, userRoleMapper,
+        authService = new AuthService(userMapper, roleMapper, userRoleMapper, tenantMapper,
                 new BCryptPasswordEncoder(),
                 new JwtService("unit-test-secret-key-32-bytes-abcdefgh", 120),
                 securityLogService);

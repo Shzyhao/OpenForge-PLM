@@ -12,12 +12,14 @@ server:
       # 根治需刀 2 直调（已判停，重启条件见 mono 设计 §3.2）
       max: ${TOMCAT_MAX_THREADS:40}
       min-spare: ${TOMCAT_MIN_SPARE:10}
+
+spring:
+  # multipart 必须挂在 spring.servlet 下（2026-11-28 审查实锤：原写在 server.servlet 下是无效键，
+  # mono 形态上传上限回落 1MB 默认值，>1MB 文件 500/大文件连接被掐；doc/drawing 各自 yml 一直正确）
   servlet:
     multipart:
       max-file-size: 100MB                 # doc 文件上传（原 doc 专属配置上移）
       max-request-size: 110MB
-
-spring:
   application:
     name: openforge-mono                   # EventPublisher.producerName / 日志名（模块身份在注册表层面不变）
   config:

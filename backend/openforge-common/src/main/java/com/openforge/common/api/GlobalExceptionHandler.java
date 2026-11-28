@@ -120,7 +120,7 @@ public class GlobalExceptionHandler {
 
     private HttpStatus httpStatusOf(ErrorCode errorCode) {
         return switch (errorCode) {
-            case UNAUTHORIZED, BAD_CREDENTIALS, ACCOUNT_DISABLED -> HttpStatus.UNAUTHORIZED;
+            case UNAUTHORIZED, BAD_CREDENTIALS, ACCOUNT_DISABLED, TENANT_DISABLED -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case RESOURCE_NOT_FOUND, ROLE_NOT_FOUND, PERMISSION_NOT_FOUND,
                  ORG_NOT_FOUND, NUMBER_RULE_NOT_FOUND, META_OBJECT_NOT_FOUND,
