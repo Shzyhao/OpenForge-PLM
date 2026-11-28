@@ -34,10 +34,19 @@ public class InternalNumberClient {
 
     /** 取下一号；下游不可用/拒绝时抛 BizException（文案与原五域拷贝一致）。 */
     public String next(String ruleKey) {
+        return next(ruleKey, null);
+    }
+
+    /** 取下一号（2026-11-28 批三-A：可选分类码——规则含 CATEGORY 段时按分类独立计数）。
+     *  categoryCode=null 时与旧语义完全一致（规则无分类码段则忽略该参数）。 */
+    public String next(String ruleKey, String categoryCode) {
         ApiResponse<String> response;
         try {
             response = restClient.post()
-                    .uri("/api/v1/internal/numbers/next/{ruleKey}", ruleKey)
+                    .uri(categoryCode == null
+                            ? "/api/v1/internal/numbers/next/{ruleKey}"
+                            : "/api/v1/internal/numbers/next/{ruleKey}?categoryCode={categoryCode}",
+                            categoryCode == null ? new Object[]{ruleKey} : new Object[]{ruleKey, categoryCode})
                     .retrieve()
                     .body(TYPE);
         } catch (Exception e) {

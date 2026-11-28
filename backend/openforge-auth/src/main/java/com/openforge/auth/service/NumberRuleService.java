@@ -42,7 +42,7 @@ public class NumberRuleService {
     public record Segment(String type, String value, String pattern, Integer length) {
     }
 
-    private static final Set<String> SEGMENT_TYPES = Set.of("CONST", "DATE", "SEQ");
+    private static final Set<String> SEGMENT_TYPES = Set.of("CONST", "DATE", "SEQ", "CATEGORY");
     private static final Set<String> RESET_POLICIES = Set.of("NONE", "DAILY", "MONTHLY", "YEARLY");
     private static final int SEQ_LENGTH_MAX = 9;
 
@@ -101,15 +101,30 @@ public class NumberRuleService {
 
     /** 生成下一个编号（真实取号，消费计数器）。date 参数化以便测试周期重置。 */
     public String nextNumber(String ruleKey, LocalDate date) {
+        return nextNumber(ruleKey, date, null);
+    }
+
+    public String nextNumber(String ruleKey) {
+        return nextNumber(ruleKey, LocalDate.now(), null);
+    }
+
+    public String previewNumber(String ruleKey) {
+        return previewNumber(ruleKey, LocalDate.now(), null);
+    }
+
+    /** 取号（2026-11-28 批三-A）：规则含 CATEGORY 段时 categoryCode 必填，流水按分类独立计数；
+     *  规则不含 CATEGORY 段时 categoryCode 被忽略（新旧并存——已发布物料编码不变）。 */
+    public String nextNumber(String ruleKey, LocalDate date, String categoryCode) {
         SysNumberRule rule = requireActiveRule(ruleKey);
         List<Segment> segments = parseSegments(rule.getSegments());
-        String period = periodOf(rule.getResetPolicy(), date);
+        boolean hasCategory = segments.stream().anyMatch(s -> "CATEGORY".equals(s.type()));
+        String period = periodOf(rule, segments, date, hasCategory ? categoryCode : null);
 
         // 分段锁串行化（单实例）；锁粒度 = 规则+周期，不同规则互不影响
         String lockKey = ruleKey + ":" + period;
         synchronized (locks.computeIfAbsent(lockKey, k -> new Object())) {
             long next = currentValue(ruleKey, period) + 1;
-            String rendered = render(segments, date, next);
+            String rendered = render(segments, date, next, hasCategory ? categoryCode : null);
             // 先格式化后落号（2026-11-28 审查实锤：原实现先 saveValue 后格式化——格式化失败也跳号）
             saveValue(ruleKey, period, next);
             return rendered;
@@ -119,18 +134,15 @@ public class NumberRuleService {
     /** 真预览（2026-11-28 审查实锤：原 POST /next 名为预览实为真实取号，管理页"取号预览"实测吃掉真实流水）。
      *  按当前水位 +1 渲染下一个编号，**不落计数器**；并发期间为近似值。 */
     public String previewNumber(String ruleKey, LocalDate date) {
+        return previewNumber(ruleKey, date, null);
+    }
+
+    public String previewNumber(String ruleKey, LocalDate date, String categoryCode) {
         SysNumberRule rule = requireActiveRule(ruleKey);
         List<Segment> segments = parseSegments(rule.getSegments());
-        String period = periodOf(rule.getResetPolicy(), date);
-        return render(segments, date, currentValue(ruleKey, period) + 1);
-    }
-
-    public String nextNumber(String ruleKey) {
-        return nextNumber(ruleKey, LocalDate.now());
-    }
-
-    public String previewNumber(String ruleKey) {
-        return previewNumber(ruleKey, LocalDate.now());
+        boolean hasCategory = segments.stream().anyMatch(s -> "CATEGORY".equals(s.type()));
+        String period = periodOf(rule, segments, date, hasCategory ? categoryCode : null);
+        return render(segments, date, currentValue(ruleKey, period) + 1, hasCategory ? categoryCode : null);
     }
 
     private SysNumberRule requireActiveRule(String ruleKey) {
@@ -167,12 +179,28 @@ public class NumberRuleService {
         counterMapper.updateValue(ruleKey, period, value);
     }
 
+    /** 周期键（批三-A）：规则含 CATEGORY 段时 period 以分类编码打头（流水按分类独立计数），
+     *  周期重置策略仍可叠加（分类-日期）；未携带分类编码时硬拒绝（否则不同分类共用同一流水必然重号）。 */
+    private String periodOf(SysNumberRule rule, List<Segment> segments, LocalDate date, String categoryCode) {
+        boolean hasCategory = segments.stream().anyMatch(s -> "CATEGORY".equals(s.type()));
+        if (!hasCategory) {
+            return periodOf(rule.getResetPolicy(), date);
+        }
+        if (categoryCode == null || categoryCode.isBlank()) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT,
+                    "编号规则 " + rule.getRuleKey() + " 启用了分类码段，取号必须携带分类编码");
+        }
+        String datePart = "NONE".equals(rule.getResetPolicy()) ? "" : "-" + periodOf(rule.getResetPolicy(), date);
+        return categoryCode.trim() + datePart;
+    }
+
     /** 纯渲染（无副作用）；取号成功路径在调用方先渲染后落号。 */
-    private String render(List<Segment> segments, LocalDate date, long next) {
+    private String render(List<Segment> segments, LocalDate date, long next, String categoryCode) {
         StringBuilder sb = new StringBuilder();
         for (Segment seg : segments) {
             switch (seg.type()) {
                 case "CONST" -> sb.append(seg.value() == null ? "" : seg.value());
+                case "CATEGORY" -> sb.append(categoryCode == null ? "" : categoryCode.trim());
                 case "DATE" -> sb.append(date.format(DateTimeFormatter.ofPattern(
                         seg.pattern() == null ? "yyyyMMdd" : seg.pattern())));
                 case "SEQ" -> {
@@ -205,6 +233,10 @@ public class NumberRuleService {
         if (!RESET_POLICIES.contains(policy)) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "未知重置策略: " + policy + "（NONE/DAILY/MONTHLY/YEARLY）");
         }
+        long categoryCount = segments.stream().filter(s -> "CATEGORY".equals(s.type())).count();
+        if (categoryCount > 1) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "至多一个 CATEGORY 段");
+        }
         for (Segment seg : segments) {
             if (seg.type() == null || !SEGMENT_TYPES.contains(seg.type())) {
                 throw new BizException(ErrorCode.INVALID_ARGUMENT, "未知段类型: " + seg.type() + "（CONST/DATE/SEQ）");
@@ -228,6 +260,10 @@ public class NumberRuleService {
                         throw new BizException(ErrorCode.INVALID_ARGUMENT,
                                 "SEQ 段 length 须在 1-" + SEQ_LENGTH_MAX + " 之间");
                     }
+                }
+                case "CATEGORY" -> {
+                    // 分类编码在取号时由调用方携带（PartService 传 part_category.category_code），
+                    // 段定义本身无附加参数；唯一性已在上方校验（至多一个）
                 }
                 default -> throw new BizException(ErrorCode.INVALID_ARGUMENT, "未知段类型: " + seg.type());
             }

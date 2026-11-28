@@ -42,7 +42,8 @@ public class PartService {
     public Part create(CreatePartRequest request) {
         PartCategory category = categoryService.requireCategory(request.getCategoryId());
         attrTemplateService.validate(category.getAttrTemplate(), request.getAttrs());
-        String partNumber = numberClient.next(NUMBER_RULE_KEY);
+        // 批三-A：携带分类编码取号——规则配置了分类码段时按分类独立计数；未配置则该参数被忽略（新旧并存）
+        String partNumber = numberClient.next(NUMBER_RULE_KEY, category.getCategoryCode());
 
         Part part = new Part();
         part.setPartNumber(partNumber);

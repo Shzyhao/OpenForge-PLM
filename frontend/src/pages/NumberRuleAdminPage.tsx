@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { usePerm } from '../perm/PermContext'
@@ -14,6 +14,7 @@ function describeSegments(json: string): string {
     return segs.map((s) => {
       if (s.type === 'CONST') return `"${s.value ?? ''}"`
       if (s.type === 'DATE') return s.pattern ?? 'yyyyMMdd'
+      if (s.type === 'CATEGORY') return '分类码'
       return '#'.repeat(s.length ?? 5)
     }).join(' + ')
   } catch {
@@ -69,6 +70,7 @@ export default function NumberRuleAdminPage() {
     const v = await form.validateFields()
     const segments: NumberSegment[] = []
     if (v.prefix?.trim()) segments.push({ type: 'CONST', value: v.prefix.trim() })
+    if (v.categorySegment) segments.push({ type: 'CATEGORY' })
     if (v.datePattern) segments.push({ type: 'DATE', pattern: v.datePattern })
     segments.push({ type: 'SEQ', length: v.seqLength ?? 5 })
     try {
@@ -116,7 +118,7 @@ export default function NumberRuleAdminPage() {
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load} />
           <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => {
-            form.setFieldsValue({ ruleKey: '', ruleName: '', prefix: '', datePattern: 'yyyyMMdd', seqLength: 5, resetPolicy: 'DAILY' })
+            form.setFieldsValue({ ruleKey: '', ruleName: '', prefix: '', categorySegment: false, datePattern: 'yyyyMMdd', seqLength: 5, resetPolicy: 'DAILY' })
             setOpen(true)
           }}>新建规则</Button>
         </Space>
@@ -142,6 +144,9 @@ export default function NumberRuleAdminPage() {
           <Space size="middle" style={{ display: 'flex' }}>
             <Form.Item name="prefix" label="常量前缀（可选）">
               <Input placeholder="如 INV" />
+            </Form.Item>
+            <Form.Item name="categorySegment" valuePropName="checked" style={{ marginBottom: 0 }}>
+              <Checkbox>分类码段（按分类独立计数）</Checkbox>
             </Form.Item>
             <Form.Item name="datePattern" label="日期段">
               <Select style={{ width: 130 }} options={[

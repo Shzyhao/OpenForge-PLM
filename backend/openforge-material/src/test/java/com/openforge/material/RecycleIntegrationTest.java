@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -65,6 +67,7 @@ class RecycleIntegrationTest {
 
     @BeforeEach
     void stubNumbers() {
+        when(numberClient.next(eq("part"), any())).thenAnswer(i -> "P" + String.format("%010d", partSeq.incrementAndGet()));
         when(numberClient.next("part")).thenAnswer(i -> "P" + String.format("%010d", partSeq.incrementAndGet()));
     }
 

@@ -18,6 +18,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +57,7 @@ class MaterialIntegrationTest {
     @DisplayName("分类树 + 自动取号 + 分页含子级过滤 + 草态保护 全链路")
     void partLifecycleDraftFlow() {
         when(numberClient.next(anyString())).thenReturn("P2026082300999");
+        when(numberClient.next(anyString(), any())).thenReturn("P2026082300999");   // 批三-A 双参（携带分类编码）
 
         // 分类树：机械(根) → 标准件(子)
         Long root = createCategory("MECH", "机械件", null);

@@ -117,4 +117,46 @@ class NumberRuleIntegrationTest {
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
                         .isEqualTo(ErrorCode.NUMBER_RULE_NOT_FOUND));
     }
+
+    @Test
+    @DisplayName("批三-A 分类码段：流水按分类独立计数，未携带分类编码硬拒绝")
+    void categorySegmentCountsPerCategory() {
+        numberRuleService.createRule("test_cat", "分类码段测试",
+                List.of(new NumberRuleService.Segment("CONST", "P-", null, null),
+                        new NumberRuleService.Segment("CATEGORY", null, null, null),
+                        new NumberRuleService.Segment("SEQ", null, null, 3)),
+                "NONE");
+
+        String e1 = numberRuleService.nextNumber("test_cat", LocalDate.now(), "ELEC");
+        String m1 = numberRuleService.nextNumber("test_cat", LocalDate.now(), "MECH");
+        String e2 = numberRuleService.nextNumber("test_cat", LocalDate.now(), "ELEC");
+
+        assertThat(e1).isEqualTo("P-ELEC001");
+        assertThat(m1).isEqualTo("P-MECH001");   // 分类间独立计数
+        assertThat(e2).isEqualTo("P-ELEC002");
+
+        assertThatThrownBy(() -> numberRuleService.nextNumber("test_cat", LocalDate.now()))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("必须携带分类编码");
+    }
+
+    @Test
+    @DisplayName("批三-A 向后兼容：无分类码段规则忽略携带的分类编码（新旧并存）")
+    void categoryParamIgnoredForPlainRules() {
+        numberRuleService.createRule("test_plain", "无分类段", PART_LIKE, "NONE");
+        String n = numberRuleService.nextNumber("test_plain", LocalDate.of(2026, 8, 23), "ELEC");
+        assertThat(n).matches("P20260823\\d{5}");
+    }
+
+    @Test
+    @DisplayName("批三-A 校验：至多一个 CATEGORY 段")
+    void duplicateCategorySegmentRejected() {
+        assertThatThrownBy(() -> numberRuleService.createRule("test_cat_dup", "双分类段",
+                List.of(new NumberRuleService.Segment("CATEGORY", null, null, null),
+                        new NumberRuleService.Segment("CATEGORY", null, null, null),
+                        new NumberRuleService.Segment("SEQ", null, null, 3)),
+                "NONE"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("至多一个 CATEGORY 段");
+    }
 }
