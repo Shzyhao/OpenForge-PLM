@@ -6,9 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
 import com.openforge.security.PermissionQueryClient;
-import com.openforge.workflow.engine.ExpressionEvaluator;
+import com.openforge.common.spel.ExpressionEvaluator;
 import com.openforge.workflow.engine.ProcessDefinition;
 import com.openforge.workflow.entity.WorkflowDef;
+import com.openforge.workflow.entity.WorkflowDelegate;
 import com.openforge.workflow.entity.WorkflowInstance;
 import com.openforge.workflow.entity.WorkflowTask;
 import com.openforge.workflow.mapper.WorkflowDefMapper;
@@ -41,6 +42,8 @@ public class WorkflowEngine {
     private final PermissionQueryClient permissionQueryClient;
     private final ObjectMapper objectMapper;
     private final com.openforge.common.event.EventPublisher eventPublisher;
+    private final DelegateService delegateService;
+    private final com.openforge.workflow.client.WorkflowNotifyClient notifyClient;
 
     // ===== 定义 =====
 
@@ -94,6 +97,7 @@ public class WorkflowEngine {
         instance.setVariables(toJson(variables == null ? Map.of() : variables));
         instance.setState("RUNNING");
         instance.setInitiatorId(initiatorId);
+        instance.setTenantId(com.openforge.common.tenant.TenantContext.getTenantId());
         instanceMapper.insert(instance);
         advance(instance, "start", variables == null ? Map.of() : variables);
         return instance;
@@ -104,14 +108,25 @@ public class WorkflowEngine {
         if (instance == null) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "流程实例不存在");
         }
+        // 租户边界（R10）：实例为全局表，跨租户按不存在应答（与任务 act 的指派人校验互补）
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L && !tenantId.equals(instance.getTenantId())) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "流程实例不存在");
+        }
         return instance;
     }
 
     /** 按业务对象查最新实例（含终态——业务详情需展示 COMPLETED/REJECTED；冒烟暴露只查 RUNNING 导致终态不可见）。 */
     public WorkflowInstance findByBiz(String bizType, Long bizId) {
-        return instanceMapper.selectOne(new LambdaQueryWrapper<WorkflowInstance>()
+        LambdaQueryWrapper<WorkflowInstance> wrapper = new LambdaQueryWrapper<WorkflowInstance>()
                 .eq(WorkflowInstance::getBizType, bizType)
-                .eq(WorkflowInstance::getBizId, bizId)
+                .eq(WorkflowInstance::getBizId, bizId);
+        // 租户边界（R10）：内部调用方（change 等）经 X-User-Tenant 透传本租户；平台租户(0)不限
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L) {
+            wrapper.eq(WorkflowInstance::getTenantId, tenantId);
+        }
+        return instanceMapper.selectOne(wrapper
                 .orderByDesc(WorkflowInstance::getId)
                 .last("LIMIT 1"));
     }
@@ -127,37 +142,102 @@ public class WorkflowEngine {
 
     // ===== 任务 =====
 
-    /** 我的待办：直接指派给我的 + 我的角色可认领的。 */
+    /** 我的待办：直接指派给我的 + 我的角色可认领的 + 生效委托规则带来的委托人任务（v1.23）。 */
     public List<WorkflowTask> myTasks(Long userId) {
         List<String> roles = permissionQueryClient.fetch(userId).roles();
+        List<WorkflowDelegate> delegations = delegateService.activeForAgent(userId);
+        List<Long> principals = delegations.stream()
+                .map(WorkflowDelegate::getPrincipalId)
+                .filter(pid -> !pid.equals(userId))
+                .distinct()
+                .toList();
         LambdaQueryWrapper<WorkflowTask> wrapper = new LambdaQueryWrapper<WorkflowTask>()
                 .isNull(WorkflowTask::getAction)
-                .orderByDesc(WorkflowTask::getId);
-        if (roles.isEmpty()) {
-            wrapper.eq(WorkflowTask::getAssigneeId, userId);
-        } else {
-            wrapper.and(w -> w.eq(WorkflowTask::getAssigneeId, userId)
-                    .or().in(WorkflowTask::getCandidateRole, roles));
+                .orderByDesc(WorkflowTask::getId)
+                .and(w -> {
+                    w.eq(WorkflowTask::getAssigneeId, userId);
+                    if (!roles.isEmpty()) {
+                        w.or().in(WorkflowTask::getCandidateRole, roles);
+                    }
+                    if (!principals.isEmpty()) {
+                        w.or().in(WorkflowTask::getAssigneeId, principals);
+                    }
+                });
+        List<WorkflowTask> tasks = taskMapper.selectList(wrapper);
+        if (principals.isEmpty()) {
+            return tasks;
         }
-        return taskMapper.selectList(wrapper);
+        // def_key 范围过滤 + 委托来源标记（瞬态字段，前端据此打"来自委托"标）
+        Map<Long, String> defKeyByInstance = instanceDefKeys(tasks);
+        List<WorkflowTask> visible = new java.util.ArrayList<>(tasks.size());
+        for (WorkflowTask t : tasks) {
+            if (t.getAssigneeId() == null || !principals.contains(t.getAssigneeId())) {
+                visible.add(t);
+                continue;
+            }
+            boolean covered = delegations.stream().anyMatch(r -> t.getAssigneeId().equals(r.getPrincipalId())
+                    && (r.getDefKey() == null || r.getDefKey().equals(defKeyByInstance.get(t.getInstanceId()))));
+            if (covered) {
+                t.setViaDelegation(true);
+                visible.add(t);
+            }
+        }
+        return visible;
+    }
+
+    private Map<Long, String> instanceDefKeys(List<WorkflowTask> tasks) {
+        List<Long> instanceIds = tasks.stream()
+                .map(WorkflowTask::getInstanceId).filter(java.util.Objects::nonNull).distinct().toList();
+        if (instanceIds.isEmpty()) {
+            return Map.of();
+        }
+        return instanceMapper.selectBatchIds(instanceIds).stream()
+                .collect(java.util.stream.Collectors.toMap(WorkflowInstance::getId,
+                        i -> i.getDefKey() == null ? "" : i.getDefKey()));
     }
 
     /** 办理任务。APPROVE：ALL 会签需全票通过才推进，ANY 或签一人即决定；REJECT：按 rejectTo 回退或终止。 */
     @Transactional
     public WorkflowInstance act(Long taskId, Long userId, String action, String comment) {
-        WorkflowTask task = taskMapper.selectById(taskId);
+        WorkflowTask probe = taskMapper.selectById(taskId);
+        if (probe == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");
+        }
+        // 同实例办理互斥（v1.31 P0-2，v1.33 修正）：锁实例行 + 锁任务行取最新实体——
+        // 防同任务双击双推进、ANY 或签 cancelOpenTasks 互覆/行锁互等死锁、ALL 会签末两票并发双等待静默挂死。
+        // 锁顺序单一（都先实例后任务）故无互等；任务行经独立 FOR UPDATE 语句获取——
+        // selectById 重读会命中 MyBatis 一级缓存旧快照（锁内重读失效，实测双推进）。
+        instanceMapper.lockById(probe.getInstanceId());
+        WorkflowTask task = taskMapper.lockById(taskId);
         if (task == null || !task.isOpen()) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "任务不存在或已办理");
+        }
+        // 动作归一化 + 校验（v1.20.0 体检修复）：此前大小写敏感——小写 "approve" 会让
+        // 会签判定 "APPROVE".equals(action) 恒 false，实例在当前节点静默挂起（无任何报错）
+        String normalized = action == null ? "" : action.trim().toUpperCase();
+        if (!"APPROVE".equals(normalized) && !"REJECT".equals(normalized)) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "action 须为 APPROVE/REJECT: " + action);
         }
         boolean assignedToMe = userId.equals(task.getAssigneeId());
         boolean myRole = task.getCandidateRole() != null
                 && permissionQueryClient.fetch(userId).roles().contains(task.getCandidateRole());
-        if (!assignedToMe && !myRole) {
+        // 委托代办（v1.23）：仅 USER 指派任务——角色任务本就可被角色成员认领，不重复放行；
+        // defKey 用裸查实例（不经租户守卫，规则本身已按租户过滤，且不改变既有校验顺序/语义）
+        boolean delegatedToMe = false;
+        if (!assignedToMe && !myRole && task.getAssigneeId() != null) {
+            WorkflowInstance raw = instanceMapper.selectById(task.getInstanceId());
+            String defKey = raw == null ? null : raw.getDefKey();
+            delegatedToMe = delegateService.hasActiveDelegation(task.getAssigneeId(), userId, defKey);
+        }
+        if (!assignedToMe && !myRole && !delegatedToMe) {
             throw new BizException(ErrorCode.FORBIDDEN, "无权办理该任务");
         }
 
         WorkflowInstance inst = instance(task.getInstanceId());
-        task.setAction(action);
+        if (delegatedToMe) {
+            task.setDelegatedFrom(task.getAssigneeId()); // 代办追溯：记录原指派人
+        }
+        task.setAction(normalized);
         task.setComment(comment);
         task.setAssigneeId(userId); // 角色任务认领后记录办理人
         task.setActedAt(LocalDateTime.now());
@@ -173,7 +253,7 @@ public class WorkflowEngine {
         boolean allApproved = openTasks.isEmpty()
                 && nodeTasks.stream().allMatch(t -> "APPROVE".equals(t.getAction()));
 
-        if ("REJECT".equals(action)) {
+        if ("REJECT".equals(normalized)) {
             cancelOpenTasks(openTasks);
             if (node.rejectTo() != null) {
                 return fallBack(inst, node.rejectTo());
@@ -332,14 +412,20 @@ public class WorkflowEngine {
         }
     }
 
-    /** task.created/completed（B2 事件清单：notify/统计预留消费）。 */
+    /** task.created/completed（B2 事件清单：notify 消费组 v1.23 落地）。总线关闭时回退 auth 站内信 HTTP 通道。 */
     private void emitTask(String eventType, WorkflowInstance instance, String nodeName, WorkflowTask task) {
-        eventPublisher.publish("openforge-task", eventType, java.util.Map.of(
+        Map<String, Object> payload = java.util.Map.of(
                 "instanceId", instance.getId(), "bizType", instance.getBizType() == null ? "" : instance.getBizType(),
                 "bizId", instance.getBizId() == null ? 0 : instance.getBizId(),
                 "nodeId", task.getNodeId() == null ? "" : task.getNodeId(),
                 "nodeName", nodeName == null ? "" : nodeName,
                 "assigneeId", task.getAssigneeId() == null ? 0 : task.getAssigneeId(),
-                "action", task.getAction() == null ? "" : task.getAction()));
+                "candidateRole", task.getCandidateRole() == null ? "" : task.getCandidateRole(),
+                "initiatorId", instance.getInitiatorId() == null ? 0 : instance.getInitiatorId(),
+                "action", task.getAction() == null ? "" : task.getAction());
+        if (!eventPublisher.publish("openforge-task", eventType, payload)) {
+            // 回退 HTTP 挪出事务（v1.27 P1#2）：act/deploy 路径常在 @Transactional 内，提交后再投递
+            com.openforge.common.event.AfterCommit.run(() -> notifyClient.deliver(eventType, payload));
+        }
     }
 }

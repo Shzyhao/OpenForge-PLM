@@ -10,9 +10,9 @@ Java 21 + Spring Boot 3.3 微服务（Maven 多模块）。
 | `openforge-auth` | 8081 | 认证服务：注册 / 登录 / JWT 签发（含租户声明）/ RBAC / 组织 / 编号规则 / 租户管理 / 模块注册中心 / 安全审计 |
 | `openforge-common` | - | 公共库：统一响应体 / 错误码 / 业务异常 / 全局异常处理 |
 | `openforge-security` | - | 公共库：`@RequirePermission` 拦截器 + auth 权限查询客户端 |
-| `openforge-starter-web` | - | 起步依赖：统一响应/错误码/全局异常 + 租户上下文 + 模块注册 |
-| `openforge-starter-data` | - | 起步依赖：MyBatis-Plus（分页+多租户拦截器）+ PostgreSQL + Flyway |
-| `openforge-starter-security` | - | 起步依赖：`@RequirePermission` 拦截器/权限与模块可用性客户端 |
+| `openforge-starter-web` | - | 起步依赖：引依赖即得统一响应/错误码/全局异常 + 租户上下文 + 模块注册（A5） |
+| `openforge-starter-data` | - | 起步依赖：MyBatis-Plus 中央装配（分页 + 多租户拦截器，单租户部署默认 0 行为不变）+ PostgreSQL/Flyway 驱动（A5） |
+| `openforge-starter-security` | - | 起步依赖：starter-web + `@RequirePermission` 拦截器/权限与模块可用性客户端（A5） |
 | `openforge-material` | 8082 | 物料与 BOM 服务 |
 | `openforge-doc` | 8083 | 文档服务 |
 | `openforge-workflow` | 8084 | 流程引擎服务 |
@@ -20,9 +20,9 @@ Java 21 + Spring Boot 3.3 微服务（Maven 多模块）。
 | `openforge-knowledge` | 8086 | 知识库服务 |
 | `openforge-project` | 8087 | 项目与报表服务 |
 | `openforge-metadata` | 8088 | 元数据内核（F2）：动态对象建模 + DDL 生成器 + 发布流水线 + 表单/列表布局设计器 |
-| `openforge-starter-web` | - | Web 层起步依赖：引依赖即得统一响应/错误码/全局异常 + 租户上下文 + 模块注册（A5） |
-| `openforge-starter-security` | - | 安全起步依赖：starter-web + `@RequirePermission` 拦截器/权限与模块可用性客户端（A5） |
-| `openforge-starter-data` | - | 数据层起步依赖：MyBatis-Plus 中央装配（分页 + 多租户拦截器，单租户部署默认 0 行为不变）（A5） |
+| `openforge-connector` | 8094 | 集成编排器（v1.14.0，EXTENSION 部署即注册）：连接器定义/凭据/多步骤链（CHAIN）运行时 + EVENT/CRON 触发 + 死信队列 |
+| `openforge-drawing` | 8095 | 图纸管理服务（v1.20.0）：图纸档案/版本快照/物料关联/预览文件 |
+| `openforge-mono` | 8090 | 单进程聚合（PROFILE=mono，v1.12.0）：auth+7 业务服务+connector+drawing 十模块合一上下文，gateway 独立 |
 
 ## 本地开发
 
@@ -40,11 +40,11 @@ mvn -pl openforge-gateway spring-boot:run
 
 # 4. 冒烟验证
 # 自助注册默认关闭（OPEN_REGISTRATION=true 可打开），用户由管理员创建；
-# admin 初始密码打印在 auth 服务启动日志（首登强制改密）
+# admin 初始密码默认 smoke-test-2026（可用环境变量 ADMIN_INITIAL_PASSWORD 单独设置，首登强制改密）
 # 登录
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"<auth 启动日志中的初始密码>"}'
+  -d '{"username":"admin","password":"smoke-test-2026"}'
 ```
 
 ## 约定

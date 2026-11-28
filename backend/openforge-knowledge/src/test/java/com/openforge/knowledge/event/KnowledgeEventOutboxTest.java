@@ -73,6 +73,15 @@ class KnowledgeEventOutboxTest {
         retry = jdbc.queryForObject(
                 "SELECT retry_count FROM sys_event_outbox WHERE sent_at IS NULL", Long.class);
         assertThat(retry).isEqualTo(2);
+
+        // v1.27 P1#3 属主过滤：他服务 producer 的行不被本 relay 认领/重试
+        jdbc.update("INSERT INTO sys_event_outbox (event_id, topic, tag, payload, producer) VALUES (?, ?, ?, ?, ?)",
+                "v127-foreign-probe", "openforge-object", "object.record.created", "{}", "other-service");
+        r.relay();
+        Integer foreignRetry = jdbc.queryForObject(
+                "SELECT retry_count FROM sys_event_outbox WHERE event_id = 'v127-foreign-probe'", Integer.class);
+        assertThat(foreignRetry).isZero();   // 未被认领（retry 不变）
+        jdbc.update("DELETE FROM sys_event_outbox WHERE event_id = 'v127-foreign-probe'");
     }
 
     @Test

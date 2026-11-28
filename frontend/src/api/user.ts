@@ -7,6 +7,7 @@ export interface UserInfo {
   id: number
   username: string
   displayName: string
+  email: string | null
   roles: string[]
   menus: string[]
   permissions: string[]
@@ -19,6 +20,22 @@ export function fetchCurrentUser(): Promise<UserInfo> {
 
 export function changeMyPassword(oldPassword: string, newPassword: string): Promise<void> {
   return put('/api/v1/users/me/password', { oldPassword, newPassword })
+}
+
+/** 联系邮箱自助设置（邮箱改造 2026-11）：每个用户可自行维护自己的邮箱。 */
+export function updateMyEmail(email: string): Promise<void> {
+  return put('/api/v1/users/me', { email })
+}
+
+export interface UserOption {
+  id: number
+  username: string
+  displayName: string | null
+}
+
+/** 用户轻量选项（审批委托选人）：登录即可，不走 user:manage 门槛。 */
+export function fetchUserOptions(): Promise<UserOption[]> {
+  return get<UserOption[]>('/api/v1/users/options')
 }
 
 // ===== 用户管理（D 组） =====
@@ -53,8 +70,14 @@ export function deleteUser(id: number): Promise<void> { return del(`/api/v1/user
 export function resetUserPassword(id: number, password: string): Promise<void> {
   return post(`/api/v1/users/${id}/reset-password`, { password })
 }
-export function assignUserRoles(userId: number, roleIds: number[]): Promise<void> {
-  return put(`/api/v1/roles/users/${userId}`, { roleIds })
+/** 批量启停（D9；十轮接线）。任一被拒整体不生效（后端事务内回滚）。 */
+export function batchUserStatus(ids: number[], enable: boolean): Promise<void> {
+  return post('/api/v1/users/batch-status', { ids, enable })
+}
+
+/** 用户挂接组织（org:manage；orgId=null 移出）。 */
+export function assignUserOrg(id: number, orgId: number | null): Promise<void> {
+  return put(`/api/v1/users/${id}/org`, { orgId })
 }
 
 // ===== 角色管理（B 组） =====
@@ -105,15 +128,6 @@ export interface PermNode {
   permType: string
   description: string | null
   sortOrder: number
-}
-
-export interface PermissionTree {
-  menus: PermNode[]
-  operations: PermNode[]
-}
-
-export function fetchPermissionTree(): Promise<PermissionTree> {
-  return get<PermissionTree>('/api/v1/permissions/tree')
 }
 
 export function fetchRolePermissionIds(id: number): Promise<string[]> {

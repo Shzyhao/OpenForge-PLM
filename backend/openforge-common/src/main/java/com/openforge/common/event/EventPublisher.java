@@ -35,6 +35,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class EventPublisher implements DisposableBean {
 
     static final long TRIP_OPEN_MILLIS = 60_000L;
+    /**
+     * 事件 Schema 版本（B2 §7 outbox P3 轻量落地，v1.25）：加字段演进下恒为 1；
+     * 消费端容忍规则——见到大于本版本的信封按"未知新版本"跳过并 WARN（宁丢通知类事件不误消费），
+     * 破坏性变更须升版本并同步全部消费组分支。Registry 随规模（事件类型 ≥10 或跨团队）另议。
+     */
+    public static final int EVENT_SCHEMA_VERSION = 1;
     private static final int TRIP_THRESHOLD = 3;
 
     private final boolean enabled;
@@ -82,7 +88,7 @@ public class EventPublisher implements DisposableBean {
             return false;
         }
         EventEnvelope envelope = new EventEnvelope(
-                UUID.randomUUID().toString(), eventType, 1,
+                UUID.randomUUID().toString(), eventType, EVENT_SCHEMA_VERSION,
                 LocalDateTime.now().toString(), producerName,
                 com.openforge.common.tenant.TenantContext.getTenantId(),
                 MDC.get(com.openforge.common.trace.TraceIdFilter.MDC_KEY),
@@ -92,6 +98,7 @@ public class EventPublisher implements DisposableBean {
             body = mapper.writeValueAsString(envelope).getBytes(StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.error("事件信封序列化失败（事件丢失）: topic={}, type={} — {}", topic, eventType, e.getMessage());
+            Metrics.counter("openforge_events_lost_total", "topic", topic).increment();
             return false;
         }
         String eventId = envelope.getEventId();
@@ -104,12 +111,25 @@ public class EventPublisher implements DisposableBean {
             } catch (Exception e) {
                 onFailure(topic);
                 log.error("outbox 落库失败（事件丢失，业务已提交前）: topic={}, type={} — {}", topic, eventType, e.getMessage());
+                Metrics.counter("openforge_events_lost_total", "topic", topic).increment();
                 return false;
             }
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    trySend(topic, eventType, body, eventId);
+                    if (trySend(topic, eventType, body, eventId)) {
+                        // 回写 sent_at（v1.31 P1-2）：否则 relay 下轮（≤60s）对已发送行再发一次——
+                        // 每个事务型事件固定重复投递（消费去重吸收语义，但流量×2、relay 指标虚高）。
+                        // 回写失败仅退化为旧行为（relay 补发一次），不阻断。
+                        try {
+                            jdbc.update("UPDATE sys_event_outbox SET sent_at = CURRENT_TIMESTAMP "
+                                    + "WHERE event_id = ? AND producer = ? AND sent_at IS NULL",
+                                    eventId, producerName);
+                        } catch (Exception markFail) {
+                            log.warn("outbox sent_at 回写失败（relay 将补发一次，消费去重吸收）: eventId={} — {}",
+                                    eventId, markFail.getMessage());
+                        }
+                    }
                 }
             });
             return true;
@@ -122,6 +142,7 @@ public class EventPublisher implements DisposableBean {
                         eventId, topic, eventType, new String(body, StandardCharsets.UTF_8), producerName);
             } catch (Exception e) {
                 log.error("直发失败且 outbox 落库失败（事件丢失）: topic={}, type={} — {}", topic, eventType, e.getMessage());
+                Metrics.counter("openforge_events_lost_total", "topic", topic).increment();
                 return false;
             }
         }
@@ -131,6 +152,11 @@ public class EventPublisher implements DisposableBean {
     /** 直发（供 relay 复用）。成功 true；失败/熔断 false。 */
     public boolean sendRaw(String topic, String eventType, byte[] body, String eventId) {
         return trySend(topic, eventType, body, eventId);
+    }
+
+    /** 本服务 producer 名（relay 属主过滤用，v1.27 P1#3）。 */
+    public String producerName() {
+        return producerName;
     }
 
     private boolean trySend(String topic, String eventType, byte[] body, String eventId) {

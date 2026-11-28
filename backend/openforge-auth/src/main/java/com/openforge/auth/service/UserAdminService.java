@@ -55,6 +55,18 @@ public class UserAdminService {
         }
     }
 
+    /**
+     * 租户边界（R10）：sys_user 是全局表（登录需跨租户按用户名寻址），租户拦截器不覆盖，
+     * 用户管理必须在服务层自守——平台租户(0)操作者管理全部租户，其余操作者仅限本租户。
+     * 跨租户一律按"用户不存在"应答，避免账号存在性泄露。
+     */
+    private void assertTenantScope(SysUser target) {
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L && !tenantId.equals(target.getTenantId())) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
+        }
+    }
+
     // ===== D2 创建 =====
 
     @Transactional
@@ -65,6 +77,7 @@ public class UserAdminService {
             throw new BizException(ErrorCode.USERNAME_ALREADY_EXISTS);
         }
         validatePasswordStrength(request.getPassword());
+        validateEmailFormat(request.getEmail());
 
         SysUser user = new SysUser();
         user.setUsername(request.getUsername());
@@ -90,10 +103,34 @@ public class UserAdminService {
         return user;
     }
 
+    /** 用户轻量选项（v1.23 审批委托选人）：仅 id/账号/显示名，登录即可访问，不暴露管理字段。 */
+    public List<UserOption> options() {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getStatus, "ACTIVE")
+                .orderByAsc(SysUser::getId);
+        // 租户边界（R10）：平台租户(0)可见全部，其余租户仅见本租户账号
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L) {
+            wrapper.eq(SysUser::getTenantId, tenantId);
+        }
+        wrapper.select(SysUser::getId, SysUser::getUsername, SysUser::getDisplayName);
+        return userMapper.selectList(wrapper).stream()
+                .map(u -> new UserOption(u.getId(), u.getUsername(), u.getDisplayName()))
+                .toList();
+    }
+
+    public record UserOption(Long id, String username, String displayName) {
+    }
+
     // ===== D1 列表 / D10 详情 =====
 
     public PageResponse<SysUser> page(long page, long pageSize, String username, Long roleId, String status) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>().orderByDesc(SysUser::getId);
+        // 租户边界（R10）：平台租户(0)可见全部，其余租户仅见本租户账号
+        Long tenantId = com.openforge.common.tenant.TenantContext.getTenantId();
+        if (tenantId != null && tenantId != 0L) {
+            wrapper.eq(SysUser::getTenantId, tenantId);
+        }
         if (username != null && !username.isBlank()) {
             wrapper.like(SysUser::getUsername, username.trim());
         }
@@ -118,15 +155,30 @@ public class UserAdminService {
         if (user == null) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
         }
+        assertTenantScope(user);
         return user;
     }
 
     // ===== D3 编辑 =====
 
+    /** 邮箱格式校验（邮箱改造 2026-11）：null/空串放行（空=未填写/清空），非空必须合法且 ≤128 字符（与 @Size 对齐）。 */
+    static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$");
+
+    static void validateEmailFormat(String email) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        if (email.length() > 128 || !EMAIL_PATTERN.matcher(email).matches()) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "邮箱格式不正确");
+        }
+    }
+
     @Transactional
     public SysUser update(Long id, Long operatorId, String displayName, String email, Long orgId) {
         SysUser target = require(id);
         assertCanOperate(operatorId, target, true);
+        validateEmailFormat(email);
         if (displayName != null && !displayName.isBlank()) {
             target.setDisplayName(displayName);
         }
@@ -138,6 +190,21 @@ public class UserAdminService {
         }
         userMapper.updateById(target);
         return target;
+    }
+
+    // ===== 联系邮箱自助维护（邮箱改造 2026-11）：每个用户可自行设置自己的邮箱 =====
+
+    @Transactional
+    public void updateMyEmail(Long userId, String email) {
+        SysUser user = require(userId);
+        if (email == null || email.isBlank()) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "邮箱不能为空");
+        }
+        validateEmailFormat(email);
+        user.setEmail(email.trim());
+        userMapper.updateById(user);
+        securityLogService.audit(userId, "EMAIL_CHANGE", "USER",
+                String.valueOf(userId), "用户 " + user.getUsername() + " 更新了自己的联系邮箱");
     }
 
     // ===== D4 启停用 =====

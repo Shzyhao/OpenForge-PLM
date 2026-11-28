@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # OpenForge PLM 一键开发环境启动（Git Bash / Linux / macOS）
 # 真实环境冒烟经验：16GB 宿主机需小内存参数 + 串行启动，避免 JVM 峰值叠加崩溃
-# 用法：./scripts/dev-up.sh                    # 全部 9 服务
+# 用法：./scripts/dev-up.sh                    # 全部 11 服务
 #       PROFILE=core ./scripts/dev-up.sh       # 预设子集（见下）——机器吃紧时优先
 #       SERVICES="auth metadata gateway" ...   # 自定义子集
 #       SKIP_BUILD=1 ...                       # 强制复用现有 jar（默认已按源码新旧自动判断）
@@ -13,8 +13,14 @@ export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(which java
 # 小内存画像（性能画像 §2.1）：SerialGC（每服务省 G1 线程/卡表原生开销 50~150MB）+
 # 512k 线程栈（默认 1MB × 每服务数十线程）+ 元空间/代码缓存/直接内存显式上限
 JVM_OPTS="-Xms48m -Xmx160m -Xss512k -XX:MaxMetaspaceSize=200m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
-# dev 收紧线程/连接池（yml 已环境变量化，默认值不变；9×2=18 PG 连接，单人开发足够）
+# dev 收紧线程/连接池（yml 已环境变量化，默认值不变；11×2=22 PG 连接，单人开发足够）
 export TOMCAT_MAX_THREADS="${TOMCAT_MAX_THREADS:-10}" TOMCAT_MIN_SPARE="${TOMCAT_MIN_SPARE:-2}"
+# 集成编排器开发态默认：白名单放行本机（冒烟自测目标），生产环境不注入此变量 = 全拒语义
+export OPENFORGE_CONNECTOR_EGRESS_WHITELIST="${OPENFORGE_CONNECTOR_EGRESS_WHITELIST:-localhost,127.0.0.1}"
+export OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE="${OPENFORGE_CONNECTOR_EGRESS_ALLOW_PRIVATE:-true}"
+# 凭据加密主密钥：固定开发默认（32 字节 base64）保证重启后 dev 库凭据仍可解密；
+# 生产必须显式注入 OPENFORGE_CONNECTOR_MASTER_KEY（prod compose 不给默认值，未配置=凭据功能拒绝）
+export OPENFORGE_CONNECTOR_MASTER_KEY="${OPENFORGE_CONNECTOR_MASTER_KEY:-b3BlbmZvcmdlLWRldi1tYXN0ZXIta2V5LTAxMjM0NTY=}"
 export HIKARI_MAX_POOL="${HIKARI_MAX_POOL:-2}" HIKARI_MIN_IDLE="${HIKARI_MIN_IDLE:-1}"
 
 echo "=== [1/4] 基础依赖 (PostgreSQL；Redis/MinIO 为 extras 可选) ==="
@@ -40,14 +46,43 @@ else
   export NACOS_CONFIG_IMPORT=""
 fi
 
+# v1.23 事件总线可选开关：EVENT_BUS=1 启动 RocketMQ 并开启事件总线
+# （站内通知走 MQ 消费组通道——B2 预留的 notify 组；同时 drawing→change 联动切事件驱动）。
+# 默认关闭：通知走 auth HTTP 回退通道全功能可用，省内存。发版验证（R20）须跑一轮 EVENT_BUS=1。
+if [ "${EVENT_BUS:-0}" = "1" ]; then
+  echo "=== [事件总线] 启动 RocketMQ（rocketmq profile） ==="
+  docker compose -f "$ROOT/docker-compose.yml" --profile rocketmq up -d
+  export OPENFORGE_EVENT_ENABLED=true
+  # 等 broker 就绪并注册到 namesrv（约 10~30s）：producer 首发失败会走 outbox 重试，
+  # 不等待也能最终一致，但等齐可让冒烟/探针首查即中
+  for i in $(seq 1 30); do
+    if docker exec openforge-mq-broker bash -c "echo > /dev/tcp/localhost/10911" 2>/dev/null        && docker exec openforge-mq-namesrv sh mqadmin clusterList -n localhost:9876 2>/dev/null | grep -q "broker-a"; then
+      echo "  broker 就绪并已注册（第 ${i} 次探测）"
+      break
+    fi
+    [ "$i" = 30 ] && echo "  警告: broker 60s 未就绪，事件管道可能延迟（outbox 会补发）"
+    sleep 2
+  done
+else
+  export OPENFORGE_EVENT_ENABLED="${OPENFORGE_EVENT_ENABLED:-false}"
+fi
+
 echo "=== [2/4] 构建后端（需先停止运行中的服务，否则 jar 被锁） ==="
 # SKIP_BUILD=1 强制跳过；默认按源码新旧自动判断——无改动时省 1~2 分钟与构建内存峰值
 # （多模块构建峰值曾是闪退直接诱因之一：MAVEN_OPTS 限 512m）
 export MAVEN_OPTS="${MAVEN_OPTS:--Xmx512m -XX:+UseSerialGC}"
 MARKER_JAR="$ROOT/backend/openforge-gateway/target/openforge-gateway-0.1.0-SNAPSHOT-exec.jar"
 STALE_SRC="$(find "$ROOT/backend" \( -name '*.java' -o -name 'pom.xml' \) -newer "$MARKER_JAR" -print -quit 2>/dev/null)"
+# 构建护栏（v1.20.0 实纱教训）：栈在跑时重打包与运行中 JVM 争内存（宿主机 OOM 闪退），
+# Windows 上还会因 jar 替换击落在跑服务——检测到任一服务健康即跳过构建并提示
+STACK_RUNNING=""
+for p in 8081 8082 8083 8084 8085 8086 8087 8088 8094 8095 8090; do
+  if curl -s -m 1 "http://localhost:$p/actuator/health" 2>/dev/null | grep -q UP; then STACK_RUNNING=1; break; fi
+done
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
   echo "  SKIP_BUILD=1：复用现有 target jar"
+elif [ -n "$STACK_RUNNING" ]; then
+  echo "  警告：检测到运行中的服务，已跳过构建（构建与服务不同时进行）。如需重建：先 dev-down 再 dev-up"
 elif [ ! -f "$MARKER_JAR" ] || [ -n "$STALE_SRC" ]; then
   echo "  源码有更新（${STALE_SRC#$ROOT/}），重新打包…"
   (cd "$ROOT/backend" && mvn -B -ntp -q package -DskipTests)
@@ -60,14 +95,16 @@ echo "=== [3/4] 启动 Java 服务（auth 先行 → 业务服务 ${START_PARALL
 # PROFILE 预设（机器吃紧时的瘦身入口，A4 模块注册：不启动的服务不注册/不路由）：
 #   core = auth gateway metadata doc workflow  （主链路：登录/动态建模/文档/审批）
 #   lite = auth gateway                        （前端联调骨架）
-#   mono = mono gateway                        （mono-8 单进程 + 网关，见 docs/OpenForge-mono单进程设计.md）
-#   full = 全部 9 服务（默认）；SERVICES 显式指定时优先于 PROFILE
+#   mono = mono gateway                        （mono 单进程聚合 10 模块 + 网关，见 docs/OpenForge-mono单进程设计.md）
+#   full = 全部 11 服务（默认）；SERVICES 显式指定时优先于 PROFILE
 declare -A PORTS=(
   [auth]=8081 [material]=8082 [doc]=8083 [workflow]=8084
   [change]=8085 [knowledge]=8086 [project]=8087 [metadata]=8088 [gateway]=8080
+  [connector]=8094
+  [drawing]=8095
   [mono]=8090
 )
-SVC_ORDER="auth material doc workflow change knowledge project metadata gateway"
+SVC_ORDER="auth material doc workflow change knowledge project metadata connector drawing gateway"
 case "${PROFILE:-full}" in
   core) PRESET="auth metadata doc workflow gateway" ;;
   lite) PRESET="auth gateway" ;;
@@ -75,7 +112,7 @@ case "${PROFILE:-full}" in
   *)    PRESET="$SVC_ORDER" ;;
 esac
 SVC_LIST=${SERVICES:-$PRESET}
-# mono 模式：gateway 路由/注册中心拉取指向 mono(:8090)；其余 8 服务不启动
+# mono 模式：gateway 路由/注册中心拉取指向 mono(:8090)；其余 10 服务不启动
 if [ "${PROFILE:-full}" = "mono" ]; then
   export AUTH_SERVICE_URI="${AUTH_SERVICE_URI:-http://localhost:8090}"
 fi
@@ -94,7 +131,17 @@ run_one() {
   local cds_dir="$jar_dir/cds"
   local run_jar=$jar
   local share=()   # 数组携带 CDS 参数：路径可能含空格（如 Windows 项目目录），标量会被分词拆裂
-  if [ "${CDS:-1}" = "1" ]; then
+  # CDS（AppCDS）默认仅 gateway 开启：业务服务 A/B 校准收益仅 ~2-4%（画像 §8.3），
+  # 而每服务的 onRefresh 训练跑会在启动期瞬时多拉一个全量 JVM（11 服务并发训练 =
+  # 峰值 +10 JVM——低内存宿主机启动期 OOM 闪退主因之一，v1.20.0 实纱）。
+  # CDS=1 强制全服务开启（旧行为）；CDS=0 全关；默认（gw/未设）仅 gateway。
+  cds_enabled=0
+  case "${CDS:-gw}" in
+    1) cds_enabled=1 ;;
+    0) cds_enabled=0 ;;
+    *) [ "$svc" = "gateway" ] && cds_enabled=1 ;;
+  esac
+  if [ "$cds_enabled" = "1" ]; then
     if [ ! -f "$cds_dir/.extracted" ] || [ "$jar" -nt "$cds_dir/.extracted" ]; then
       rm -rf "$cds_dir"
       (cd "$jar_dir" && "$JAVA_HOME/bin/java" -Djarmode=tools \
@@ -154,7 +201,7 @@ fi
 echo "  前端: cd frontend && npm install && npm run dev   (http://localhost:5173)"
 echo ""
 if [ "${PROFILE:-full}" = "mono" ]; then
-  echo "完成。管理员账号 admin 的初始密码打印在 mono 启动日志（/tmp/openforge-mono.log），首登强制改密；自助注册默认关闭。"
+  echo "完成。管理员账号 admin 的初始密码：默认 smoke-test-2026（可用环境变量 ADMIN_INITIAL_PASSWORD 单独设置），首登强制改密；自助注册默认关闭。"
 else
-  echo "完成。管理员账号 admin 的初始密码打印在 auth 启动日志（/tmp/openforge-auth.log），首登强制改密；自助注册默认关闭。"
+  echo "完成。管理员账号 admin 的初始密码：默认 smoke-test-2026（可用环境变量 ADMIN_INITIAL_PASSWORD 单独设置），首登强制改密；自助注册默认关闭。"
 fi

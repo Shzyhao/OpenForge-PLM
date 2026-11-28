@@ -1,5 +1,6 @@
 package com.openforge.auth.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -22,6 +23,7 @@ public class CreateUserRequest {
     private String displayName;
 
     @Size(max = 128)
+    @Email
     private String email;
 
     private Long orgId;

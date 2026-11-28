@@ -36,6 +36,8 @@ public class PartService {
     private final NumberClient numberClient;
     /** Spring 配置的 ObjectMapper（含 JavaTimeModule，支持 LocalDateTime 快照序列化） */
     private final ObjectMapper objectMapper;
+    private final com.openforge.common.event.EventPublisher eventPublisher;
+    private final com.openforge.material.client.MaterialNotifyClient notifyClient;
 
     public Part create(CreatePartRequest request) {
         PartCategory category = categoryService.requireCategory(request.getCategoryId());
@@ -115,14 +117,25 @@ public class PartService {
         if (request.getAttrs() != null) {
             part.setAttrs(newAttrs);
         }
-        partMapper.updateById(part);
+        // 写带草稿条件（v1.31 P0-6）：防编辑与流转并发——原整行 updateById 会把并发已发布
+        // 的物料降级回 DRAFT（写的是读时的旧状态）
+        int updated = partMapper.update(part, new LambdaQueryWrapper<Part>()
+                .eq(Part::getId, id).eq(Part::getLifecycleState, "DRAFT"));
+        if (updated == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "物料已离开草稿状态，编辑被拒绝");
+        }
         return part;
     }
 
     /** 仅草稿可删除。 */
     public void deleteDraft(Long id) {
         requireDraft(id);
-        partMapper.deleteById(id);
+        // 删除带草稿条件（v1.31 P0-6）：防 deleteDraft 与 approve 并发删除已发布物料
+        int deleted = partMapper.delete(new LambdaQueryWrapper<Part>()
+                .eq(Part::getId, id).eq(Part::getLifecycleState, "DRAFT"));
+        if (deleted == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "物料已离开草稿状态，删除被拒绝");
+        }
     }
 
     // ===== 状态机（M3 由流程引擎驱动，M2 为轻量直接流转） =====
@@ -156,13 +169,58 @@ public class PartService {
         return part;
     }
 
+    /**
+     * 变更执行入口（刀2 统一变更中心）：仅承接 禁用（RELEASED→FROZEN）/启用（FROZEN→RELEASED），
+     * 其余流转走 submit/approve/reject；状态机校验复用 PART。
+     */
+    public Part applyLifecycle(Long id, String target, Long operatorId) {
+        if (!"FROZEN".equals(target) && !"RELEASED".equals(target)) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "变更执行仅支持 禁用(FROZEN)/启用(RELEASED)");
+        }
+        return transition(id, target, operatorId);
+    }
+
     private Part transition(Long id, String target, Long operatorId) {
         Part part = detail(id);
         StateMachine.requireTransition(StateMachine.PART, part.getLifecycleState(), target);
+        // 流转前置状态条件更新（v1.31 P0-6）：并发流转/编辑只有一人成功——原整行 updateById
+        // 带读时旧字段，可互相覆盖对方已提交的状态
+        int moved = partMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Part>()
+                .eq(Part::getId, id)
+                .eq(Part::getLifecycleState, part.getLifecycleState())
+                .set(Part::getLifecycleState, target)
+                .set(Part::getUpdatedBy, operatorId));
+        if (moved == 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "状态已并发变更，请刷新后重试: id=" + id);
+        }
         part.setLifecycleState(target);
         part.setUpdatedBy(operatorId);
-        partMapper.updateById(part);
+        if ("RELEASED".equals(target)) {
+            publishReleased(part);
+        }
         return part;
+    }
+
+    /**
+     * part.released（B2 设计 §5 material 事件域，v1.16.0 交付）：覆盖审批发布与变更启用两条
+     * RELEASED 路径。事务活跃时 afterCommit 发送（回滚不留事件），失败由 EventPublisher
+     * 落 outbox/熔断，不阻断业务。
+     */
+    private void publishReleased(Part part) {
+        Runnable emit = () -> {
+            java.util.Map<String, Object> payload = java.util.Map.of(
+                    "partId", part.getId(),
+                    "partNumber", part.getPartNumber() == null ? "" : part.getPartNumber(),
+                    "partName", part.getName() == null ? "" : part.getName(),
+                    "version", part.getVersion() == null ? "" : part.getVersion());
+            // 总线关闭时回退 auth 站内信订阅通知（v1.24 §4；订阅 fan-out 由 auth 侧解析）
+            if (!eventPublisher.publish("openforge-material", "part.released", payload)) {
+                notifyClient.deliver("part.released", payload);
+            }
+        };
+        // v1.27 P1#2：afterCommit 收敛到 common AfterCommit（语义不变——回滚不发、无事务直发）
+        com.openforge.common.event.AfterCommit.run(emit);
     }
 
     private Part requireDraft(Long id) {

@@ -9,6 +9,7 @@ services:
     profiles: [monitoring]
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
     ports:
       - "9090:9090"
     healthcheck:
@@ -34,5 +35,81 @@ services:
       prometheus:
         condition: service_healthy
 
+  # 告警分发（v1.30 C10 邮件渠道）：prometheus-rules.yml 规则 firing 后由 prometheus 推送到本服务。
+  # 双模式（entrypoint 二选一）：SMTP_HOST+ALERT_RECIPIENTS 均已设置 → 走 configs 内联渲染的 smtp.yml；
+  # 任一未设置 → drop 路由（告警仅 UI/API 可见不外发），监控栈零配置即可起。
+  # 环境变量：SMTP_HOST/SMTP_PORT(587)/SMTP_USER/SMTP_PASSWORD/SMTP_FROM/SMTP_TLS(true)/ALERT_RECIPIENTS(逗号分隔)
+  # 配置渲染用 compose configs.content 原生 ${VAR} 插值（纯文本替换，无 sed 转义链——密码含 #&\ 安全）；
+  # 实纱：busybox sed 字符类/引号双层转义脆（"unmatched /" 两连），勿回退 sed 方案。
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: openforge-alertmanager
+    profiles: [monitoring]
+    environment:
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      ALERT_RECIPIENTS: ${ALERT_RECIPIENTS:-}
+    configs:
+      - source: alertmanager_null
+        target: /etc/alertmanager/null.yml
+      - source: alertmanager_smtp
+        target: /etc/alertmanager/smtp.yml
+    volumes:
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -z "$$SMTP_HOST" ] || [ -z "$$ALERT_RECIPIENTS" ]; then
+          echo '[alertmanager] SMTP_HOST/ALERT_RECIPIENTS 未设置——drop 路由（告警仅 UI/API 可见，不外发）'
+          exec alertmanager --config.file=/etc/alertmanager/null.yml --storage.path=/alertmanager
+        fi
+        echo "[alertmanager] SMTP 就绪: $${SMTP_HOST}:$${SMTP_PORT:-587} -> $$ALERT_RECIPIENTS"
+        exec alertmanager --config.file=/etc/alertmanager/smtp.yml --storage.path=/alertmanager
+
 volumes:
   grafana_data:
+  alertmanager_data:
+
+# drop 模式（零配置起栈）：告警全量吞掉，仅 Prometheus/Alertmanager UI 与 API 可见
+configs:
+  alertmanager_null:
+    content: |
+      route:
+        receiver: drop
+      receivers:
+        - name: drop
+  # 邮件模式：critical 30s 内发出、每 4h 重复；warning 分组 5m、每 12h 重复；恢复通知随发。
+  # 端口约定：587=STARTTLS（SMTP_TLS=true）；465=隐式 TLS 需 SMTP_TLS=false。
+  # to 为逗号分隔串（alertmanager 官方格式）；值含单引号会破坏 YAML 引号，需避免。
+  alertmanager_smtp:
+    content: |
+      global:
+        resolve_timeout: 5m
+        smtp_smarthost: '${SMTP_HOST:-}:${SMTP_PORT:-587}'
+        smtp_from: '${SMTP_FROM:-openforge-alerts@localhost}'
+        smtp_auth_username: '${SMTP_USER:-}'
+        smtp_auth_password: '${SMTP_PASSWORD:-}'
+        smtp_require_tls: ${SMTP_TLS:-true}
+      route:
+        receiver: email
+        group_by: [alertname, job]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+        routes:
+          - matchers: ['severity="warning"']
+            group_wait: 5m
+            repeat_interval: 12h
+      receivers:
+        - name: email
+          email_configs:
+            - to: '${ALERT_RECIPIENTS:-}'
+              send_resolved: true

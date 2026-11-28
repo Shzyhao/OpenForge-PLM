@@ -1,29 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Button, Divider, Drawer, Input, Modal, Popconfirm, Select, Space, Tag, Typography, message,
+  Button, Divider, Drawer, Input, Modal, Popconfirm, Space, Tag, Typography, message,
 } from 'antd'
 import {
   ClearOutlined, DeleteOutlined, ExpandOutlined, PartitionOutlined, PlusOutlined,
   ZoomInOutlined, ZoomOutOutlined,
 } from '@ant-design/icons'
 import {
-  NODE_TYPE_META, assigneeSummary, autoLayout, nodeLabel, nodeSize, newNodeId,
+  NODE_TYPE_META, autoLayout, nodeLabel, nodeSize, newNodeId,
   toDefinitionJson, validateFlow, visualEdges,
-  type FlowDef, type FlowNode, type NodeType, type RuleDef,
+  type FlowDef, type FlowNode, type NodeType,
 } from '../flow/flowModel'
+import { behaviorOf, type NodeBehavior } from '../flow/nodeTypes'
+import { NODE_PANEL_SLOTS } from '../flow/propertyPanels'
 
 interface Props {
   value: FlowDef
   onChange: (next: FlowDef) => void
   readOnly?: boolean
   height?: number
+  /** 工具栏可新增的节点类型（默认工作流全集；编排画布传自有类型集） */
+  nodeTypes?: NodeType[]
 }
 
 type View = { tx: number; ty: number; k: number }
 type Selection = { kind: 'node'; id: string } | { kind: 'edge'; key: string } | null
 type Interaction =
   | { kind: 'drag'; id: string; offX: number; offY: number }
-  | { kind: 'connect'; from: string }
+  | { kind: 'connect'; from: string; via?: 'branch' }
   | { kind: 'pan'; sx: number; sy: number; tx: number; ty: number }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -42,7 +46,7 @@ function bezierMid(s: { x: number; y: number }, c1: { x: number; y: number },
  * 拖拽移动 / 右侧圆点拖出连线 / 点选后在面板编辑属性 / 分层自动布局 / 滚轮缩放拖拽平移。
  * 条件节点的出口连线由分支规则渲染（expr 标注），保存时经 toDefinitionJson 规范化。
  */
-export default function FlowDesigner({ value, onChange, readOnly = false, height = 520 }: Props) {
+export default function FlowDesigner({ value, onChange, readOnly = false, height = 520, nodeTypes }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [view, setView] = useState<View>({ tx: 20, ty: 20, k: 1 })
   const viewRef = useRef(view)
@@ -51,6 +55,7 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
   const [connectPos, setConnectPos] = useState<{ x: number; y: number } | null>(null)
   const [ruleModal, setRuleModal] = useState<{ from: string; to: string; expr: string } | null>(null)
   const interRef = useRef<Interaction | null>(null)
+  const toolbarTypes: NodeType[] = nodeTypes ?? ['START', 'APPROVAL', 'CONDITION', 'END']
 
   const nodesById = new Map(value.nodes.map((n) => [n.id, n]))
   const selNode = selected?.kind === 'node' ? nodesById.get(selected.id) ?? null : null
@@ -68,9 +73,20 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const el = e.target as Element
     const handleId = el.getAttribute('data-handle-id')
+    const branchHandleId = el.getAttribute('data-branch-handle-id')
     const nodeId = el.getAttribute('data-node-id')
     const edgeKey = el.getAttribute('data-edge-key')
-    svgRef.current?.setPointerCapture(e.pointerId)
+    // capture 失败（合成事件/指针已释放）不应中断交互——后续 move 仅在捕获成功时有精确跟随
+    try {
+      svgRef.current?.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+    if (!readOnly && branchHandleId) {
+      interRef.current = { kind: 'connect', from: branchHandleId, via: 'branch' }
+      setConnectPos(toWorld(e.clientX, e.clientY))
+      return
+    }
     if (!readOnly && handleId) {
       interRef.current = { kind: 'connect', from: handleId }
       setConnectPos(toWorld(e.clientX, e.clientY))
@@ -127,7 +143,7 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
       return n.x !== undefined && n.y !== undefined
         && Math.abs(w.x - n.x) <= bw / 2 && Math.abs(w.y - n.y) <= bh / 2
     })
-    if (hit) applyConnect(it.from, hit.id)
+    if (hit) applyConnect(it.from, hit.id, it.via)
   }
 
   // 滚轮缩放（以光标为中心；React 合成 onWheel 为 passive，需原生监听才能 preventDefault）
@@ -166,21 +182,29 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
   const patchNode = (id: string, patch: Partial<FlowNode>) =>
     onChange({ ...value, nodes: value.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) })
 
-  const applyConnect = (fromId: string, toId: string) => {
+  const applyConnect = (fromId: string, toId: string, via?: 'branch') => {
     if (fromId === toId) return
     const from = nodesById.get(fromId)
     const to = nodesById.get(toId)
     if (!from || !to) return
-    if (to.type === 'START') {
-      message.warning('「开始」节点不能作为连线的目标')
+    const fromBehavior: NodeBehavior = behaviorOf(from.type)
+    if (!behaviorOf(to.type).canBeConnectTarget) {
+      message.warning(`「${behaviorOf(to.type).label}」节点不能作为连线的目标`)
       return
     }
-    if (from.type === 'END') {
-      message.warning('「结束」节点没有出边')
-      return
-    }
-    if (from.type === 'CONDITION') {
+    if (via === 'branch' || fromBehavior.connectViaRuleModal) {
+      if (via === 'branch' && fromBehavior.ruleTargetCheck) {
+        const err = fromBehavior.ruleTargetCheck(to)
+        if (err) {
+          message.warning(err)
+          return
+        }
+      }
       setRuleModal({ from: fromId, to: toId, expr: '' })
+      return
+    }
+    if (!fromBehavior.hasOutgoingEdge) {
+      message.warning(`「${fromBehavior.label}」节点没有出边`)
       return
     }
     onChange({ ...value, edges: [...value.edges.filter((e) => e.from !== fromId), { from: fromId, to: toId }] })
@@ -206,11 +230,10 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
     if (!selected) return
     if (selected.kind === 'node') {
       onChange({
-        nodes: value.nodes.filter((n) => n.id !== selected.id).map((n) => ({
-          ...n,
-          rules: n.rules?.filter((r) => r.to !== selected.id),
-          rejectTo: n.rejectTo === selected.id ? undefined : n.rejectTo,
-        })),
+        nodes: value.nodes.filter((n) => n.id !== selected.id).map((n) => {
+          const cleaned = behaviorOf(n.type).onNodeRemoved?.(n, selected.id) ?? {}
+          return Object.keys(cleaned).length ? { ...n, ...cleaned } : n
+        }),
         edges: value.edges.filter((e) => e.from !== selected.id && e.to !== selected.id),
       })
     } else {
@@ -237,11 +260,10 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
     const id = newNodeId(value, type)
     const node: FlowNode = {
       id, type,
+      ...behaviorOf(type).defaults?.(value),
       x: Math.round(cx + (Math.random() * 60 - 30)),
       y: Math.round(cy + (Math.random() * 40 - 20)),
     }
-    if (type === 'APPROVAL') node.assignee = { type: 'ROLE', value: '' }
-    if (type === 'CONDITION') node.rules = [{ to: value.nodes.find((n) => n.type === 'END')?.id ?? '' }]
     onChange({ nodes: [...value.nodes, node], edges: value.edges })
     setSelected({ kind: 'node', id })
   }
@@ -267,9 +289,11 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
     return { x: (n.x ?? 0) + (side === 'right' ? w / 2 : -w / 2), y: n.y ?? 0 }
   }
 
-  const edgePath = (from: FlowNode, to: FlowNode): { d: string; mid: { x: number; y: number } } => {
+  // startDy：分支锚点连线自橙色锚点（右下）出发，与主线出边在起点处错开
+  const edgePath = (from: FlowNode, to: FlowNode, startDy = 0): { d: string; mid: { x: number; y: number } } => {
     const forward = (to.x ?? 0) > (from.x ?? 0)
-    const s = anchor(from, forward ? 'right' : 'left')
+    const { w } = nodeSize(from)
+    const s = { x: (from.x ?? 0) + (forward ? w / 2 : -w / 2), y: (from.y ?? 0) + startDy }
     const t = anchor(to, forward ? 'left' : 'right')
     let c1: { x: number; y: number }
     let c2: { x: number; y: number }
@@ -292,11 +316,10 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
 
   // ===== 属性面板 =====
   const drawerNode = selNode
-  const targetOptions = (excludeSelf: boolean) => value.nodes
-    .filter((n) => !excludeSelf || n.id !== drawerNode?.id)
-    .map((n) => ({ value: n.id, label: `${nodeLabel(n)}（${NODE_TYPE_META[n.type].label}）` }))
-  const approvalOptions = value.nodes.filter((n) => n.type === 'APPROVAL' && n.id !== drawerNode?.id)
-    .map((n) => ({ value: n.id, label: nodeLabel(n) }))
+  const panelSlot = drawerNode ? NODE_PANEL_SLOTS[drawerNode.type] : null
+  // 插槽可能是含 hooks 的组件（如 STEP 面板）——必须以 JSX 元素渲染而非直接调用
+  const PanelSlot = panelSlot as unknown as
+    ((props: { node: FlowNode; def: FlowDef; readOnly: boolean; patch: (id: string, patch: Partial<FlowNode>) => void }) => React.ReactElement | null) | null
 
   return (
     <div>
@@ -304,7 +327,7 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
         <div style={{ marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
           <Space size={4} wrap>
             <span style={{ color: '#8c8c8c', fontSize: 12 }}>新增：</span>
-            {(['START', 'APPROVAL', 'CONDITION', 'END'] as NodeType[]).map((t) => (
+            {toolbarTypes.map((t) => (
               <Button key={t} size="small" icon={<PlusOutlined />} onClick={() => addNode(t)}>
                 {NODE_TYPE_META[t].label}
               </Button>
@@ -360,7 +383,8 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
             const from = nodesById.get(ve.from)
             const to = nodesById.get(ve.to)
             if (!from || !to || from.x === undefined || to.x === undefined) return null
-            const { d, mid } = edgePath(from, to)
+            const { d, mid } = edgePath(from, to,
+              ve.kind === 'rule' && behaviorOf(from.type).branchAnchor ? 16 : 0)
             const active = selected?.kind === 'edge' && selected.key === ve.key
             const color = ve.kind === 'rule' ? '#fa8c16' : '#8c8c8c'
             return (
@@ -386,44 +410,55 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
             const { w, h } = nodeSize(n)
             const x = n.x ?? 0
             const y = n.y ?? 0
+            const behavior = behaviorOf(n.type)
             const meta = NODE_TYPE_META[n.type]
             const active = selected?.kind === 'node' && selected.id === n.id
-            const small = n.type === 'START' || n.type === 'END'
+            const subtitle = behavior.summary?.(n)
+            const summaryDanger = n.type === 'APPROVAL' && !n.assignee?.type
             return (
               <g key={n.id} data-node-id={n.id} style={{ cursor: readOnly ? 'grab' : 'move' }}>
                 {active && <rect x={x - w / 2 - 4} y={y - h / 2 - 4} width={w + 8} height={h + 8}
                   rx={12} fill="none" stroke="#1677ff" strokeWidth={1} strokeDasharray="4 3" />}
-                {small
+                {behavior.small
                   ? <rect data-node-id={n.id} x={x - w / 2} y={y - h / 2} width={w} height={h} rx={22}
                     fill="#fff" stroke={meta.color} strokeWidth={active ? 2.5 : 1.5} />
                   : <rect data-node-id={n.id} x={x - w / 2} y={y - h / 2} width={w} height={h} rx={10}
                     fill="#fff" stroke={meta.color} strokeWidth={active ? 2.5 : 1.5} />}
-                <text data-node-id={n.id} x={x} y={small ? y + 5 : y - (n.type === 'APPROVAL' ? 6 : 6)}
-                  textAnchor="middle" fontSize={small ? 13 : 14} fontWeight={600} fill="#262626"
+                <text data-node-id={n.id} x={x} y={behavior.small ? y + 5 : y - 6}
+                  textAnchor="middle" fontSize={behavior.small ? 13 : 14} fontWeight={600} fill="#262626"
                   style={{ pointerEvents: 'none' }}>
                   {nodeLabel(n)}
                 </text>
-                {!small && (
+                {!behavior.small && subtitle !== undefined && (
                   <text data-node-id={n.id} x={x} y={y + 14} textAnchor="middle" fontSize={11}
-                    fill={n.type === 'APPROVAL' && !n.assignee?.type ? '#cf1322' : '#8c8c8c'}
+                    fill={summaryDanger ? '#cf1322' : '#8c8c8c'}
                     style={{ pointerEvents: 'none' }}>
-                    {n.type === 'APPROVAL' ? assigneeSummary(n) : `${n.rules?.length ?? 0} 分支`}
+                    {subtitle}
                   </text>
                 )}
-                {!readOnly && n.type !== 'END' && (
+                {!readOnly && behavior.hasOutgoingEdge && (
                   <circle data-handle-id={n.id} cx={x + w / 2} cy={y} r={6}
                     fill="#fff" stroke="#1677ff" strokeWidth={1.5} style={{ cursor: 'crosshair' }} />
+                )}
+                {!readOnly && behavior.branchAnchor && (
+                  <circle data-branch-handle-id={n.id} cx={x + w / 2} cy={y + 16} r={6}
+                    fill="#fff" stroke="#fa8c16" strokeWidth={1.5} style={{ cursor: 'crosshair' }} />
                 )}
               </g>
             )
           })}
-          {connectFrom && connectPos && (
-            <line
-              x1={anchor(connectFrom, 'right').x} y1={connectFrom.y ?? 0}
-              x2={connectPos.x} y2={connectPos.y}
-              stroke="#1677ff" strokeWidth={1.5} strokeDasharray="6 4"
-            />
-          )}
+          {connectFrom && connectPos && (() => {
+            const it = interRef.current
+            const fromBranch = it?.kind === 'connect' && it.via === 'branch'
+              && behaviorOf(connectFrom.type).branchAnchor
+            return (
+              <line
+                x1={anchor(connectFrom, 'right').x} y1={(connectFrom.y ?? 0) + (fromBranch ? 16 : 0)}
+                x2={connectPos.x} y2={connectPos.y}
+                stroke="#1677ff" strokeWidth={1.5} strokeDasharray="6 4"
+              />
+            )
+          })()}
         </g>
       </svg>
 
@@ -440,109 +475,15 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
               <Tag color={NODE_TYPE_META[selNode.type].color}>{NODE_TYPE_META[selNode.type].label}</Tag>
               <Typography.Text code>{selNode.id}</Typography.Text>
             </Space>
-            {(selNode.type === 'APPROVAL' || selNode.type === 'CONDITION') && (
+            {panelSlot && (
               <label style={{ display: 'block' }}>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>节点名称</Typography.Text>
-                <Input value={selNode.name ?? ''} disabled={readOnly} placeholder={NODE_TYPE_META[selNode.type].label}
+                <Input value={selNode.name ?? ''} disabled={readOnly}
+                  placeholder={NODE_TYPE_META[selNode.type].label}
                   onChange={(e) => patchNode(selNode.id, { name: e.target.value })} />
               </label>
             )}
-            {selNode.type === 'APPROVAL' && (
-              <>
-                <label style={{ display: 'block' }}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>审批人类型</Typography.Text>
-                  <Select style={{ width: '100%' }} disabled={readOnly} value={selNode.assignee?.type}
-                    onChange={(t) => patchNode(selNode.id, {
-                      assignee: t === 'USERS' ? { type: t, values: [] } : { type: t, value: '' },
-                      mode: undefined,
-                    })}
-                    options={[
-                      { value: 'USER', label: '指定用户（用户 id）' },
-                      { value: 'ROLE', label: '角色（角色编码）' },
-                      { value: 'USERS', label: '多用户（会签/或签）' },
-                    ]} />
-                </label>
-                {selNode.assignee?.type === 'USERS' ? (
-                  <>
-                    <label style={{ display: 'block' }}>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>用户 id 列表（回车添加，至少 2 人）</Typography.Text>
-                      <Select mode="tags" style={{ width: '100%' }} disabled={readOnly} open={false}
-                        value={selNode.assignee.values ?? []}
-                        onChange={(vs) => patchNode(selNode.id, { assignee: { type: 'USERS', values: vs } })} />
-                    </label>
-                    <label style={{ display: 'block' }}>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>审批模式</Typography.Text>
-                      <Select style={{ width: '100%' }} disabled={readOnly} value={selNode.mode ?? 'ALL'}
-                        onChange={(m) => patchNode(selNode.id, { mode: m })}
-                        options={[
-                          { value: 'ALL', label: '会签 ALL（全票通过）' },
-                          { value: 'ANY', label: '或签 ANY（一人通过）' },
-                        ]} />
-                    </label>
-                  </>
-                ) : (
-                  <label style={{ display: 'block' }}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {selNode.assignee?.type === 'USER' ? '用户 id（数字）' : '角色编码'}
-                    </Typography.Text>
-                    <Input value={selNode.assignee?.value ?? ''} disabled={readOnly}
-                      onChange={(e) => patchNode(selNode.id, {
-                        assignee: { type: selNode.assignee!.type, value: e.target.value },
-                      })} />
-                  </label>
-                )}
-                <label style={{ display: 'block' }}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>驳回回退（REJECT 时）</Typography.Text>
-                  <Select style={{ width: '100%' }} disabled={readOnly} allowClear
-                    value={selNode.rejectTo || undefined}
-                    placeholder="无（驳回终止实例）"
-                    onChange={(v) => patchNode(selNode.id, { rejectTo: v ?? undefined })}
-                    options={approvalOptions} />
-                </label>
-              </>
-            )}
-            {selNode.type === 'CONDITION' && (
-              <>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  分支规则（表达式为 SpEL，取自流程变量，如 <code>#amount &gt; 1000</code>；表达式留空的分支即默认分支，需恰好一个）
-                </Typography.Text>
-                {(selNode.rules ?? []).map((r, i) => {
-                  const isDefault = !r.expr?.trim()
-                  return (
-                    <Space.Compact key={i} style={{ width: '100%' }}>
-                      <Input
-                        style={{ width: '55%' }} disabled={readOnly}
-                        value={r.expr ?? ''}
-                        placeholder={isDefault ? '默认分支' : 'SpEL 表达式'}
-                        status={!isDefault && !r.expr?.trim() ? 'error' : undefined}
-                        onChange={(e) => {
-                          const rules = [...(selNode.rules ?? [])]
-                          rules[i] = { ...r, expr: e.target.value }
-                          patchNode(selNode.id, { rules })
-                        }} />
-                      <Select style={{ width: '35%' }} disabled={readOnly} value={r.to || undefined}
-                        placeholder="目标节点"
-                        onChange={(to) => {
-                          const rules = [...(selNode.rules ?? [])]
-                          rules[i] = { ...r, to }
-                          patchNode(selNode.id, { rules })
-                        }}
-                        options={targetOptions(true)} />
-                      <Button style={{ width: '10%' }} disabled={readOnly} danger icon={<DeleteOutlined />}
-                        onClick={() => patchNode(selNode.id, {
-                          rules: (selNode.rules ?? []).filter((_, j) => j !== i),
-                        })} />
-                    </Space.Compact>
-                  )
-                })}
-                <Button size="small" disabled={readOnly} icon={<PlusOutlined />}
-                  onClick={() => patchNode(selNode.id, {
-                    rules: [...(selNode.rules ?? []), { to: value.nodes.find((n) => n.type === 'END')?.id ?? '' } as RuleDef],
-                  })}>
-                  添加分支
-                </Button>
-              </>
-            )}
+            {panelSlot && PanelSlot && <PanelSlot node={selNode} def={value} readOnly={readOnly} patch={patchNode} />}
             {!readOnly && (
               <Popconfirm title={`删除节点「${nodeLabel(selNode)}」及其关联连线？`} onConfirm={removeSelected}>
                 <Button danger icon={<DeleteOutlined />}>删除节点</Button>
@@ -558,6 +499,25 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
               {nodesById.get(selEdge.to) ? nodeLabel(nodesById.get(selEdge.to)!) : selEdge.to}
             </Typography.Text>
             {selEdge.kind === 'rule' && <Tag color="orange">条件分支：{selEdge.label}</Tag>}
+            {selEdge.kind === 'rule' && !readOnly && (() => {
+              const from = nodesById.get(selEdge.from)
+              const idx = Number(selEdge.key.split('-')[2])
+              const rules = from?.rules ?? []
+              if (!from || !rules[idx]) return null
+              return (
+                <label style={{ display: 'block' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    分支表达式（留空 = 默认分支）
+                  </Typography.Text>
+                  <Input value={rules[idx].expr ?? ''} placeholder="SpEL 表达式"
+                    onChange={(e) => {
+                      const next = [...rules]
+                      next[idx] = { ...rules[idx], expr: e.target.value }
+                      patchNode(selEdge.from, { rules: next })
+                    }} />
+                </label>
+              )
+            })()}
             {!readOnly && <Button danger icon={<DeleteOutlined />} onClick={removeSelected}>删除连线</Button>}
           </Space>
         )}
@@ -574,7 +534,10 @@ export default function FlowDesigner({ value, onChange, readOnly = false, height
       >
         <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
           目标：{ruleModal ? nodeLabel(nodesById.get(ruleModal.to) ?? ({ id: ruleModal.to } as FlowNode)) : ''}
-          。表达式留空 = 默认分支（兜底）；填写 SpEL 表达式（如 <code>#amount &gt; 1000</code>）。
+          。{ruleModal
+            ? behaviorOf(nodesById.get(ruleModal.from)?.type ?? 'START').ruleModalHint
+            ?? '表达式留空 = 默认分支（兜底）；填写 SpEL 表达式（如 #amount > 1000）。'
+            : ''}
         </Typography.Paragraph>
         <Input value={ruleModal?.expr ?? ''} autoFocus placeholder="留空作为默认分支，或输入 SpEL"
           onChange={(e) => setRuleModal((m) => (m ? { ...m, expr: e.target.value } : m))} />

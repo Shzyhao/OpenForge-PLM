@@ -32,6 +32,8 @@ public class DocService {
     private final NumberClient numberClient;
     private final StorageClient storageClient;
     private final com.openforge.common.event.EventPublisher eventPublisher;
+    private final com.openforge.doc.client.DocNotifyClient notifyClient;
+    private final com.openforge.doc.mapper.DocRecycleMapper recycleMapper;
 
     public DocInfo create(String title, String docType, Long operatorId) {
         DocInfo doc = new DocInfo();
@@ -77,9 +79,17 @@ public class DocService {
         if (doc.getCheckedOutBy() != null) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "文档已被检出（用户 " + doc.getCheckedOutBy() + "），禁止重复检出");
         }
+        // 抢占式条件更新（v1.31 P0-4）：读到空的窗口内并发检出只有一人成功（原 check-then-act 使独占锁失效）
+        int taken = docInfoMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DocInfo>()
+                .eq(DocInfo::getId, id)
+                .isNull(DocInfo::getCheckedOutBy)
+                .set(DocInfo::getCheckedOutBy, operatorId)
+                .set(DocInfo::getCheckedOutAt, java.time.LocalDateTime.now()));
+        if (taken == 0) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "文档已被检出，禁止重复检出");
+        }
         doc.setCheckedOutBy(operatorId);
         doc.setCheckedOutAt(java.time.LocalDateTime.now());
-        docInfoMapper.updateById(doc);
         return doc;
     }
 
@@ -93,14 +103,92 @@ public class DocService {
         if (!doc.getCheckedOutBy().equals(operatorId)) {
             throw new BizException(ErrorCode.FORBIDDEN, "仅检出人可检入");
         }
+        // SQL 级自增条件更新（v1.31 P1-5）：并发双检入的小版本各 +1 不丢——原内存 +1 后整行回写丢递增
+        int bumped = docInfoMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DocInfo>()
+                .eq(DocInfo::getId, id)
+                .eq(DocInfo::getCheckedOutBy, operatorId)
+                .setSql("version_minor = version_minor + 1")
+                .set(DocInfo::getCheckedOutBy, null)
+                .set(DocInfo::getCheckedOutAt, null));
+        if (bumped == 0) {
+            throw new BizException(ErrorCode.INVALID_ARGUMENT, "检入失败：检出状态已被并发变更，请刷新");
+        }
         doc.setVersionMinor(doc.getVersionMinor() + 1);
         doc.setCheckedOutBy(null);
         doc.setCheckedOutAt(null);
-        docInfoMapper.updateById(doc);
-        // doc.released（B2 设计 6.2 事件清单：knowledge/search 预留消费）
-        eventPublisher.publish("openforge-doc", "doc.released", java.util.Map.of(
+        // doc.released（B2 设计 6.2 事件清单：knowledge/search 预留消费）；总线关闭回退站内信订阅通知（v1.24）
+        java.util.Map<String, Object> payload = java.util.Map.of(
                 "docId", doc.getId(), "title", doc.getTitle() == null ? "" : doc.getTitle(),
-                "versionMinor", doc.getVersionMinor()));
+                "versionMinor", doc.getVersionMinor());
+        if (!eventPublisher.publish("openforge-doc", "doc.released", payload)) {
+            // 回退 HTTP 挪出事务（v1.27 P1#2）：提交后再投递，避免事务内同步外呼占连接
+            com.openforge.common.event.AfterCommit.run(() -> notifyClient.deliver("doc.released", payload));
+        }
+        return doc;
+    }
+
+    // ===== 删除/回收站/彻底删除（v1.24）=====
+
+    /** 逻辑删除（仅 DRAFT 且未检出——已发布文档不可删除，与物料/图纸同规）。 */
+    @Transactional
+    public void delete(Long id) {
+        DocInfo doc = docInfoMapper.selectById(id);
+        if (doc == null || doc.getDeleted() == 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "文档不存在");
+        }
+        if (!"DRAFT".equals(doc.getLifecycleState())) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "仅草稿文档可删除，已发布文档不可删除");
+        }
+        if (doc.getCheckedOutBy() != null) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION, "检出中的文档不可删除，请先检入");
+        }
+        docInfoMapper.deleteById(id);
+    }
+
+    /** 软删文档列表（回收站）。 */
+    public List<DocInfo> trashed() {
+        return recycleMapper.trashedDocs();
+    }
+
+    /** 恢复软删文档：编号被在册记录占用时明确报错。 */
+    @Transactional
+    public DocInfo restore(Long id) {
+        DocInfo doc = recycleMapper.trashedDoc(id);
+        if (doc == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
+        if (recycleMapper.liveCountByNumber(doc.getDocNumber()) > 0) {
+            throw new BizException(ErrorCode.INVALID_STATE_TRANSITION,
+                    "恢复失败：编号 " + doc.getDocNumber() + " 已被其他在册文档占用");
+        }
+        if (recycleMapper.restoreDoc(id) != 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
+        return doc;
+    }
+
+    /**
+     * 彻底删除（不可逆）：文件字节经 StorageClient.delete 逐个 GC（best-effort，失败仅告警不阻断
+     * 行删除——MinIO 接线后同接口承接，孤儿文件由存储侧生命周期策略兜底），行级 doc_file/doc_info GC。
+     */
+    @Transactional
+    public DocInfo purge(Long id) {
+        DocInfo doc = recycleMapper.trashedDoc(id);
+        if (doc == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
+        for (DocFile file : recycleMapper.filesOf(id)) {
+            try {
+                storageClient.delete(file.getStorageKey());
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(DocService.class)
+                        .warn("文档文件 GC 失败（继续行删除）: key={} — {}", file.getStorageKey(), e.getMessage());
+            }
+        }
+        recycleMapper.deleteFilesByDoc(id);
+        if (recycleMapper.purgeDoc(id) != 1) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该文档");
+        }
         return doc;
     }
 
@@ -130,6 +218,25 @@ public class DocService {
         detail(docId);
         return docFileMapper.selectList(new LambdaQueryWrapper<DocFile>()
                 .eq(DocFile::getDocInfoId, docId).orderByDesc(DocFile::getId));
+    }
+
+    /** 下载/预览源：校验归属后流式读出（doc_file 全局表，租户边界由文档可见性 + 归属校验保证）。 */
+    public DownloadPayload download(Long docId, Long fileId) {
+        detail(docId);
+        DocFile file = docFileMapper.selectById(fileId);
+        if (file == null || !file.getDocInfoId().equals(docId)) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在或不属于该文档");
+        }
+        try {
+            return new DownloadPayload(file, storageClient.load(file.getStorageKey()));
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "文件读取失败");
+        }
+    }
+
+    public record DownloadPayload(DocFile file, InputStream stream) {
     }
 
     private String sha256(byte[] bytes) throws Exception {

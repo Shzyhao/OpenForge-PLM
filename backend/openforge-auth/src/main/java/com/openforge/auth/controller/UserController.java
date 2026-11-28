@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,11 +55,17 @@ public class UserController {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND, "用户不存在");
         }
         return ApiResponse.ok(new UserInfoResponse(
-                user.getId(), user.getUsername(), user.getDisplayName(),
+                user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
                 rbacService.getRoleCodesOfUser(userId),
                 permissionService.menuCodesOfUser(user),
                 permissionService.getPermissionCodesOfUser(userId),
                 user.getUserType()));
+    }
+
+    /** 用户轻量选项（v1.23 审批委托选人）：登录即可，不暴露用户管理数据。 */
+    @GetMapping("/options")
+    public ApiResponse<List<com.openforge.auth.service.UserAdminService.UserOption>> options() {
+        return ApiResponse.ok(userAdminService.options());
     }
 
     /** 将用户挂接到组织（org:manage 权限）。body: {"orgId": 123}，orgId 为 null 表示移出组织。 */
@@ -83,6 +90,7 @@ public class UserController {
     }
 
     @org.springframework.web.bind.annotation.GetMapping("")
+    @RequirePermission("user:manage")
     public ApiResponse<com.openforge.auth.dto.PageResponse<SysUser>> page(
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") long page,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") long pageSize,
@@ -141,6 +149,15 @@ public class UserController {
         java.util.List<Long> ids = rawIds.stream().map(Number::longValue).toList();
         boolean enable = Boolean.TRUE.equals(body.get("enable"));
         userAdminService.changeStatusBatch(ids, currentUserId(httpRequest), enable);
+        return ApiResponse.ok();
+    }
+
+    /** 修改自己的联系邮箱（邮箱改造 2026-11）：本人数据自助维护，无需权限点。body: {"email": "..."} */
+    @PutMapping("/me")
+    public ApiResponse<Void> updateMyEmail(
+            @org.springframework.web.bind.annotation.RequestBody Map<String, String> body,
+            HttpServletRequest httpRequest) {
+        userAdminService.updateMyEmail(currentUserId(httpRequest), body.get("email"));
         return ApiResponse.ok();
     }
 

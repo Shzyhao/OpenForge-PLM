@@ -62,6 +62,7 @@ public class AuthService {
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setDisplayName(request.getDisplayName() == null ? username : request.getDisplayName());
+        UserAdminService.validateEmailFormat(request.getEmail());
         user.setEmail(request.getEmail());
         user.setStatus("ACTIVE");
         user.setUserType("NORMAL");
@@ -137,12 +138,21 @@ public class AuthService {
     }
 
     private void recordLoginFailure(SysUser user) {
-        int failed = (user.getFailedLoginCount() == null ? 0 : user.getFailedLoginCount()) + 1;
-        user.setFailedLoginCount(failed);
+        // SQL 级自增条件更新（v1.33 复盘 P2 修复）：原内存 +1 后整行回写——并发失败尝试基于同快照
+        // 各自 +1 只记一次，锁定阈值延迟到达。自增后读回判定锁定（阈值判定允许最终一致）。
+        int updated = userMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<SysUser>()
+                .eq(SysUser::getId, user.getId())
+                .setSql("failed_login_count = COALESCE(failed_login_count, 0) + 1"));
+        if (updated == 0) {
+            return; // 用户已被并发删除等，失败计数无处可记
+        }
+        SysUser reloaded = userMapper.selectById(user.getId());
+        int failed = reloaded != null && reloaded.getFailedLoginCount() != null ? reloaded.getFailedLoginCount() : 1;
         if (failed >= maxFailures) {
-            user.setLockedUntil(java.time.LocalDateTime.now().plusMinutes(lockMinutes));
+            userMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<SysUser>()
+                    .eq(SysUser::getId, user.getId())
+                    .set(SysUser::getLockedUntil, java.time.LocalDateTime.now().plusMinutes(lockMinutes)));
             log.warn("account locked: {} for {} minutes after {} failures", user.getUsername(), lockMinutes, failed);
         }
-        userMapper.updateById(user);
     }
 }

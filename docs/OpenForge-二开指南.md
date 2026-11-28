@@ -80,8 +80,19 @@ starter 已带 `/actuator/prometheus`（九服务 + 网关）与 TraceId 贯穿
 
 ```bash
 docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --profile monitoring up -d
-# Prometheus :9090 / Grafana :3001（admin/openforge）
+# Prometheus :9090 / Grafana :3001（admin/openforge）/ Alertmanager :9093
 ```
+
+**告警邮件推送（v1.30 起，可选）**：`prometheus-rules.yml` 的告警规则 firing 后经 Alertmanager 分发；
+默认（不设环境变量）为 drop 路由——告警仅 UI/API 可见不外发，零配置起栈。要启用邮件：
+
+```bash
+SMTP_HOST=smtp.example.com SMTP_PORT=587 SMTP_USER=alerts@example.com SMTP_PASSWORD=secret SMTP_FROM=openforge@example.com ALERT_RECIPIENTS=ops@example.com,oncall@example.com docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --profile monitoring up -d
+```
+
+- 端口约定：587=STARTTLS（默认 `SMTP_TLS=true`）；465=隐式 TLS 需加 `SMTP_TLS=false`；
+- 分发语义：critical 30s 内发出、每 4h 重复；warning 分组 5m、每 12h 重复；恢复通知随发；
+- 配置由 compose `configs.content` 环境插值渲染（密码含 `#&\` 安全；仅单引号需避免）。
 
 ## 5. 多租户
 
@@ -100,10 +111,42 @@ docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml --pro
   SQL 安全网关（SELECT only/表白名单/危险函数/LIMIT 强制）；动态对象发布即入白名单；
 - **登记新表**：内部接口 `POST /internal/tables`（token 防护，不经网关路由）。
 
+## 6.5 连接器扩展（集成编排器 v1.14.0）
+
+新连接器类型 = 实现 `ConnectorSpi` + 注册为 Spring Bean，运行时自动分发：
+
+```java
+@Component
+public class MyConnector implements ConnectorSpi {
+    public String type() { return "MY_TYPE"; }              // 对应 conn_definition.conn_type
+    public ConnectorResult execute(ConnectorExecution e) { ... } // 失败封装在返回值，不抛业务异常
+}
+```
+
+- spec 解析校验加到 `ConnectorSpecs.parseMyType`（错误统一 CONN_SPEC_INVALID=6006，
+  schemaVersion=1 契约见 `docs/OpenForge-集成编排器MVP设计.md` §4.1）；
+- 凭据走 `credentialRef`/`passwordRef` 引用（AES-GCM 密文，解密后仅内存态、日志脱敏）；
+- 出站一律过 `EgressGuard`（域白名单 + 私网拦截）；执行日志/参数校验由 `ConnectorRuntime`
+  统一承担——实现方只写传输细节；
+- 前端 `ConnectorConfigPanel` 增加对应分支 + `CONN_TYPES` 注册即可出现在设计器。
+
+**触发（v1.15.0，P2-2）**：连接器可带 `triggerType`（EVENT/CRON）配置，新连接器类型零改造即可被触发——
+`TriggerDispatcher` 经 `ConnectorRuntime` 统一执行，失败自动落 `sys_connector_dlq` 死信
+（界面死信队列 Tab 重放/丢弃）。EVENT 触发订阅平台既有主题（白名单
+`openforge.connector.trigger.allowed-topics`，默认 meta/object/doc/change/task/connector 六主题，
+新模块主题按需追加配置）；CRON 为 Spring 6 段表达式（秒位禁裸 \*）。
+
 ## 7. 部署
 
+**主密钥轮换（R1，v1.16.0）**——凭据/AI 供应商密钥泄露或定期轮换时：
+
+1. 生成新主密钥：`openssl rand -base64 32`；
+2. 改配置：`OPENFORGE_CONNECTOR_MASTER_KEY=<新钥>`，并新增 `OPENFORGE_CONNECTOR_MASTER_KEY_PREVIOUS=<旧钥>`，重启 connector（或 mono）——运行时双密钥读，存量凭据业务无感，新写入即用新钥；
+3. 触发重加密：`POST /api/v1/connector-credentials/master-key/rotate`（conn:manage 权限）——跨租户批处理把旧密钥行重加密为新密钥，幂等可重跑，响应含扫描/重加密/损坏计数；
+4. 确认 `reencrypted` 覆盖全部存量后，移除 PREVIOUS 配置并重启，轮换闭环。
+
 - **开发**：`./scripts/dev-up.sh`（PROFILE=mono|core|lite|full 预设裁剪——mono 为
-  auth+7 业务服务单进程 + gateway 两进程最省档（v1.12.0，实测 RSS 405MB）；SERVICES 精确指定；
+  auth+7 业务服务+connector+drawing 十模块单进程 + gateway 两进程最省档（v1.12.0，实测 RSS 405MB）；SERVICES 精确指定；
   NACOS=1 启注册中心+配置中心；CDS=0 关闭类共享；无源码改动自动跳过构建——详见性能画像 §8）；
 - **生产 compose**：`cp .env.example .env` → `docker compose -f docker-compose.prod.yml up -d --build`
   （required 密钥缺省拒绝启动；服务经 MODULE_SERVICE_URI 自动路由）；

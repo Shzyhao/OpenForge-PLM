@@ -3,6 +3,7 @@ package com.openforge.change.client;
 import com.openforge.common.api.ApiResponse;
 import com.openforge.common.api.BizException;
 import com.openforge.common.api.ErrorCode;
+import com.openforge.common.web.InternalRestClientFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,10 @@ public class WorkflowClient {
     public record InstanceView(Long id, String defKey, String state, String currentNode) {
     }
 
+    /** 按业务查询结果（v1.28 P2#12）：区分"无在途实例"（instance=null, reachable=true）与"流程服务不可达"（reachable=false）——前者正常后者前端降级提示。 */
+    public record BizLookup(InstanceView instance, boolean workflowReachable) {
+    }
+
     private static final ParameterizedTypeReference<ApiResponse<InstanceView>> TYPE =
             new ParameterizedTypeReference<>() {
             };
@@ -27,7 +32,7 @@ public class WorkflowClient {
     public WorkflowClient(@Value("${openforge.workflow.base-url}") String workflowBaseUrl,
                           @Value("${openforge.security.internal-token}") String internalToken,
                           com.openforge.security.ModuleAvailabilityClient moduleAvailability) {
-        this.restClient = RestClient.builder()
+        this.restClient = InternalRestClientFactory.builder()
                 .baseUrl(workflowBaseUrl)
                 .defaultHeader("X-Internal-Token", internalToken)
                 .build();
@@ -41,6 +46,7 @@ public class WorkflowClient {
         try {
             response = restClient.post()
                     .uri("/api/v1/workflow/internal/instances")
+                    .headers(this::forwardTenant)
                     .body(Map.of(
                             "defKey", defKey,
                             "bizType", bizType,
@@ -60,6 +66,11 @@ public class WorkflowClient {
 
     /** 按业务对象查在途实例（无则返回 null）。 */
     public InstanceView findByBiz(String bizType, Long bizId) {
+        return findByBizWithHealth(bizType, bizId).instance();
+    }
+
+    /** 同 findByBiz 但携带可达性（v1.28 P2#12：详情展示区分"无流程"与"服务不可达"）。 */
+    public BizLookup findByBizWithHealth(String bizType, Long bizId) {
         moduleAvailability.ensureAvailable("workflow");
         ApiResponse<InstanceView> response;
         try {
@@ -68,14 +79,21 @@ public class WorkflowClient {
                             .queryParam("bizType", bizType)
                             .queryParam("bizId", bizId)
                             .build())
+                    .headers(this::forwardTenant)
                     .retrieve()
                     .body(TYPE);
         } catch (Exception e) {
-            return null; // 状态展示降级：流程服务不可用时仅展示 ECR 自身状态
+            return new BizLookup(null, false); // 状态展示降级：流程服务不可用时仅展示 ECR 自身状态
         }
         if (response == null || response.getCode() != 0 || response.getData() == null) {
-            return null;
+            return new BizLookup(null, true);
         }
-        return response.getData();
+        return new BizLookup(response.getData(), true);
+    }
+
+    /** 服务间调用透传租户（与 MaterialClient 同规；R10 起流程实例按租户读写，漏传即落平台租户）。 */
+    private void forwardTenant(org.springframework.http.HttpHeaders headers) {
+        headers.set(com.openforge.common.tenant.TenantHeaderFilter.HEADER_USER_TENANT,
+                String.valueOf(com.openforge.common.tenant.TenantContext.getTenantId()));
     }
 }

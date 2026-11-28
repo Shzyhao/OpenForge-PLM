@@ -1,0 +1,82 @@
+package com.openforge.drawing.storage;
+
+import com.openforge.common.tenant.TenantContext;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+import java.io.InputStream;
+import java.time.LocalDate;
+import java.util.UUID;
+
+/**
+ * MinIO/S3 存储（v1.25 设计 §5）：openforge.drawing.storage=minio 时启用（默认 local）。
+ * 键约定与 LocalDiskStorage 一致；类名带域前缀防 mono 同名 bean 冲突（实纱②）。
+ */
+@Component
+@ConditionalOnProperty(name = "openforge.drawing.storage", havingValue = "minio")
+public class DrawingMinioStorage implements StorageClient {
+
+    private final MinioClient client;
+    private final String bucket;
+
+    public DrawingMinioStorage(@Value("${openforge.drawing.minio.endpoint}") String endpoint,
+                               @Value("${openforge.drawing.minio.access-key}") String accessKey,
+                               @Value("${openforge.drawing.minio.secret-key}") String secretKey,
+                               @Value("${openforge.drawing.minio.bucket:openforge-drawing}") String bucket) {
+        // 显式超时（v1.31 P1-10）：裸 builder 走 okhttp 默认（connect 10s/read 10s/write 10s，
+        // 版本间不保证）——大对象/网络抖动时不设上界会挂调用线程（且曾在事务内放大）
+        okhttp3.OkHttpClient httpClient = new okhttp3.OkHttpClient.Builder()
+                .connectTimeout(java.time.Duration.ofSeconds(5))
+                .writeTimeout(java.time.Duration.ofSeconds(60))
+                .readTimeout(java.time.Duration.ofSeconds(60))
+                .build();
+        this.client = MinioClient.builder().endpoint(endpoint).credentials(accessKey, secretKey)
+                .httpClient(httpClient).build();
+        this.bucket = bucket;
+    }
+
+    @Override
+    public String save(String fileName, InputStream content) throws Exception {
+        String ext = "";
+        int dot = fileName == null ? -1 : fileName.lastIndexOf('.');
+        if (dot >= 0) {
+            ext = fileName.substring(dot);
+        }
+        String storageKey = "tenant/" + TenantContext.getTenantId()
+                + "/" + LocalDate.now() + "/" + UUID.randomUUID() + ext;
+        try (InputStream in = content) {
+            client.putObject(PutObjectArgs.builder().bucket(bucket).object(storageKey)
+                    .stream(in, -1, 10485760).build());
+        }
+        return storageKey;
+    }
+
+    @Override
+    public InputStream load(String storageKey) throws Exception {
+        return client.getObject(GetObjectArgs.builder().bucket(bucket).object(storageKey).build());
+    }
+
+    @Override
+    public void delete(String storageKey) throws Exception {
+        client.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(storageKey).build());
+    }
+    @Override
+    public java.util.List<String> listAllKeys() {
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        try {
+            for (var item : client.listObjects(
+                    io.minio.ListObjectsArgs.builder().bucket(bucket).recursive(true).build())) {
+                keys.add(item.get().objectName());
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("MinIO 列举失败: " + e.getMessage(), e);
+        }
+        return keys;
+    }
+
+}

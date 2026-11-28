@@ -61,6 +61,72 @@ class DocIntegrationTest {
     }
 
     @Test
+    @DisplayName("v1.31 P0-4 并发检出：两线程同时检出同一文档，恰好一人持有独占锁")
+    void concurrentCheckOutSingleWinner() throws Exception {
+        DocInfo doc = docService.create("并发检出测试", "DRAWING", 1L);
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        java.util.List<Object> outcomes = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        Runnable actor = () -> {
+            ready.countDown();
+            try {
+                go.await();
+                docService.checkOut(doc.getId(), Thread.currentThread().getName().equals("co-1") ? 1L : 2L);
+                outcomes.add("OK");
+            } catch (Exception e) {
+                outcomes.add(e);
+            }
+        };
+        Thread t1 = new Thread(actor, "co-1");
+        Thread t2 = new Thread(actor, "co-2");
+        t1.start();
+        t2.start();
+        ready.await();
+        go.countDown();
+        t1.join(10_000);
+        t2.join(10_000);
+
+        // CAS 条件更新：恰好一人成功；另一人被拒——不再双双"独占"
+        assertThat(outcomes).hasSize(2);
+        assertThat(outcomes.stream().filter("OK"::equals).count()).isEqualTo(1);
+        assertThat(outcomes.stream().filter(o -> o instanceof Exception).count()).isEqualTo(1);
+        DocInfo reloaded = docService.detail(doc.getId());
+        assertThat(reloaded.getCheckedOutBy()).isIn(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("v1.31 P1-5 并发检入：两次同时检入只成功一次，小版本恰好 +1")
+    void concurrentCheckInExactlyOnce() throws Exception {
+        DocInfo doc = docService.create("并发检入测试", "DRAWING", 1L);
+        docService.checkOut(doc.getId(), 1L);
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        java.util.List<Object> outcomes = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        Runnable actor = () -> {
+            ready.countDown();
+            try {
+                go.await();
+                docService.checkIn(doc.getId(), 1L);
+                outcomes.add("OK");
+            } catch (Exception e) {
+                outcomes.add(e);
+            }
+        };
+        Thread t1 = new Thread(actor, "ci-1");
+        Thread t2 = new Thread(actor, "ci-2");
+        t1.start();
+        t2.start();
+        ready.await();
+        go.countDown();
+        t1.join(10_000);
+        t2.join(10_000);
+
+        // SQL 级自增条件更新：恰好一次成功；小版本只 +1（原 RMW 双成功会 +1/+1 或覆盖）
+        assertThat(outcomes.stream().filter("OK"::equals).count()).isEqualTo(1);
+        assertThat(docService.detail(doc.getId()).version()).isEqualTo("A/1");
+    }
+
+    @Test
     @DisplayName("上传文件：落盘+SHA256 入库；文件列表可查")
     void uploadFile() {
         DocInfo doc = docService.create("测试报告", "REPORT", 1L);
@@ -76,5 +142,23 @@ class DocIntegrationTest {
         List<DocFile> files = docService.files(doc.getId());
         assertThat(files).hasSize(1);
         assertThat(files.get(0).getStorageKey()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("下载：字节级往返一致；文件不属于该文档拒绝（十轮补齐回读端点）")
+    void downloadRoundtrip() throws Exception {
+        DocInfo doc = docService.create("下载校验文档", "SPEC", 1L);
+        byte[] content = ("roundtrip-" + System.nanoTime()).getBytes(StandardCharsets.UTF_8);
+        DocFile file = docService.uploadFile(doc.getId(), "spec.txt",
+                new ByteArrayInputStream(content));
+
+        DocService.DownloadPayload payload = docService.download(doc.getId(), file.getId());
+        byte[] downloaded = payload.stream().readAllBytes();
+        assertThat(downloaded).isEqualTo(content);
+        assertThat(payload.file().getFileName()).isEqualTo("spec.txt");
+
+        // 跨文档/不存在文件 → 404 语义
+        assertThatThrownBy(() -> docService.download(doc.getId(), 999999L))
+                .isInstanceOf(BizException.class);
     }
 }

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # OpenForge 网关链路冒烟（工程约定 #8 合并门工具化，#90/#101 冒烟实践沉淀）
-# 用法：./scripts/smoke.sh [admin密码]（默认 smoke-test-2026；前置：dev-up 已起栈，full/mono 均可）
-# 断言：登录→JWT→module-routes 自检→8 业务域经网关返回业务码 0（动态路由/注册表/信任头链路全穿）
+# 用法：./scripts/smoke.sh [admin密码]（默认取环境变量 ADMIN_INITIAL_PASSWORD，未设置用公开默认值；前置：dev-up 已起栈，full/mono 均可）
+# 断言：登录→JWT→module-routes 自检→10 业务域经网关返回业务码 0（动态路由/注册表/信任头链路全穿）
+#       + 连接器域 6 断言（集成编排器）+ 触发/死信/链/审计 8 断言（P2-2/R8）
+#       + 图纸域 6 断言（档案/文件/发布/快照/物料关联/下载）——共 35 项
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GW="${GW:-http://localhost:8080}"
-PASSWORD="${1:-smoke-test-2026}"
+PASSWORD="${1:-${ADMIN_INITIAL_PASSWORD:-smoke-test-2026}}"
 PASS=0; FAIL=0
 
 fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
@@ -28,7 +30,7 @@ echo "$ROUTES" | grep -q '"registryReachable":true' && ok "注册中心可达" |
 echo "$ROUTES" | grep -q '"routeMissing":\[\]' && ok "routeMissing 空" || fail "routeMissing 非空: $ROUTES"
 echo "$ROUTES" | grep -q '"brokenModules":\[\]' && ok "brokenModules 空" || fail "brokenModules 非空: $ROUTES"
 
-echo "=== [3/3] 8 业务域网关穿透（动态路由→单/多 upstream→业务码 0） ==="
+echo "=== [3/3] 10 业务域网关穿透（动态路由→单/多 upstream→业务码 0） ==="
 # 端点为各域真实 GET 列表/统计端点（#90 教训：裸前缀无控制器会 500，非路由缺陷）
 declare -A EPS=(
   [material]="/api/v1/parts"
@@ -38,9 +40,11 @@ declare -A EPS=(
   [project]="/api/v1/projects"
   [workflow]="/api/v1/workflow/defs"
   [metadata]="/api/v1/meta/objects"
+  [connector]="/api/v1/connectors"
+  [drawing]="/api/v1/drawings"
   [auth]="/api/v1/modules"
 )
-for svc in material doc change knowledge project workflow metadata auth; do
+for svc in material doc drawing change knowledge project workflow metadata connector auth; do
   ep=${EPS[$svc]}
   resp=$(curl -s -m 5 "$GW$ep" -H "${AUTH[0]}" || true)
   if echo "$resp" | grep -q '"code":0'; then
@@ -49,6 +53,150 @@ for svc in material doc change knowledge project workflow metadata auth; do
     fail "$svc $ep → $(echo "$resp" | head -c 100)"
   fi
 done
+
+echo "=== [4/4] 集成编排器（连接器全链路：建模→发布→invoke→白名单拦截） ==="
+# Windows/Git Bash 注意：curl 命令行内联中文会被 ANSI 代码页转码（服务端 JSON parse error），
+# 含中文的 payload 一律写临时文件走 --data-binary @file（字节原样）
+TMPJSON="$(mktemp -t smokeconnXXXXXX.json)"
+trap 'rm -f "$TMPJSON"' EXIT
+CONN_CODE="smoke_conn_$(date +%s)"
+
+printf '{"credCode":"smoke_cred","credName":"冒烟凭据","authType":"BEARER","secret":"smoke-secret-1"}' > "$TMPJSON"
+CR=$(curl -s -m 5 -X POST "$GW/api/v1/connector-credentials" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+if echo "$CR" | grep -q '"code":0'; then
+  ok "凭据创建（密文落库）"
+elif echo "$CR" | grep -q '"code":6008'; then
+  ok "凭据已存在（幂等复用）"
+else
+  fail "凭据创建: $(echo $CR | head -c 100)"
+fi
+
+printf '{"connCode":"%s","connName":"冒烟连接器","connType":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health"}}' "$CONN_CODE" > "$TMPJSON"
+CC=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+echo "$CC" | grep -q '"code":0' && ok "连接器建模" || fail "连接器建模: $(echo $CC | head -c 100)"
+CONN_ID=$(echo "$CC" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+
+PB=$(curl -s -m 5 -X POST "$GW/api/v1/connectors/$CONN_ID/publish" -H "${AUTH[0]}" || true)
+echo "$PB" | grep -q '"version":1' && ok "发布生成版本快照 v1" || fail "发布: $(echo $PB | head -c 100)"
+
+IV=$(curl -s -m 5 -X POST "$GW/api/v1/connectors/invoke/$CONN_CODE" -H "${AUTH[0]}" -H "Content-Type: application/json"   -d '{}' || true)
+echo "$IV" | grep -q '"status":"SUCCESS"' && ok "invoke 成功（localhost 白名单内目标）" || fail "invoke: $(echo $IV | head -c 120)"
+
+printf '{"connCode":"%s_b","connName":"白名单外","connType":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://evil.example.com/steal"}}' "$CONN_CODE" > "$TMPJSON"
+BK=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+BK_ID=$(echo "$BK" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+BKR=$(curl -s -m 5 -X POST "$GW/api/v1/connectors/$BK_ID/test" -H "${AUTH[0]}" -H "Content-Type: application/json" -d '{}' || true)
+echo "$BKR" | grep -q '"code":6011' && ok "白名单外目标拦截（6011）" || fail "白名单拦截: $(echo $BKR | head -c 120)"
+
+IT=$(curl -s -m 5 -X POST "$GW/api/v1/connectors/invoke/$CONN_CODE" -H "Content-Type: application/json" -d '{}' || true)
+echo "$IT" | grep -q '"code":2001' && ok "内部令牌缺失拒绝（2001）" || fail "内部令牌门禁: $(echo $IT | head -c 100)"
+curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$CONN_ID" -H "${AUTH[0]}" >/dev/null || true
+
+echo "=== [5/5] P2-2 触发与死信（CRON 调度 / DLQ 重放丢弃 / manage 审计 R8） ==="
+# CRON 触发：*/5s 打网关健康端点；调度器默认 resync-initial 8s → 36s 轮询窗内必有执行日志
+CRON_CODE="smoke_cron_$(date +%s)"
+printf '{"connCode":"%s","connName":"定时冒烟","connType":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health"},"triggerType":"CRON","trigger":{"cron":"*/5 * * * * *"}}' "$CRON_CODE" > "$TMPJSON"
+CN=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+CRON_ID=$(echo "$CN" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$CRON_ID/publish" -H "${AUTH[0]}" >/dev/null || true
+
+# DLQ：必填参数缺失的 CRON 连接器 → 每次触发失败落死信
+DLQ_CODE="smoke_dlq_$(date +%s)"
+printf '{"connCode":"%s","connName":"死信冒烟","connType":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health?x={{p1}}","parameterSchema":{"type":"object","properties":{"p1":{"type":"string"}},"required":["p1"]}},"triggerType":"CRON","trigger":{"cron":"*/5 * * * * *","params":{}}}' "$DLQ_CODE" > "$TMPJSON"
+DN=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+DLQ_CONN_ID=$(echo "$DN" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$DLQ_CONN_ID/publish" -H "${AUTH[0]}" >/dev/null || true
+
+CRON_FIRED=""
+DLQ_ID=""
+for i in $(seq 1 12); do
+  sleep 3
+  if [ -z "$CRON_FIRED" ]; then
+    EX=$(curl -s -m 5 "$GW/api/v1/connectors/$CRON_ID/exec-logs?page=1&pageSize=20" -H "${AUTH[0]}" || true)
+    echo "$EX" | grep -q '"triggerType":"CRON"' && CRON_FIRED=1
+  fi
+  if [ -z "$DLQ_ID" ]; then
+    DQ=$(curl -s -m 5 "$GW/api/v1/connectors/dlq?status=PENDING&page=1&pageSize=50" -H "${AUTH[0]}" || true)
+    DLQ_ID=$(echo "$DQ" | python -c "import sys,json
+lst=json.load(sys.stdin).get('data',{}).get('list',[])
+print(next((str(r['id']) for r in lst if r.get('connCode')=='$DLQ_CODE'),''))" 2>/dev/null || true)
+  fi
+  [ -n "$CRON_FIRED" ] && [ -n "$DLQ_ID" ] && break
+done
+[ -n "$CRON_FIRED" ] && ok "CRON 触发真实调度（exec-logs 含 CRON）" || fail "CRON 调度未观察到执行日志"
+[ -n "$DLQ_ID" ] && ok "触发失败落死信 PENDING" || fail "死信 PENDING 未出现"
+
+if [ -n "$DLQ_ID" ]; then
+  RP=$(curl -s -m 10 -X POST "$GW/api/v1/connectors/dlq/$DLQ_ID/replay" -H "${AUTH[0]}" || true)
+  echo "$RP" | grep -q '"status":"FAILED"' && echo "$RP" | grep -q '"retryCount":1'     && ok "重放仍失败 → retry_count+1 保持 PENDING" || fail "重放语义: $(echo $RP | head -c 100)"
+  curl -s -m 5 -X DELETE "$GW/api/v1/connectors/dlq/$DLQ_ID" -H "${AUTH[0]}" >/dev/null || true
+  DQ2=$(curl -s -m 5 "$GW/api/v1/connectors/dlq?status=DISCARDED&page=1&pageSize=50" -H "${AUTH[0]}" || true)
+  echo "$DQ2" | grep -q "\"connCode\":\"$DLQ_CODE\"" && ok "丢弃保留记录（DISCARDED）" || fail "丢弃状态断言"
+fi
+
+# material 事件域白名单（v1.16.0）：openforge-material/part.released 可建 EVENT 触发连接器
+MAT_CODE="smoke_mat_$(date +%s)"
+printf '{"connCode":"%s","connName":"物料事件冒烟","connType":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health"},"triggerType":"EVENT","trigger":{"topic":"openforge-material","tag":"part.released"}}' "$MAT_CODE" > "$TMPJSON"
+MN=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+echo "$MN" | grep -q '"code":0' && ok "material 事件域触发白名单（part.released 可订阅）" || fail "material 白名单: $(echo $MN | head -c 100)"
+MAT_ID=$(echo "$MN" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$MAT_ID" -H "${AUTH[0]}" >/dev/null || true
+
+# P3 链引擎（v1.17.0）：CHAIN 连接器两步链（s2 引用 s1 输出）发布 + 整链试运行
+CHAIN_CODE="smoke_chain_$(date +%s)"
+printf '{"connCode":"%s","connName":"链冒烟","connType":"CHAIN","spec":{"schemaVersion":2,"steps":[{"key":"s1","type":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health"}},{"key":"s2","type":"HTTP_REST","spec":{"schemaVersion":1,"method":"GET","url":"http://localhost:8080/actuator/health?prev={{steps.s1.status}}","parameterSchema":{"type":"object","properties":{},"required":[]}}}]}}' "$CHAIN_CODE" > "$TMPJSON"
+CN2=$(curl -s -m 5 -X POST "$GW/api/v1/connectors" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+CHAIN_ID=$(echo "$CN2" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$CHAIN_ID/publish" -H "${AUTH[0]}" >/dev/null || true
+TR=$(curl -s -m 10 -X POST "$GW/api/v1/connectors/$CHAIN_ID/test" -H "${AUTH[0]}" -H "Content-Type: application/json" -d '{"params":{}}' || true)
+echo "$TR" | grep -q '"status":"SUCCESS"' && echo "$TR" | grep -q '"body"' && ok "CHAIN 链引擎（两步顺序执行 + 上下文引用 SUCCESS）" || fail "链试运行: $(echo $TR | head -c 120)"
+LG=$(curl -s -m 5 "$GW/api/v1/connectors/$CHAIN_ID/exec-logs?page=1&pageSize=5" -H "${AUTH[0]}" || true)
+echo "$LG" | grep -q 'steps_json' || echo "$LG" | grep -q 'stepsJson' || echo "$LG" | grep -q '"key":"s2"' && ok "链执行日志含步骤摘要" || fail "链日志: $(echo $LG | head -c 100)"
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$CHAIN_ID/disable" -H "${AUTH[0]}" >/dev/null || true
+curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$CHAIN_ID" -H "${AUTH[0]}" >/dev/null || true
+
+# R8 manage 审计：连接器 manage 操作应出现在 auth 审计日志（afterCommit 上报，轮询等待）
+AUDIT_OK=""
+for i in $(seq 1 6); do
+  AU=$(curl -s -m 5 "$GW/api/v1/security/audit-logs?page=1&pageSize=50" -H "${AUTH[0]}" || true)
+  if echo "$AU" | grep -q '"action":"CONN_PUBLISH"'; then AUDIT_OK=1; break; fi
+  sleep 2
+done
+[ -n "$AUDIT_OK" ] && ok "manage 操作落审计（CONN_PUBLISH 可检索）" || fail "审计未见 CONN_PUBLISH"
+
+# 清理冒烟触发连接器（停用→删除；DLQ 记录保留为终态）
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$CRON_ID/disable" -H "${AUTH[0]}" >/dev/null || true
+curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$CRON_ID" -H "${AUTH[0]}" >/dev/null || true
+curl -s -m 5 -X POST "$GW/api/v1/connectors/$DLQ_CONN_ID/disable" -H "${AUTH[0]}" >/dev/null || true
+curl -s -m 5 -X DELETE "$GW/api/v1/connectors/$DLQ_CONN_ID" -H "${AUTH[0]}" >/dev/null || true
+
+echo "=== [6/6] 图纸管理（档案→文件→发布快照→物料关联） ==="
+DRW_TITLE="smoke_drw_$(date +%s)"
+printf '{"title":"%s"}' "$DRW_TITLE" > "$TMPJSON"
+DW=$(curl -s -m 5 -X POST "$GW/api/v1/drawings" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+echo "$DW" | grep -q '"drawingNumber":"DW' && ok "图纸建档（编号引擎自动取号 DW-*）" || fail "图纸建档: $(echo $DW | head -c 100)"
+DRW_ID=$(echo "$DW" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+
+printf 'smoke-dwg-bytes' > "$TMPJSON"
+# Git Bash 实纱：curl -F 的 field=@path;filename=x 复合参数不做 MSYS 路径转换（--data-binary @path 可），
+# Windows 版 curl 读不到 POSIX 临时路径 → 统一 cygpath 转换后传 Windows 路径
+TMPWIN=$(cygpath -w "$TMPJSON" 2>/dev/null || echo "$TMPJSON")
+UP=$(curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/files" -H "${AUTH[0]}" -F "file=@${TMPWIN};filename=smoke.dwg" -F "kind=MAIN" || true)
+echo "$UP" | grep -q '"kind":"MAIN"' && ok "主文件上传（SHA256 入库）" || fail "文件上传: $(echo $UP | head -c 100)"
+
+curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/submit" -H "${AUTH[0]}" >/dev/null || true
+AP=$(curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/approve" -H "${AUTH[0]}" || true)
+echo "$AP" | grep -q '"lifecycleState":"RELEASED"' && ok "评审发布（RELEASED）" || fail "发布: $(echo $AP | head -c 100)"
+VS=$(curl -s -m 5 "$GW/api/v1/drawings/$DRW_ID/versions" -H "${AUTH[0]}" || true)
+echo "$VS" | grep -q '"version":"A/0"' && ok "发布版本快照固化（A/0）" || fail "版本快照: $(echo $VS | head -c 100)"
+
+printf '{"partId":999999,"partNumber":"SMOKE-P-1","role":"PART_DRAWING"}' > "$TMPJSON"
+LP=$(curl -s -m 5 -X POST "$GW/api/v1/drawings/$DRW_ID/parts" -H "${AUTH[0]}" -H "Content-Type: application/json"   --data-binary @"$TMPJSON" || true)
+BP=$(curl -s -m 5 "$GW/api/v1/drawings/by-part/999999" -H "${AUTH[0]}" || true)
+echo "$LP" | grep -q '"code":0' && echo "$BP" | grep -q "$DRW_TITLE" && ok "物料关联 + 按物料反查" || fail "物料关联: $(echo $BP | head -c 100)"
+DRW_FILE_ID=$(echo "$UP" | python -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)
+DL=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "$GW/api/v1/drawings/$DRW_ID/files/$DRW_FILE_ID/download" -H "${AUTH[0]}" || true)
+[ "$DL" = "200" ] && ok "流式下载主文件（200）" || fail "下载端点: HTTP $DL"
 
 echo ""
 echo "=== 冒烟结果：$PASS 通过 / $FAIL 失败 ==="

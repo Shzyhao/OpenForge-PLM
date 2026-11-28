@@ -167,6 +167,43 @@ public class DynamicRecordService {
         return detail(objectKey, id);
     }
 
+    // ===== 回收站（v1.26 设计 §2）：动态表 deleted 列建表即有（DdlGenerator 标准列），只缺恢复面 =====
+
+    /** 软删行列表（回收站）：仅核心标识列 + 关键审计列，字段级内容按需 detail。 */
+    public List<Map<String, Object>> trashed(String objectKey) {
+        PublishedMeta meta = loadPublished(objectKey);
+        return jdbcTemplate.queryForList(
+                "SELECT id, tenant_id, created_by, created_at, updated_by, updated_at FROM "
+                        + meta.object().getTableName()
+                        + " WHERE tenant_id = ? AND deleted = 1 ORDER BY id DESC LIMIT 500",
+                TenantContext.getTenantId()).stream().map(this::convertRow).toList();
+    }
+
+    /** 恢复软删行：deleted=1 → 0（幂等护栏：不存在的软删行按记录不存在应答）。 */
+    public void restore(String objectKey, Long id) {
+        PublishedMeta meta = loadPublished(objectKey);
+        int affected = jdbcTemplate.update(
+                "UPDATE " + meta.object().getTableName()
+                        + " SET deleted = 0, updated_at = CURRENT_TIMESTAMP"
+                        + " WHERE id = ? AND tenant_id = ? AND deleted = 1",
+                id, TenantContext.getTenantId());
+        if (affected == 0) {
+            throw new BizException(ErrorCode.META_RECORD_NOT_FOUND);
+        }
+    }
+
+    /** 彻底删除（不可逆）：物理 DELETE 软删行；动态表无外部文件面，无文件 GC。 */
+    public void purge(String objectKey, Long id) {
+        PublishedMeta meta = loadPublished(objectKey);
+        int affected = jdbcTemplate.update(
+                "DELETE FROM " + meta.object().getTableName()
+                        + " WHERE id = ? AND tenant_id = ? AND deleted = 1",
+                id, TenantContext.getTenantId());
+        if (affected == 0) {
+            throw new BizException(ErrorCode.META_RECORD_NOT_FOUND);
+        }
+    }
+
     public void delete(String objectKey, Long id, Long userId) {
         PublishedMeta meta = loadPublished(objectKey);
         int affected = jdbcTemplate.update(
@@ -403,11 +440,13 @@ public class DynamicRecordService {
         return id;
     }
 
-    /** REFERENCE 存在性（F2 设计 3）：被引对象发布期已保证 PUBLISHED，此处查其动态表。 */
+    /** REFERENCE 存在性（F2 设计 3）：被引对象发布期已保证 PUBLISHED，此处查其动态表。
+     * 租户条件（v1.31 P0-3）：同文件其余直写 SQL 均显式带租户，此处曾遗漏——跨租户引用可形成脏数据并探测他租户记录存在性。 */
     private Object checkReferenceExists(MetaField field, Long refId) {
         String refTable = DdlGenerator.tableNameOf(field.getRefObject());
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM " + refTable + " WHERE id = ? AND deleted = 0", Long.class, refId);
+                "SELECT COUNT(*) FROM " + refTable + " WHERE id = ? AND tenant_id = ? AND deleted = 0",
+                Long.class, refId, com.openforge.common.tenant.TenantContext.getTenantId());
         if (count == null || count == 0) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT,
                     field.getFieldKey() + " 引用的记录不存在: " + field.getRefObject() + "#" + refId);

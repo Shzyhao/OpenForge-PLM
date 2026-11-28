@@ -1,0 +1,36 @@
+package com.openforge.connector.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+import java.util.Map;
+
+/** 连接器创建/更新请求（connCode 仅创建时生效，不可变）。 */
+@Data
+public class SaveConnRequest {
+
+    private String connCode;
+
+    @NotBlank(message = "connName 不能为空")
+    private String connName;
+
+    /** HTTP_REST / JDBC_READONLY（刀2） */
+    @NotBlank(message = "connType 不能为空")
+    private String connType;
+
+    private String description;
+
+    /** spec JSON 对象（schemaVersion=1，见集成编排器 MVP 设计 §4.1） */
+    @NotNull(message = "spec 不能为空")
+    private Map<String, Object> spec;
+
+    /** 触发类型（P2-2 §12.2）：NONE（默认）/EVENT/CRON */
+    private String triggerType;
+
+    /** 触发配置：EVENT={topic,tag,params?}；CRON={cron,params?} */
+    private Map<String, Object> trigger;
+
+    /** 调用白名单角色代码（ACL，十轮改进）：空/null = 租户内持 conn:invoke 者皆可调用 */
+    private java.util.List<String> aclRoles;
+}

@@ -50,6 +50,33 @@ public class DocController {
         return ApiResponse.ok(docService.detail(id));
     }
 
+    // ===== 删除/回收站/彻底删除（v1.24）=====
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    @RequirePermission("doc:delete")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        docService.delete(id);
+        return ApiResponse.ok();
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/recycle")
+    public ApiResponse<List<DocInfo>> recycle() {
+        return ApiResponse.ok(docService.trashed());
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/restore")
+    @RequirePermission("doc:delete")
+    public ApiResponse<DocInfo> restore(@PathVariable Long id) {
+        return ApiResponse.ok(docService.restore(id));
+    }
+
+    /** 彻底删除（不可逆）：文件字节 GC + 行删除。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/purge")
+    @RequirePermission("doc:delete")
+    public ApiResponse<DocInfo> purge(@PathVariable Long id) {
+        return ApiResponse.ok(docService.purge(id));
+    }
+
     @PostMapping("/{id}/check-out")
     @RequirePermission("doc:write")
     public ApiResponse<DocInfo> checkOut(@PathVariable Long id, HttpServletRequest request) {
@@ -72,6 +99,20 @@ public class DocController {
     @GetMapping("/{id}/files")
     public ApiResponse<List<DocFile>> files(@PathVariable Long id) {
         return ApiResponse.ok(docService.files(id));
+    }
+
+    /** 下载/预览源（流式；前端经 fetch+blob 内嵌预览 PDF/图片，与图纸域同款）。 */
+    @org.springframework.web.bind.annotation.GetMapping("/{id}/files/{fileId}/download")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.InputStreamResource> download(
+            @PathVariable Long id, @PathVariable Long fileId) {
+        DocService.DownloadPayload payload = docService.download(id, fileId);
+        String encoded = java.net.URLEncoder.encode(payload.file().getFileName(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''" + encoded)
+                .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+                .body(new org.springframework.core.io.InputStreamResource(payload.stream()));
     }
 
     private Long currentUserId(HttpServletRequest request) {

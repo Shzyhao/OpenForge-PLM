@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { Button, Card, Descriptions, Drawer, Empty, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import {
@@ -7,10 +8,12 @@ import {
   createPart, fetchCategoryTree, fetchParts, partAction,
   type CategoryNode, type Part,
 } from '../api/material'
+import { fetchDrawingsByPart, type DrawingByPart } from '../api/drawing'
 import { ApiError } from '../api/client'
 
-/** 物料管理页（M2）：列表 + 筛选 + 新建 + 状态流转 */
+/** 物料管理页（M2）：列表 + 筛选 + 新建 + 状态流转（禁用/启用走统一变更中心，刀2） */
 export default function MaterialPage() {
+  const navigate = useNavigate()
   const [data, setData] = useState<Part[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -20,6 +23,10 @@ export default function MaterialPage() {
   const [categories, setCategories] = useState<CategoryNode[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [form] = Form.useForm()
+  // 物料详情抽屉（v1.28 P3#18：含关联图纸区）
+  const [detailPart, setDetailPart] = useState<Part | null>(null)
+  const [linkedDrawings, setLinkedDrawings] = useState<DrawingByPart[]>([])
+  const [drawingsLoading, setDrawingsLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -56,9 +63,10 @@ export default function MaterialPage() {
       },
     },
     {
-      title: '操作', width: 220,
+      title: '操作', width: 340,
       render: (_, part) => (
         <Space size="small">
+          <Button size="small" onClick={() => openDetail(part)}>详情</Button>
           {part.lifecycleState === 'DRAFT' && (
             <Button size="small" type="primary" ghost onClick={() => act(part.id, 'submit')}>提交</Button>
           )}
@@ -67,6 +75,18 @@ export default function MaterialPage() {
               <Button size="small" type="primary" onClick={() => act(part.id, 'approve')}>发布</Button>
               <Button size="small" onClick={() => act(part.id, 'reject')}>驳回</Button>
             </>
+          )}
+          {part.lifecycleState === 'RELEASED' && (
+            <Button size="small" danger ghost
+              onClick={() => navigate(`/change?action=part-state&partId=${part.id}&target=FROZEN`)}>
+              禁用变更
+            </Button>
+          )}
+          {part.lifecycleState === 'FROZEN' && (
+            <Button size="small" type="primary" ghost
+              onClick={() => navigate(`/change?action=part-state&partId=${part.id}&target=RELEASED`)}>
+              启用变更
+            </Button>
           )}
         </Space>
       ),
@@ -80,6 +100,21 @@ export default function MaterialPage() {
       load()
     } catch (e) {
       message.error(e instanceof Error ? e.message : '操作失败')
+    }
+  }
+
+  /** 打开详情抽屉：物料基础信息 + 关联图纸（drawing 域 by-part 反查，v1.28 P3#18）。 */
+  const openDetail = async (part: Part) => {
+    setDetailPart(part)
+    setLinkedDrawings([])
+    setDrawingsLoading(true)
+    try {
+      setLinkedDrawings(await fetchDrawingsByPart(part.id))
+    } catch (e) {
+      // 图纸域未启用（模块未注册）时反查 404/502——抽屉里降级提示，不阻断基础信息展示
+      message.warning(e instanceof Error ? `关联图纸加载失败：${e.message}` : '关联图纸加载失败')
+    } finally {
+      setDrawingsLoading(false)
     }
   }
 
@@ -135,6 +170,43 @@ export default function MaterialPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 物料详情抽屉（v1.28 P3#18）：基础信息 + 关联图纸 */}
+      <Drawer
+        title={`物料详情 — ${detailPart?.partNumber ?? ''}`}
+        width={560} open={!!detailPart} onClose={() => setDetailPart(null)}
+      >
+        {detailPart && (
+          <>
+            <Descriptions size="small" column={2} bordered>
+              <Descriptions.Item label="物料编号">{detailPart.partNumber}</Descriptions.Item>
+              <Descriptions.Item label="名称">{detailPart.name}</Descriptions.Item>
+              <Descriptions.Item label="类型">{PART_TYPE_LABELS[detailPart.type] ?? detailPart.type}</Descriptions.Item>
+              <Descriptions.Item label="版本">{detailPart.version}</Descriptions.Item>
+              <Descriptions.Item label="状态">
+                {(() => {
+                  const meta = PART_STATE_LABELS[detailPart.lifecycleState]
+                  return meta ? <Tag color={meta.color}>{meta.label}</Tag> : detailPart.lifecycleState
+                })()}
+              </Descriptions.Item>
+              <Descriptions.Item label="计量单位">{detailPart.unit ?? '-'}</Descriptions.Item>
+            </Descriptions>
+            <Typography.Title level={5} style={{ fontSize: 14, marginTop: 16 }}>关联图纸（{linkedDrawings.length}）</Typography.Title>
+            <Table<DrawingByPart>
+              rowKey="drawingId" size="small" loading={drawingsLoading} dataSource={linkedDrawings}
+              locale={{ emptyText: <Empty description="暂无关联图纸（图纸域维护物料关联）" /> } as never}
+              pagination={linkedDrawings.length > 8 ? { pageSize: 8, showSizeChanger: false } : false}
+              columns={[
+                { title: '图号', dataIndex: 'drawingNumber', width: 140 },
+                { title: '标题', dataIndex: 'title', ellipsis: true },
+                { title: '版本', dataIndex: 'version', width: 70 },
+                { title: '角色', dataIndex: 'role', width: 90 },
+                { title: '状态', dataIndex: 'lifecycleState', width: 90 },
+              ]}
+            />
+          </>
+        )}
+      </Drawer>
     </Card>
   )
 }

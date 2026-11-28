@@ -50,9 +50,12 @@
 | `openforge-doc` | doc.released | doc | knowledge(预留) |
 | `openforge-change` | change.closed | change | knowledge(预留) |
 | `openforge-task` | task.created / .completed | workflow | notify(预留)、统计(预留) |
+| `openforge-material` | part.released / bom.published | material | connector(EVENT 触发)、knowledge(预留) |
 
-原则：**一域一 topic**（消费组独立位点，互不拖累）；`part.released/bom.published`
-随 material 事件化纳入 `openforge-material`（P3，本期不建）。
+原则：**一域一 topic**（消费组独立位点，互不拖累）。`part.released/bom.published`
+已随 v1.16.0 material 事件化交付（原 P3 计划提前）：发射点为 Part/Bom 状态机
+transition 至 RELEASED（覆盖审批发布与变更启用两条路径），事务 afterCommit 发送，
+失败由 EventPublisher 落 outbox/熔断不阻断业务；连接器 EVENT 触发主题白名单同步纳入。
 
 ### 3.3 生产者（common 统一出口）
 
@@ -124,8 +127,9 @@ compose：rocketmq namesrv/broker 注释态转 `profiles: ["rocketmq"]`，
 - ~~outbox 可靠性补齐（P2）~~ → **已交付** v1.6.0 #78：事务内原子落库 + afterCommit 发送 + 60s relay 补发 + retry≥32 死信；
 - notify 服务（站内信/Webhook）与 search 索引消费组；
 - 事件 Schema 注册与版本兼容治理（eventVersion 升级策略）——outbox P3 技术债；
-  **评估判停（v1.12.1 会话）**：当前 5 事件类型/1 消费者（knowledge）/单团队，payload 加字段天然向后兼容，
-  Registry+兼容性 CI 成本 >> 收益。**重启触发条件（满足任一）**：消费者 ≥3 或跨团队消费 /
-  首次 payload 破坏性变更需求 / 事件类型 ≥10。届时先轻量（信封 eventVersion + 消费端按版本分支），
-  规模化再上 Registry；
+  ~~评估判停（v1.12.1 会话）~~ → **重启条件达成，轻量已落地（v1.25 R22）**：v1.23/v1.24 后 MQ 消费组
+  达 4 个（knowledge/connector 触发/notify/drawing-ECO），触发"消费者 ≥3"。轻量实现=EventPublisher
+  显式 EVENT_SCHEMA_VERSION 常量（当前 1）+ 消费端容忍规则（高版本信封 WARN 跳过）+ 破坏性变更须升
+  版本并同步全部消费组。Registry 仍判停（事件类型 <10 且单团队），触发条件不变；
+
 - material 事件域（part.released/bom.published → connector 推 ERP）。

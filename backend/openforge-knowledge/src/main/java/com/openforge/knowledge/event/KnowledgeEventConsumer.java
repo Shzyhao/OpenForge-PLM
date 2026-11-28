@@ -67,16 +67,18 @@ public class KnowledgeEventConsumer extends AbstractEventConsumer
                     this::onMessages);
             c.start();
             this.consumer = c;
+            markConsumerStarted();   // v1.27 P2#9 gauge→1
             log.info("knowledge 事件消费者已启动: namesrv={}", namesrvAddr);
         } catch (Exception e) {
             log.error("knowledge 事件消费者启动失败（事件沉淀不可用，业务不受影响）: {}", e.getMessage());
+            markConsumerFailed();   // v1.27 P2#9 gauge 保持 0，供告警发现
         }
     }
 
     private ConsumeConcurrentlyStatus onMessages(List<MessageExt> msgs, ConsumeConcurrentlyContext ctx) {
         for (MessageExt msg : msgs) {
             try {
-                consume(msg).ifPresent(this::handle);
+                process(msg, this::handle);   // v1.31 P0-1：失败补偿删幂等行，重投可再处理
             } catch (Exception e) {
                 log.warn("事件处理失败将重试（重试 {} 次）: msgId={} — {}",
                         msg.getReconsumeTimes(), msg.getMsgId(), e.getMessage());

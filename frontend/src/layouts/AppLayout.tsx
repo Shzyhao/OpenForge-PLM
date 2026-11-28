@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Avatar, Button, Dropdown, Layout, Menu, Result, Spin, Tag, theme, Typography } from 'antd'
 import {
-  ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined, FileTextOutlined,
-  HomeOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined,
-  TableOutlined, TeamOutlined,
+  ApiOutlined, ApartmentOutlined, AppstoreOutlined, BellOutlined, BlockOutlined, BookOutlined,
+  CloudOutlined, DeleteOutlined, FileImageOutlined, FileTextOutlined, NumberOutlined, HomeOutlined, KeyOutlined,
+  LogoutOutlined, MailOutlined, MoonOutlined, ProjectOutlined, SunOutlined, SwapOutlined, TableOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clearToken, getPasswordStatus } from '../api/client'
 import { fetchCurrentUser, type UserInfo } from '../api/user'
 import { fetchEnabledModules } from '../api/modules'
 import AiAssistant from '../components/AiAssistant'
+import EmailModal from '../components/EmailModal'
 import Logo from '../components/Logo'
+import NotificationBell from '../components/NotificationBell'
 import PasswordModal from '../components/PasswordModal'
 import { PermContext, type PermContextValue } from '../perm/PermContext'
 import { useThemeMode } from '../theme/ThemeMode'
@@ -29,18 +31,26 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: '/', menu: 'menu:dashboard', icon: <HomeOutlined />, label: '工作台' },
   { key: '/tasks', menu: 'menu:tasks', icon: <BellOutlined />, label: '我的待办' },
+  { key: '/notifications', menu: 'menu:notify', icon: <BellOutlined />, label: '通知中心' },
   { key: '/material', menu: 'menu:material', icon: <AppstoreOutlined />, label: '物料', module: 'material' },
   { key: '/bom', menu: 'menu:bom', icon: <ProjectOutlined />, label: 'BOM', module: 'material' },
+  { key: '/recycle', menu: 'menu:recycle', icon: <DeleteOutlined />, label: '回收站' },
   { key: '/doc', menu: 'menu:doc', icon: <FileTextOutlined />, label: '文档', module: 'doc' },
+  { key: '/drawing', menu: 'menu:drawing', icon: <FileImageOutlined />, label: '图纸', module: 'drawing' },
   { key: '/change', menu: 'menu:change', icon: <SwapOutlined />, label: '变更', module: 'change' },
+  { key: '/workflow/delegates', menu: 'menu:delegate', icon: <TeamOutlined />, label: '审批委托' },
   { key: '/workflow', menu: 'menu:workflow', icon: <ApartmentOutlined />, label: '流程', module: 'workflow' },
   { key: '/knowledge', menu: 'menu:knowledge', icon: <BookOutlined />, label: '知识库', module: 'knowledge' },
   { key: '/project', menu: 'menu:project', icon: <ProjectOutlined />, label: '项目', module: 'project' },
   { key: '/meta/objects', menu: 'menu:meta', icon: <BlockOutlined />, label: '对象建模', module: 'metadata' },
   { key: '/meta/data', menu: 'menu:meta', icon: <TableOutlined />, label: '动态数据', module: 'metadata' },
   { key: '/meta/designer', menu: 'menu:meta', icon: <BlockOutlined />, label: '界面设计', module: 'metadata' },
+  { key: '/integration', menu: 'menu:connector', icon: <ApiOutlined />, label: '集成编排器', module: 'connector' },
   { key: '/system/users', menu: 'menu:system', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/system/roles', menu: 'menu:system', icon: <TeamOutlined />, label: '角色权限' },
+  { key: '/system/orgs', menu: 'menu:system', icon: <ApartmentOutlined />, label: '组织架构' },
+  { key: '/system/tenants', menu: 'menu:system', icon: <CloudOutlined />, label: '租户管理' },
+  { key: '/system/numbers', menu: 'menu:system', icon: <NumberOutlined />, label: '编号规则' },
   { key: '/system/logs', menu: 'menu:system', icon: <FileTextOutlined />, label: '安全日志' },
   { key: '/system/modules', menu: 'menu:system', icon: <BlockOutlined />, label: '模块管理' },
 ]
@@ -48,12 +58,14 @@ const NAV_ITEMS: NavItem[] = [
 /** 侧边栏分组（顺序即展示顺序） */
 const NAV_GROUP_ORDER = ['概览', '产品数据', '协作', '知识', '低代码', '系统'] as const
 const NAV_GROUP_OF: Record<string, string> = {
-  '/': '概览', '/tasks': '概览',
-  '/material': '产品数据', '/bom': '产品数据', '/doc': '产品数据',
-  '/change': '协作', '/workflow': '协作',
+  '/': '概览', '/tasks': '概览', '/notifications': '概览',
+  '/material': '产品数据', '/bom': '产品数据', '/recycle': '产品数据', '/doc': '产品数据', '/drawing': '产品数据',
+  '/change': '协作', '/workflow': '协作', '/workflow/delegates': '协作',
   '/knowledge': '知识', '/project': '知识',
   '/meta/objects': '低代码', '/meta/data': '低代码', '/meta/designer': '低代码',
+  '/integration': '低代码',
   '/system/users': '系统', '/system/roles': '系统', '/system/logs': '系统', '/system/modules': '系统',
+  '/system/orgs': '系统', '/system/tenants': '系统', '/system/numbers': '系统',
 }
 
 const ROLE_COLORS: Record<string, string> = { ADMINS: 'volcano', ENGINEER: 'geekblue', VIEWER: 'default' }
@@ -73,6 +85,8 @@ export default function AppLayout() {
   const [pwModal, setPwModal] = useState<'FORCE_CHANGE' | 'EXPIRING_SOON' | 'VOLUNTARY' | null>(
     savedStatus === 'FORCE_CHANGE' || savedStatus === 'EXPIRED' ? 'FORCE_CHANGE'
       : savedStatus === 'EXPIRING_SOON' ? 'EXPIRING_SOON' : null)
+  // 联系邮箱自助设置弹窗（邮箱改造 2026-11）
+  const [emailOpen, setEmailOpen] = useState(false)
 
   useEffect(() => {
     fetchCurrentUser()
@@ -149,6 +163,7 @@ export default function AppLayout() {
               icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggle}
             />
+            <NotificationBell />
             <AiAssistant />
             {user && (
               <>
@@ -160,6 +175,8 @@ export default function AppLayout() {
                   items: [
                     { key: 'password', icon: <KeyOutlined />, label: '修改密码',
                       onClick: () => setPwModal('VOLUNTARY') },
+                    { key: 'email', icon: <MailOutlined />, label: user.email ? '修改邮箱' : '设置邮箱',
+                      onClick: () => setEmailOpen(true) },
                     { type: 'divider' },
                     { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true,
                       onClick: () => { clearToken(); navigate('/login') } },
@@ -194,6 +211,16 @@ export default function AppLayout() {
           onCancel={() => setPwModal(null)}
         />
       )}
+
+      <EmailModal
+        open={emailOpen}
+        currentEmail={user?.email ?? null}
+        onSuccess={() => {
+          setEmailOpen(false)
+          fetchCurrentUser().then(setUser).catch(() => {})
+        }}
+        onCancel={() => setEmailOpen(false)}
+      />
     </PermContext.Provider>
   )
 }

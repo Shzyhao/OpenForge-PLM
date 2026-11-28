@@ -13,6 +13,7 @@ import com.openforge.knowledge.mapper.KnowledgeItemMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -28,6 +29,57 @@ public class KnowledgeService {
     private final KnowledgeFeedbackMapper feedbackMapper;
     private final EmbeddingClient embeddingClient;
     private final VectorStore vectorStore;
+    private final com.openforge.knowledge.mapper.KnowledgeRecycleMapper recycleMapper;
+
+    // ===== 回收站（v1.25 §4）=====
+
+    /** 软删知识条目（向量保留——恢复后仍可检索；purge 时才移除）。 */
+    @Transactional
+    public void deleteItem(Long id) {
+        KnowledgeItem item = itemMapper.selectById(id);
+        if (item == null || item.getDeleted() == 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "知识条目不存在");
+        }
+        itemMapper.deleteById(id);
+    }
+
+    public List<KnowledgeItem> trashed() {
+        return recycleMapper.trashedItems();
+    }
+
+    @Transactional
+    public KnowledgeItem restoreItem(Long id) {
+        KnowledgeItem item = recycleMapper.trashedItem(id);
+        if (item == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        if (recycleMapper.restoreItem(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        return item;
+    }
+
+    /** 彻底删除（不可逆）：反馈行 GC + 向量移除（best-effort，失败不阻断行删除）。 */
+    @Transactional
+    public KnowledgeItem purgeItem(Long id) {
+        KnowledgeItem item = recycleMapper.trashedItem(id);
+        if (item == null) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        if (item.getVectorId() != null) {
+            try {
+                vectorStore.remove(item.getVectorId());
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(KnowledgeService.class)
+                        .warn("知识向量移除失败（继续行删除）: vectorId={} — {}", item.getVectorId(), e.getMessage());
+            }
+        }
+        recycleMapper.deleteFeedbackByItem(id);
+        if (recycleMapper.purgeItem(id) != 1) {
+            throw new com.openforge.common.api.BizException(com.openforge.common.api.ErrorCode.RESOURCE_NOT_FOUND, "回收站中不存在该知识条目");
+        }
+        return item;
+    }
 
     public KnowledgeItem create(String title, String content, String tags,
                                 String sourceType, String sourceRef, Long operatorId) {
@@ -80,7 +132,8 @@ public class KnowledgeService {
 
     /** 反馈闭环（开发文档 7.5 自适应）：ADOPT 提升 usage 与质量分，DISMISS 扣分。 */
     public void feedback(String queryText, Long itemId, String action, Long userId) {
-        if (!List.of("CLICK", "DISMISS", "ADOPT", "RATE").contains(action)) {
+        // 先判空再 contains：List.of 不可变列表 contains(null) 抛 NPE（T12-1 扫描实锤：缺字段落 5000）
+        if (action == null || !List.of("CLICK", "DISMISS", "ADOPT", "RATE").contains(action)) {
             throw new BizException(ErrorCode.INVALID_ARGUMENT, "未知反馈类型: " + action);
         }
         KnowledgeFeedback fb = new KnowledgeFeedback();
@@ -103,13 +156,15 @@ public class KnowledgeService {
             case "DISMISS" -> -5;
             default -> 0;
         };
-        if (delta > 0) {
-            item.setUsageCount(item.getUsageCount() + 1);
-        }
-        item.setQualityScore(BigDecimal.valueOf(
-                Math.max(0, Math.min(100, item.getQualityScore().doubleValue() + delta))));
-        itemMapper.updateById(item);
-        log.debug("knowledge feedback: item={} action={} quality={}", itemId, action, item.getQualityScore());
+        // SQL 级自增（v1.33 复盘 P2 修复）：原内存读改写整行回写——两个 ADOPT 并发各读 60 都写 62，丢一次加分。
+        // quality 用 LEAST/GREATEST 在 SQL 侧夹取 [0,100]，与原语义等价；usage 仅正反馈递增。
+        itemMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KnowledgeItem>()
+                .eq(KnowledgeItem::getId, itemId)
+                .setSql(delta > 0
+                        ? "usage_count = usage_count + 1, "
+                          + "quality_score = LEAST(100, GREATEST(0, quality_score + (" + delta + ")))"
+                        : "quality_score = LEAST(100, GREATEST(0, quality_score + (" + delta + ")))"));
+        log.debug("knowledge feedback: item={} action={} delta={}", itemId, action, delta);
     }
 
     /** 摘要：M5 本地截断；LLM 摘要随 M6 接入（架构文档 4.1 知识自动摘要）。 */

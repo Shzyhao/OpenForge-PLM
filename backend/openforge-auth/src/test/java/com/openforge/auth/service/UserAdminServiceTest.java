@@ -23,6 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** admin 保护矩阵（方案 3.3）与用户管理核心规则。 */
@@ -116,6 +120,48 @@ class UserAdminServiceTest {
                 java.util.List.of(NORMAL_USER, ADMIN_ID), ADMINS_USER, false))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("固定管理员");
+    }
+
+    @Test
+    @DisplayName("自助更新邮箱（邮箱改造 2026-11）：合法地址入库并审计 EMAIL_CHANGE")
+    void updateMyEmailSavesAndAudits() {
+        SysUser target = user(NORMAL_USER, "NORMAL");
+        when(userMapper.selectById(NORMAL_USER)).thenReturn(target);
+
+        service.updateMyEmail(NORMAL_USER, "user@example.com");
+
+        verify(userMapper).updateById(target);
+        assertThat(target.getEmail()).isEqualTo("user@example.com");
+        verify(securityLogService).audit(eq(NORMAL_USER), eq("EMAIL_CHANGE"), eq("USER"),
+                eq(String.valueOf(NORMAL_USER)), anyString());
+    }
+
+    @Test
+    @DisplayName("自助更新邮箱：非法格式/空白串拒绝且不落库")
+    void updateMyEmailRejectsInvalidAndBlank() {
+        when(userMapper.selectById(NORMAL_USER)).thenReturn(user(NORMAL_USER, "NORMAL"));
+
+        assertThatThrownBy(() -> service.updateMyEmail(NORMAL_USER, "not-an-email"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("邮箱格式不正确");
+        assertThatThrownBy(() -> service.updateMyEmail(NORMAL_USER, "   "))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("邮箱不能为空");
+        verify(userMapper, never()).updateById(any(SysUser.class));
+    }
+
+    @Test
+    @DisplayName("创建用户：邮箱格式不合法拒绝（口径与自助/管理编辑一致）")
+    void createRejectsInvalidEmail() {
+        CreateUserRequest req = new CreateUserRequest();
+        req.setUsername("newuser");
+        req.setPassword("Str0ngPass");
+        req.setEmail("o'neil@example.com");
+
+        assertThatThrownBy(() -> service.create(req, ADMIN_ID))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("邮箱格式不正确");
+        verify(userMapper, never()).insert(any(SysUser.class));
     }
 
     @Test

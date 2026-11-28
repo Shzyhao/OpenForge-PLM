@@ -32,6 +32,8 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     public static final String HEADER_USERNAME = "X-Username";
     public static final String HEADER_DISPLAY_NAME = "X-Display-Name";
     public static final String HEADER_USER_TENANT = "X-User-Tenant";
+    /** 服务间内部令牌头：仅限不经网关的直连调用，网关入口一律剥除（十轮 F2 实纱：认证用户可携默认令牌触达内部端点） */
+    public static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
 
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -66,13 +68,14 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             return unauthorized(exchange, "令牌无效或已过期");
         }
 
-        // 清除外部同名头后注入信任头，防止下游被伪造
+        // 清除外部同名头后注入信任头，防止下游被伪造；内部令牌头一并剥除
         ServerHttpRequest request = exchange.getRequest().mutate()
                 .headers(headers -> {
                     headers.remove(HEADER_USER_ID);
                     headers.remove(HEADER_USERNAME);
                     headers.remove(HEADER_DISPLAY_NAME);
                     headers.remove(HEADER_USER_TENANT);
+                    headers.remove(INTERNAL_TOKEN_HEADER);
                 })
                 .header(HEADER_USER_ID, String.valueOf(claims.get("uid", Long.class)))
                 .header(HEADER_USERNAME, claims.getSubject())

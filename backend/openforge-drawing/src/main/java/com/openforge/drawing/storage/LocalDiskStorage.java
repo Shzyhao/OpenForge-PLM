@@ -1,0 +1,70 @@
+package com.openforge.drawing.storage;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.UUID;
+
+/** 本地磁盘存储（M2）：按日期目录 + UUID 文件名落盘，元数据在 drw_drawing_file 表。
+ *  bean 名显式区分（doc 域同名类在 mono 单 classpath 下冲突，先例同 docNumberClient）。 */
+@Component("drawingLocalDiskStorage")
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "openforge.drawing.storage", havingValue = "local", matchIfMissing = true)  // v1.25：minio 切换
+public class LocalDiskStorage implements StorageClient {
+
+    private final Path baseDir;
+
+    public LocalDiskStorage(@Value("${openforge.drawing.storage-dir:./data/drawing-files}") String storageDir) throws IOException {
+        // toAbsolutePath+normalize：删除路径防逃逸的 startsWith 判断要求两端同基准（相对路径下 "." 段会导致误判）
+        this.baseDir = Path.of(storageDir).toAbsolutePath().normalize();
+        Files.createDirectories(baseDir);
+    }
+
+    @Override
+    public String save(String fileName, InputStream content) throws Exception {
+        String ext = "";
+        int dot = fileName == null ? -1 : fileName.lastIndexOf('.');
+        if (dot >= 0) {
+            ext = fileName.substring(dot);
+        }
+        // 租户前缀目录隔离（架构文档 7.3：文件按租户隔离；未来 MinIO 实现沿用同 key 约定）
+        String storageKey = "tenant/" + com.openforge.common.tenant.TenantContext.getTenantId()
+                + "/" + java.time.LocalDate.now() + "/" + UUID.randomUUID() + ext;
+        Path target = baseDir.resolve(storageKey);
+        Files.createDirectories(target.getParent());
+        Files.copy(content, target, StandardCopyOption.REPLACE_EXISTING);
+        return storageKey;
+    }
+
+    @Override
+    public InputStream load(String storageKey) throws Exception {
+        return Files.newInputStream(baseDir.resolve(storageKey));
+    }
+
+    @Override
+    public void delete(String storageKey) throws Exception {
+        java.nio.file.Path target = baseDir.resolve(storageKey).toAbsolutePath().normalize();
+        // 存储键虽为系统生成，彻底删除入口仍按根目录约束防目录逃逸
+        if (!target.startsWith(baseDir)) {
+            throw new IllegalArgumentException("非法存储键: " + storageKey);
+        }
+        Files.deleteIfExists(target);
+    }
+    @Override
+    public java.util.List<String> listAllKeys() {
+        try (var walk = Files.walk(baseDir)) {
+            // relativize 结果在 Windows 是 '\'，统一回 '/' 与库中 storage_key 可比
+            return walk.filter(Files::isRegularFile)
+                    .map(p -> baseDir.relativize(p.toAbsolutePath().normalize()).toString().replace('\\', '/'))
+                    .toList();
+        } catch (IOException e) {
+            throw new IllegalStateException("存储目录遍历失败: " + e.getMessage(), e);
+        }
+    }
+
+}
